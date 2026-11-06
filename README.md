@@ -1,11 +1,228 @@
-<div align="center">
+# FireLauncher 🔥
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+A high-performance custom home-screen launcher designed specifically for **Amazon Fire TV (Fire OS)**, built in Kotlin using **Jetpack Compose for TV (tv-material)**, **MVVM architecture**, **Preferences DataStore**, and **AndroidX Palette** for dynamic ambient theming.
 
-  <h1>Built with AI Studio</h2>
+---
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 📺 Key Features
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+1. **Dual Leanback & Standard App Scanner**:
+   - Queries both `android.intent.category.LEANBACK_LAUNCHER` and `android.intent.category.LAUNCHER`.
+   - Android 11+ (API 30+) `<queries>` visibility support.
+   - De-duplicates by package name (preferring Leanback entries for 16:9 TV banners).
+   - Excludes self and sorts alphabetically A–Z.
+   - Launches apps with explicit `ComponentName` intents and `FLAG_ACTIVITY_NEW_TASK`.
+2. **Dynamic Ambient Background Gradients**:
+   - Uses AndroidX `Palette` to extract vibrant accent colors from app banners or icons.
+   - Clamps HSV saturation (`0.55`–`0.95`) and value/brightness (`0.50`–`0.88`) to guarantee vivid, legible colors that never become washed-out or near-black.
+   - Animated background gradient dynamically transitions to the focused card's accent color.
+3. **Custom Fire TV D-Pad Focus Behavior**:
+   - 16:9 rounded cards built on `androidx.tv.material3.Surface`.
+   - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
+   - Focus defaults to the first card on application launch.
+4. **Favorites Management via DataStore**:
+   - Long-press OK (D-pad center) on any card to toggle favorite status.
+   - Saved persistently in AndroidX Preferences DataStore.
+   - Favorited cards display a distinctive yellow dot in the upper corner.
+   - Dedicated "Favorites" row dynamically appears whenever non-empty.
+5. **System Shortcuts Row**:
+   - Instant 1-click access to TV system settings: **Wi-Fi**, **Display**, **Sound**, **Bluetooth**, and **All Settings**.
+6. **Live Top Bar, Global Search & City Weather Widget**:
+   - Dedicated **Global Search** button with real-time app filtering by name and package identifier, expandable search bar, and empty search state.
+   - Focusable TV weather widget showing current weather conditions, temperature, condition summary, high/low, and selected city.
+   - City selection modal with D-pad navigation and °F / °C unit toggle.
+   - Selected city and temperature unit persisted in Preferences DataStore.
+   - Live clock honoring 12-hour / 24-hour system preferences, plus formatted date.
+   - Hero header showing the currently focused app's title, category, and contextual action hint (*"Hold OK to add to favorites"* / *"Hold OK to remove from favorites"*).
+7. **TV Overscan & Remote Navigation Safeguards**:
+   - 48dp horizontal margins for TV overscan-safe rendering on any HDMI display.
+   - Hardware Back button is deliberately absorbed and ignored to prevent accidental launcher exit, but gracefully dismisses active search or modal dialogs first.
+   - Pressing the Home key while the launcher is open delivers an intent to `singleTask`'s `onNewIntent`, automatically scrolling to the top and refocusing the primary card.
+   - Automatic app catalog refresh in `onResume()`.
 
-</div>
+---
+
+## 🛠️ Project Setup & Specifications
+
+- **Module**: Single `:app` module
+- **Gradle**: Kotlin DSL (`.kts`) with Gradle 8.9 wrapper
+- **Android Gradle Plugin (AGP)**: `8.5.2`
+- **Kotlin**: `2.0.20` with `org.jetbrains.kotlin.plugin.compose` plugin
+- **Compile SDK**: `34`
+- **Target SDK**: `34`
+- **Min SDK**: `25` (Fire OS 6 / Android 7.1+)
+- **Orientation**: Locked to Landscape
+- **Compose BOM**: `2024.09.03`
+- **TV Material**: `androidx.tv:tv-material:1.0.0`
+- **DataStore**: `androidx.datastore:datastore-preferences:1.1.1`
+- **Palette**: `androidx.palette:palette-ktx:1.0.0`
+- **Coil**: `io.coil-kt:coil-compose:2.7.0`
+- **Offline**: 100% offline, requires no network access and no API keys.
+
+---
+
+## 🚀 How to Build the Project
+
+### Prerequisites
+- JDK 17 (recommended: Azul Zulu 17 or Temurin 17)
+- Android SDK with Platform 34 and Build-Tools 34.0.0 installed
+- Android Studio Ladybug (2024.2+) or command-line Gradle
+
+### Build Debug APK
+```bash
+./gradlew assembleDebug
+```
+The compiled APK will be generated at:
+```
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Build Release APK
+```bash
+./gradlew assembleRelease
+```
+
+---
+
+## 📡 Installing on Amazon Fire TV via ADB
+
+### Step 1: Enable Developer Options & ADB on Fire TV
+1. On your Fire TV, navigate to **Settings** > **My Fire TV** (or **Device & Software**) > **About**.
+2. Highlight your device's name and press the **Select / Center button 7 times** until you see the notification *"No need, you are already a developer."*
+3. Press **Back**, select **Developer Options**.
+4. Turn **ADB Debugging** to **ON**.
+5. Note your Fire TV's IP address by going to **Settings** > **My Fire TV** > **About** > **Network** (e.g., `192.168.1.50`).
+
+### Step 2: Connect over Wi-Fi & Install APK
+Open a terminal on your computer and execute:
+
+```bash
+# Connect to Fire TV over Wi-Fi on port 5555
+adb connect <ip>:5555
+
+# Example:
+# adb connect 192.168.1.50:5555
+```
+*(Accept the "Allow USB/Network debugging?" prompt on your Fire TV screen if it appears).*
+
+Install the debug APK:
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+To launch FireLauncher immediately:
+```bash
+adb shell am start -n com.example.firelauncher/.MainActivity
+```
+
+---
+
+## ⚠️ Important Note Regarding Fire OS Default Launcher Settings
+
+> **Fire OS Limitation**: Amazon Fire OS does **not** provide a native GUI setting or standard Android menu option to change or select the default home launcher.
+>
+> On standard Android TV / Google TV, pressing Home or installing a second launcher prompts the system selector. On Amazon Fire OS, the stock Amazon launcher is hardcoded into `AmazonFireLauncher` / `com.amazon.tv.launcher`.
+
+### Options to Use FireLauncher as Your Primary Screen:
+1. **Remote Button Remapping (Recommended & Safest)**:
+   - Install **Button Mapper** or **Launcher Manager** (via Downloader or ADB).
+   - Remap the Home button single-press or double-press to launch `com.example.firelauncher/.MainActivity`.
+2. **Launch on Boot (Accessibility Service / Boot Receiver)**:
+   - Configure a boot launcher utility to automatically start FireLauncher when the Fire TV finishes starting up.
+3. **Direct Quick-Launch**:
+   - Add FireLauncher to your favorite quick-access app bar on the default Fire TV home screen for 1-click entry into an ad-free, clutter-free leanback interface.
+4. **ADB Package Disabling (Advanced Users Only)**:
+   - On older Fire OS versions (Fire OS 6 and early Fire OS 7), power users disabled the stock package via:
+     ```bash
+     adb shell pm disable-user --user 0 com.amazon.tv.launcher
+     ```
+     *(Note: Amazon has blocked disabling the stock launcher package on newer Fire OS 7 and 8 updates, which makes Button Remapping the preferred modern approach).*
+
+---
+
+## 🛡️ CleanYourTV Integration: Safe Non-Root Debloating
+
+Inspired by [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv), FireLauncher incorporates safe debloating profiles specifically tailored for Amazon Fire OS. By disabling intrusive sponsored ad services and continuous diagnostic telemetry daemons, you recover **~275MB of RAM**, eliminate video autoplay stutters, and ensure snappy D-pad navigation.
+
+### Quick Debloat Commands (100% Safe & Reversible)
+```bash
+# Disable Amazon sponsored home screen banner & video ad engine
+adb shell pm disable-user --user 0 com.amazon.advertising.firetv
+
+# Disable commercial promotional broadcaster & rental deal checks
+adb shell pm disable-user --user 0 com.amazon.device.sale.service
+
+# Disable telemetry, metrics logging, and clickstream analytics
+adb shell pm disable-user --user 0 com.amazon.client.metrics
+
+# Disable crash reporter daemon
+adb shell pm disable-user --user 0 com.amazon.device.crashmanager
+
+# Disable sponsored video ad screensaver
+adb shell pm disable-user --user 0 com.amazon.ftv.screensaver
+```
+
+### Factory Revert Command
+To re-enable all stock packages at any time:
+```bash
+adb shell pm enable com.amazon.advertising.firetv
+adb shell pm enable com.amazon.device.sale.service
+adb shell pm enable com.amazon.client.metrics
+adb shell pm enable com.amazon.device.crashmanager
+adb shell pm enable com.amazon.ftv.screensaver
+```
+
+---
+
+## 📂 Project Structure
+
+```
+FireLauncher/
+├── build.gradle.kts                   # Root build script
+├── settings.gradle.kts                # Project name & repository configuration
+├── gradle.properties                  # JVM & AndroidX optimization flags
+├── gradle/wrapper/
+│   └── gradle-wrapper.properties      # Gradle 8.9 distribution URL
+├── app/
+│   ├── build.gradle.kts               # App module dependencies & SDK 34 config
+│   ├── proguard-rules.pro             # Proguard keep rules
+│   └── src/main/
+│       ├── AndroidManifest.xml        # Leanback & Home intent filters + package queries
+│       ├── res/
+│       │   ├── drawable/
+│       │   │   ├── banner.xml         # 320x180 vector Leanback banner
+│       │   │   ├── ic_launcher_background.xml
+│       │   │   └── ic_launcher_foreground.xml
+│       │   ├── mipmap-anydpi-v26/
+│       │   │   ├── ic_launcher.xml    # Adaptive launcher icon
+│       │   │   └── ic_launcher_round.xml
+│       │   └── values/
+│       │       ├── colors.xml         # Color definitions
+│       │       ├── strings.xml        # Localization strings
+│       │       └── themes.xml         # Fullscreen TV theme
+│       └── java/com/example/firelauncher/
+│           ├── FireLauncherApp.kt     # Application class
+│           ├── MainActivity.kt        # SingleTask TV activity + Home & Back interceptors
+│           ├── data/
+│           │   ├── AppModel.kt        # App data entity
+│           │   ├── AppRepository.kt   # Dual scanner (Leanback + Launcher) & Explicit launcher
+│           │   ├── FavoritesStore.kt  # Preferences DataStore store for favorites
+│           │   └── PaletteHelper.kt   # Palette extractor with HSV saturation/brightness clamping
+│           └── ui/
+│               ├── LauncherViewModel.kt # MVVM StateFlow coordinator
+│               ├── LauncherRoot.kt      # State collector, overscan padding & dynamic gradient
+│               ├── components/
+│               │   ├── AppCard.kt       # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
+│               │   ├── AppRow.kt        # TvLazyRow with category header
+│               │   ├── HeroSection.kt   # App title & hold-OK instructions
+│               │   └── TopBar.kt        # 12h/24h clock, date, and brand header
+│               └── theme/
+│                   ├── Color.kt         # Color palette constants
+│                   └── Theme.kt         # Material3 TV DarkColorScheme
+└── README.md
+```
+
+---
+
+## 📄 License
+Licensed under Apache License 2.0.

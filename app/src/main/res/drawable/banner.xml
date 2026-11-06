@@ -1,0 +1,67 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Background card -->
+    <path
+        android:pathData="M0,0h320v180h-320z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="320"
+                android:endY="180"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF1E1B2E" />
+                <item android:offset="0.5" android:color="#FF151221" />
+                <item android:offset="1.0" android:color="#FF0D0B14" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Flame glow background -->
+    <path
+        android:pathData="M160,90m-70,0a70,70 0,1 1,140 0a70,70 0,1 1,-140 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="160"
+                android:centerY="90"
+                android:gradientRadius="70"
+                android:type="radial">
+                <item android:offset="0.0" android:color="#4DFF6A00" />
+                <item android:offset="1.0" android:color="#00FF6A00" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Fire emblem -->
+    <path
+        android:pathData="M160,45 C155,62 142,75 142,95 C142,118 152,130 160,132 C168,130 178,118 178,95 C178,80 171,68 168,60 C167,70 163,78 158,82 C161,72 163,55 160,45 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="160"
+                android:startY="45"
+                android:endX="160"
+                android:endY="132"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFB703" />
+                <item android:offset="0.6" android:color="#FFFB8500" />
+                <item android:offset="1.0" android:color="#FFD00000" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner hot flame core -->
+    <path
+        android:pathData="M160,88 C156,98 152,106 152,116 C152,126 156,130 160,131 C164,130 168,126 168,116 C168,108 164,101 160,88 Z"
+        android:fillColor="#FFFFF3B0" />
+
+    <!-- Sleek border outline -->
+    <path
+        android:pathData="M1,1h318v178h-318z"
+        android:strokeWidth="1.5"
+        android:strokeColor="#26FFFFFF" />
+</vector>

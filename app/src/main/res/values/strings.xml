@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FireLauncher</string>
+    <string name="row_favorites">Favorites</string>
+    <string name="row_all_apps">All Apps</string>
+    <string name="row_system">System</string>
+    <string name="hint_hold_ok">Hold OK to add to favorites</string>
+    <string name="hint_hold_ok_remove">Hold OK to remove from favorites</string>
+    <string name="shortcut_wifi">Wi-Fi</string>
+    <string name="shortcut_display">Display</string>
+    <string name="shortcut_sound">Sound</string>
+    <string name="shortcut_bluetooth">Bluetooth</string>
+    <string name="shortcut_settings">All Settings</string>
+</resources>
