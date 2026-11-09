@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Thunderstorm
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.WaterDrop
@@ -59,6 +60,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.firelauncher.data.AppSortOrder
 import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.theme.DarkSurface
@@ -90,6 +92,8 @@ fun TopBar(
     onClearCitySearch: () -> Unit,
     onSelectCity: (CityLocationModel) -> Unit,
     onToggleUnit: () -> Unit,
+    sortOrder: AppSortOrder = AppSortOrder.ALPHABETICAL,
+    onSelectSort: (AppSortOrder) -> Unit = {},
     searchQuery: String = "",
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
@@ -102,6 +106,7 @@ fun TopBar(
     var currentTimeString by remember { mutableStateOf(getFormattedTime(context)) }
     var currentDateString by remember { mutableStateOf(getFormattedDate()) }
     var showCityDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -177,11 +182,17 @@ fun TopBar(
                 )
             }
 
-            // Right: Next Wallpaper + Search Trigger Button + Live Clock & Date
+            // Right: Sort Menu + Next Wallpaper + Search Trigger Button + Live Clock & Date
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Dedicated Library Sort by Trigger Button
+                SortTriggerButton(
+                    currentSort = sortOrder,
+                    onClick = { showSortDialog = true }
+                )
+
                 // Next Wallpaper Button
                 WallpaperTriggerButton(
                     onClick = onNextWallpaper,
@@ -232,6 +243,18 @@ fun TopBar(
                     onClearCitySearch()
                     showCityDialog = false
                 }
+            )
+        }
+
+        // App Library Sort By Selection Dialog
+        if (showSortDialog) {
+            SortSelectionDialog(
+                currentSort = sortOrder,
+                onSelectSort = { order ->
+                    onSelectSort(order)
+                    showSortDialog = false
+                },
+                onDismiss = { showSortDialog = false }
             )
         }
     }
@@ -832,6 +855,272 @@ fun CitySelectionDialog(
                                             color = TextSecondary
                                         )
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Focusable TV-Material button in the top bar to toggle/select library sort order.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun SortTriggerButton(
+    currentSort: AppSortOrder,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(20.dp)
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(40.dp),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.10f),
+        border = ClickableSurfaceDefaults.border(
+            border = Border(
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                shape = shape
+            ),
+            focusedBorder = Border(
+                border = BorderStroke(2.dp, Color.White),
+                shape = shape
+            )
+        ),
+        glow = ClickableSurfaceDefaults.glow(
+            focusedGlow = Glow(
+                elevationColor = FireAmber.copy(alpha = 0.7f),
+                elevation = 14.dp
+            )
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = DarkSurface.copy(alpha = 0.85f),
+            focusedContainerColor = DarkSurfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = Icons.Rounded.Sort,
+                contentDescription = "Sort library",
+                tint = FireAmber,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = when (currentSort) {
+                    AppSortOrder.ALPHABETICAL -> "Sort: A–Z"
+                    AppSortOrder.MOST_RECENT -> "Sort: Recent"
+                    AppSortOrder.MOST_FREQUENT -> "Sort: Frequent"
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+        }
+    }
+}
+
+/**
+ * TV Leanback modal dialog allowing users to choose between:
+ * 1. Alphabetical (A–Z)
+ * 2. Most Recently Used
+ * 3. Most Frequently Used
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun SortSelectionDialog(
+    currentSort: AppSortOrder,
+    onSelectSort: (AppSortOrder) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val options = listOf(
+        Triple(
+            AppSortOrder.ALPHABETICAL,
+            "Alphabetical (A–Z)",
+            "Standard alphabetical order by application name"
+        ),
+        Triple(
+            AppSortOrder.MOST_RECENT,
+            "Most Recently Used",
+            "Applications you opened most recently appear first"
+        ),
+        Triple(
+            AppSortOrder.MOST_FREQUENT,
+            "Most Frequently Used",
+            "Applications you launch most often appear first"
+        )
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xCC080B11))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            onClick = {},
+            modifier = Modifier
+                .width(480.dp)
+                .clickable(enabled = false) {},
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
+            border = ClickableSurfaceDefaults.border(
+                Border(
+                    border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(20.dp)
+                )
+            ),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color(0xF0131722)
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(FireOrange.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Rounded.Sort,
+                                contentDescription = null,
+                                tint = FireOrange,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Sort App Library",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Select order for All Apps row",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp),
+                        shape = ClickableSurfaceDefaults.shape(CircleShape),
+                        border = ClickableSurfaceDefaults.border(
+                            focusedBorder = Border(
+                                border = BorderStroke(1.5.dp, Color.White),
+                                shape = CircleShape
+                            )
+                        ),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = Color.White.copy(alpha = 0.08f),
+                            focusedContainerColor = Color.White.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Options List
+                options.forEach { (order, label, desc) ->
+                    val isSelected = order == currentSort
+                    Surface(
+                        onClick = { onSelectSort(order) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+                        border = ClickableSurfaceDefaults.border(
+                            border = Border(
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) FireAmber.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.08f)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                            focusedBorder = Border(
+                                border = BorderStroke(2.dp, Color.White),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        ),
+                        glow = ClickableSurfaceDefaults.glow(
+                            focusedGlow = Glow(
+                                elevationColor = FireOrange.copy(alpha = 0.5f),
+                                elevation = 10.dp
+                            )
+                        ),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = if (isSelected) FireAmber.copy(alpha = 0.12f) else DarkSurface,
+                            focusedContainerColor = DarkSurfaceVariant
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = label,
+                                    fontSize = 15.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = if (isSelected) FireAmber else TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = desc,
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(FireAmber),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "Selected",
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }

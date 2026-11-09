@@ -24,7 +24,9 @@ import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,11 +46,13 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.firelauncher.data.AppModel
+import com.example.firelauncher.data.AppSortOrder
 import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WallpaperModel
 import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.components.AppRow
 import com.example.firelauncher.ui.components.HeroSection
+import com.example.firelauncher.ui.components.SortSelectionDialog
 import com.example.firelauncher.ui.components.TopBar
 import com.example.firelauncher.ui.theme.DarkBackground
 import com.example.firelauncher.ui.theme.FireAmber
@@ -86,6 +90,7 @@ fun LauncherRoot(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearchingCities by viewModel.isSearchingCities.collectAsStateWithLifecycle()
     val currentWallpaper by viewModel.currentWallpaper.collectAsStateWithLifecycle()
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filteredApps by viewModel.filteredApps.collectAsStateWithLifecycle()
 
@@ -101,6 +106,7 @@ fun LauncherRoot(
         searchResults = searchResults,
         isSearchingCities = isSearchingCities,
         currentWallpaper = currentWallpaper,
+        sortOrder = sortOrder,
         searchQuery = searchQuery,
         isSearchActive = isSearchActive,
         filteredApps = filteredApps,
@@ -109,6 +115,7 @@ fun LauncherRoot(
         onSelectCity = { viewModel.selectCity(it) },
         onToggleUnit = { viewModel.toggleTemperatureUnit() },
         onNextWallpaper = { viewModel.nextWallpaper() },
+        onSelectSort = { viewModel.setSortOrder(it) },
         onSearchQueryChange = { viewModel.setSearchQuery(it) },
         onToggleSearch = { viewModel.setSearchActive(it) },
         onAppFocused = { viewModel.setFocusedApp(it) },
@@ -135,6 +142,7 @@ fun LauncherContent(
     searchResults: List<CityLocationModel>,
     isSearchingCities: Boolean,
     currentWallpaper: WallpaperModel?,
+    sortOrder: AppSortOrder,
     searchQuery: String,
     isSearchActive: Boolean,
     filteredApps: List<AppModel>,
@@ -143,6 +151,7 @@ fun LauncherContent(
     onSelectCity: (CityLocationModel) -> Unit,
     onToggleUnit: () -> Unit,
     onNextWallpaper: () -> Unit,
+    onSelectSort: (AppSortOrder) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: (Boolean) -> Unit,
     onAppFocused: (AppModel) -> Unit,
@@ -152,6 +161,7 @@ fun LauncherContent(
 ) {
     val columnState = rememberTvLazyListState()
     val firstItemFocusRequester = remember { FocusRequester() }
+    var showRowSortDialog by remember { mutableStateOf(false) }
 
     // Smooth background gradient transition to the focused app's clamped accent color
     val targetAccentColor = focusedApp?.let { Color(it.accentColor) } ?: FireOrange
@@ -210,17 +220,17 @@ fun LauncherContent(
             }
         }
 
-        // Layer 2: TV Ambient Dark Vignette & Gradient (Guarantees card & typography readability)
+        // Layer 2: TV Ambient Subtle Vignette & Scrim (Keeps 4K wallpaper highly visible while protecting text)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0x990A0D14),
-                            Color(0xB30F1117),
-                            Color(0xEB0F1117),
-                            Color(0xFF0F1117)
+                            Color(0x550A0D14), // 33% top scrim for top bar text
+                            Color(0x220A0D14), // 13% middle (wallpaper pops vibrantly)
+                            Color(0x400A0D14), // 25% lower area
+                            Color(0x770A0D14)  // 46% bottom scrim behind cards
                         ),
                         startY = 0f,
                         endY = 1000f
@@ -235,8 +245,8 @@ fun LauncherContent(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            animatedAccentColor.copy(alpha = 0.32f),
-                            animatedAccentColor.copy(alpha = 0.08f),
+                            animatedAccentColor.copy(alpha = 0.20f),
+                            animatedAccentColor.copy(alpha = 0.05f),
                             Color.Transparent
                         ),
                         radius = 1200f
@@ -251,7 +261,7 @@ fun LauncherContent(
                 .padding(horizontal = 48.dp) // 48dp TV overscan safe padding
                 .padding(top = 26.dp, bottom = 20.dp)
         ) {
-            // Top bar: App name, Live Open-Meteo Weather with Search, Next Wallpaper & live clock/date
+            // Top bar: App name, Live Open-Meteo Weather with Search, Sort by Menu, Next Wallpaper & live clock/date
             TopBar(
                 weather = weather,
                 savedCities = savedCities,
@@ -261,6 +271,8 @@ fun LauncherContent(
                 onClearCitySearch = onClearCitySearch,
                 onSelectCity = onSelectCity,
                 onToggleUnit = onToggleUnit,
+                sortOrder = sortOrder,
+                onSelectSort = onSelectSort,
                 searchQuery = searchQuery,
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
@@ -382,12 +394,14 @@ fun LauncherContent(
                         }
                     }
 
-                    // Row 2: All Apps (alphabetical)
+                    // Row 2: All Apps (with sort by menu trigger)
                     item(key = "row_all_apps") {
                         AppRow(
                             title = "All Apps",
                             apps = apps,
                             favorites = favorites,
+                            sortOrder = sortOrder,
+                            onOpenSortMenu = { showRowSortDialog = true },
                             firstItemFocusRequester = if (favoriteApps.isEmpty()) firstItemFocusRequester else null,
                             onAppFocused = onAppFocused,
                             onAppClicked = onAppClicked,
@@ -413,6 +427,18 @@ fun LauncherContent(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
+        }
+
+        // App Library Sort By Dialog when opened from the row header
+        if (showRowSortDialog) {
+            SortSelectionDialog(
+                currentSort = sortOrder,
+                onSelectSort = { order ->
+                    onSelectSort(order)
+                    showRowSortDialog = false
+                },
+                onDismiss = { showRowSortDialog = false }
+            )
         }
     }
 }

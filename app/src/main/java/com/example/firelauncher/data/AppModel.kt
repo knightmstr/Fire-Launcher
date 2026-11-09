@@ -13,7 +13,9 @@ data class AppModel(
     val banner: Drawable? = null,
     val accentColor: Int = 0xFFFF9900.toInt(),
     val isSystemShortcut: Boolean = false,
-    val systemIntentAction: String? = null
+    val systemIntentAction: String? = null,
+    val launchCount: Int = 0,
+    val lastLaunchedTimeMs: Long = 0L
 ) {
     val uniqueKey: String
         get() = if (isSystemShortcut) "sys:${systemIntentAction ?: label}" else packageName

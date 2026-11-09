@@ -10,7 +10,11 @@ export interface SimulatedApp {
   isSystemShortcut?: boolean;
   systemAction?: string;
   description: string;
+  launchCount?: number;
+  lastLaunchedAt?: number;
 }
+
+export type AppSortOrder = 'alphabetical' | 'recent' | 'frequent';
 
 export interface ProjectFile {
   path: string;

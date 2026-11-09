@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.firelauncher.data.AppModel
 import com.example.firelauncher.data.AppRepository
+import com.example.firelauncher.data.AppSortOrder
+import com.example.firelauncher.data.AppUsageStat
 import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.FavoritesStore
 import com.example.firelauncher.data.WallpaperModel
@@ -24,7 +26,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Main ViewModel for FireLauncher adhering to MVVM architecture.
- * Exposes StateFlows for apps, favorites, system shortcuts, home-button tick events,
+ * Exposes StateFlows for apps, sort order, favorites, system shortcuts, home-button tick events,
  * periodic r/TVWallpapersSFW wallpapers (changing every 30 mins), and accurate live Open-Meteo weather with city search.
  */
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -34,8 +36,37 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val wallpaperRepository = WallpaperRepository(application, viewModelScope)
     private val weatherRepository = WeatherRepository()
 
-    private val _apps = MutableStateFlow<List<AppModel>>(emptyList())
-    val apps: StateFlow<List<AppModel>> = _apps.asStateFlow()
+    // App Library Sorting Order & Usage Tracking
+    val sortOrder: StateFlow<AppSortOrder> = favoritesStore.sortOrderFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppSortOrder.ALPHABETICAL)
+
+    val appUsageStats: StateFlow<Map<String, AppUsageStat>> = favoritesStore.appUsageStatsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private val _rawApps = MutableStateFlow<List<AppModel>>(emptyList())
+
+    // Dynamically sorted app library based on selected sort order (A-Z, Most Recent, Most Frequent)
+    val apps: StateFlow<List<AppModel>> = combine(_rawApps, sortOrder, appUsageStats) { rawList, order, statsMap ->
+        val enriched = rawList.map { app ->
+            val stat = statsMap[app.packageName]
+            if (stat != null) {
+                app.copy(launchCount = stat.launchCount, lastLaunchedTimeMs = stat.lastLaunchedTimeMs)
+            } else {
+                app
+            }
+        }
+        when (order) {
+            AppSortOrder.ALPHABETICAL -> enriched.sortedBy { it.label.lowercase() }
+            AppSortOrder.MOST_RECENT -> enriched.sortedWith(
+                compareByDescending<AppModel> { it.lastLaunchedTimeMs }
+                    .thenBy { it.label.lowercase() }
+            )
+            AppSortOrder.MOST_FREQUENT -> enriched.sortedWith(
+                compareByDescending<AppModel> { it.launchCount }
+                    .thenBy { it.label.lowercase() }
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val favorites: StateFlow<Set<String>> = favoritesStore.favoritesFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
@@ -133,7 +164,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun refreshApps() {
         viewModelScope.launch {
             val list = repository.getInstalledApps()
-            _apps.value = list
+            _rawApps.value = list
             if (_focusedApp.value == null && list.isNotEmpty()) {
                 _focusedApp.value = list.first()
             }
@@ -238,7 +269,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _searchQuery.value = ""
     }
 
+    /**
+     * Changes the application library sort order and persists it in DataStore.
+     */
+    fun setSortOrder(order: AppSortOrder) {
+        viewModelScope.launch {
+            favoritesStore.setSortOrder(order)
+        }
+    }
+
     fun launchApp(app: AppModel): Boolean {
+        if (!app.isSystemShortcut) {
+            viewModelScope.launch {
+                favoritesStore.recordAppLaunch(app.packageName)
+            }
+        }
         return repository.launchApp(app)
     }
 }

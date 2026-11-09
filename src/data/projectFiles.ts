@@ -395,11 +395,53 @@ dependencies {
 `
   },
   {
+    path: 'app/src/main/java/com/example/firelauncher/data/AppSortOrder.kt',
+    name: 'AppSortOrder.kt',
+    language: 'kotlin',
+    category: 'kotlin',
+    description: 'Enum and data models for Alphabetical, Most Recently Used, and Most Frequently Used app library sorting',
+    content: `package com.example.firelauncher.data
+
+/**
+ * Sort order options for the Fire TV application library.
+ */
+enum class AppSortOrder(val title: String, val subtitle: String) {
+    ALPHABETICAL(
+        title = "Alphabetical (A–Z)",
+        subtitle = "Standard alphabetical order by application name"
+    ),
+    MOST_RECENT(
+        title = "Most Recently Used",
+        subtitle = "Applications opened most recently appear first"
+    ),
+    MOST_FREQUENT(
+        title = "Most Frequently Used",
+        subtitle = "Applications you launch most often appear first"
+    );
+
+    companion object {
+        fun fromName(name: String?): AppSortOrder {
+            return entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: ALPHABETICAL
+        }
+    }
+}
+
+/**
+ * Usage metrics tracked per application package to power Recents and Frequent sorting.
+ */
+data class AppUsageStat(
+    val packageName: String,
+    val launchCount: Int = 0,
+    val lastLaunchedTimeMs: Long = 0L
+)
+`
+  },
+  {
     path: 'app/src/main/java/com/example/firelauncher/data/AppModel.kt',
     name: 'AppModel.kt',
     language: 'kotlin',
     category: 'kotlin',
-    description: 'Data model representing installed Leanback/standard apps and system shortcuts',
+    description: 'Data model representing installed Leanback/standard apps and system shortcuts with launch usage stats',
     content: `package com.example.firelauncher.data
 
 import android.graphics.drawable.Drawable
@@ -415,7 +457,9 @@ data class AppModel(
     val banner: Drawable? = null,
     val accentColor: Int = 0xFFFF9900.toInt(),
     val isSystemShortcut: Boolean = false,
-    val systemIntentAction: String? = null
+    val systemIntentAction: String? = null,
+    val launchCount: Int = 0,
+    val lastLaunchedTimeMs: Long = 0L
 ) {
     val uniqueKey: String
         get() = if (isSystemShortcut) "sys:\${systemIntentAction ?: label}" else packageName
@@ -1745,6 +1789,8 @@ fun TopBar(
     onClearCitySearch: () -> Unit,
     onSelectCity: (CityLocationModel) -> Unit,
     onToggleUnit: () -> Unit,
+    sortOrder: AppSortOrder = AppSortOrder.ALPHABETICAL,
+    onSelectSort: (AppSortOrder) -> Unit = {},
     searchQuery: String = "",
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
@@ -1757,6 +1803,7 @@ fun TopBar(
     var currentTimeString by remember { mutableStateOf(getFormattedTime(context)) }
     var currentDateString by remember { mutableStateOf(getFormattedDate()) }
     var showCityDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -1830,8 +1877,13 @@ fun TopBar(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                SortTriggerButton(
+                    currentSort = sortOrder,
+                    onClick = { showSortDialog = true }
+                )
+
                 WallpaperTriggerButton(
                     onClick = onNextWallpaper,
                     title = "Change Wallpaper (30m auto)"
@@ -1878,6 +1930,17 @@ fun TopBar(
                     onClearCitySearch()
                     showCityDialog = false
                 }
+            )
+        }
+
+        if (showSortDialog) {
+            SortSelectionDialog(
+                currentSort = sortOrder,
+                onSelectSort = { order ->
+                    onSelectSort(order)
+                    showSortDialog = false
+                },
+                onDismiss = { showSortDialog = false }
             )
         }
     }
@@ -2795,7 +2858,7 @@ private fun IconFallbackContent(
     name: 'LauncherRoot.kt',
     language: 'kotlin',
     category: 'kotlin',
-    description: 'Dynamic background gradient, r/TVWallpapersSFW crossfade, 48dp overscan padding, city search, and Home scroll-to-top handler',
+    description: 'Dynamic background gradient, r/TVWallpapersSFW crossfade, 48dp overscan padding, city search, sort by menu, and Home scroll-to-top handler',
     content: `package com.example.firelauncher.ui
 
 import androidx.activity.compose.BackHandler
@@ -2822,7 +2885,9 @@ import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -2842,11 +2907,13 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.firelauncher.data.AppModel
+import com.example.firelauncher.data.AppSortOrder
 import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WallpaperModel
 import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.components.AppRow
 import com.example.firelauncher.ui.components.HeroSection
+import com.example.firelauncher.ui.components.SortSelectionDialog
 import com.example.firelauncher.ui.components.TopBar
 import com.example.firelauncher.ui.theme.DarkBackground
 import com.example.firelauncher.ui.theme.FireAmber
@@ -2884,6 +2951,7 @@ fun LauncherRoot(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearchingCities by viewModel.isSearchingCities.collectAsStateWithLifecycle()
     val currentWallpaper by viewModel.currentWallpaper.collectAsStateWithLifecycle()
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filteredApps by viewModel.filteredApps.collectAsStateWithLifecycle()
 
@@ -2899,6 +2967,7 @@ fun LauncherRoot(
         searchResults = searchResults,
         isSearchingCities = isSearchingCities,
         currentWallpaper = currentWallpaper,
+        sortOrder = sortOrder,
         searchQuery = searchQuery,
         isSearchActive = isSearchActive,
         filteredApps = filteredApps,
@@ -2907,6 +2976,7 @@ fun LauncherRoot(
         onSelectCity = { viewModel.selectCity(it) },
         onToggleUnit = { viewModel.toggleTemperatureUnit() },
         onNextWallpaper = { viewModel.nextWallpaper() },
+        onSelectSort = { viewModel.setSortOrder(it) },
         onSearchQueryChange = { viewModel.setSearchQuery(it) },
         onToggleSearch = { viewModel.setSearchActive(it) },
         onAppFocused = { viewModel.setFocusedApp(it) },
@@ -2933,6 +3003,7 @@ fun LauncherContent(
     searchResults: List<CityLocationModel>,
     isSearchingCities: Boolean,
     currentWallpaper: WallpaperModel?,
+    sortOrder: AppSortOrder,
     searchQuery: String,
     isSearchActive: Boolean,
     filteredApps: List<AppModel>,
@@ -2941,6 +3012,7 @@ fun LauncherContent(
     onSelectCity: (CityLocationModel) -> Unit,
     onToggleUnit: () -> Unit,
     onNextWallpaper: () -> Unit,
+    onSelectSort: (AppSortOrder) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: (Boolean) -> Unit,
     onAppFocused: (AppModel) -> Unit,
@@ -2950,6 +3022,7 @@ fun LauncherContent(
 ) {
     val columnState = rememberTvLazyListState()
     val firstItemFocusRequester = remember { FocusRequester() }
+    var showRowSortDialog by remember { mutableStateOf(false) }
 
     // Smooth background gradient transition to the focused app's clamped accent color
     val targetAccentColor = focusedApp?.let { Color(it.accentColor) } ?: FireOrange
@@ -3008,17 +3081,17 @@ fun LauncherContent(
             }
         }
 
-        // Layer 2: TV Ambient Dark Vignette & Gradient (Guarantees card & typography readability)
+        // Layer 2: TV Ambient Subtle Vignette & Scrim (Keeps 4K wallpaper highly visible while protecting text)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0x990A0D14),
-                            Color(0xB30F1117),
-                            Color(0xEB0F1117),
-                            Color(0xFF0F1117)
+                            Color(0x550A0D14), // 33% top scrim for top bar text
+                            Color(0x220A0D14), // 13% middle (wallpaper pops vibrantly)
+                            Color(0x400A0D14), // 25% lower area
+                            Color(0x770A0D14)  // 46% bottom scrim behind cards
                         ),
                         startY = 0f,
                         endY = 1000f
@@ -3033,8 +3106,8 @@ fun LauncherContent(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            animatedAccentColor.copy(alpha = 0.32f),
-                            animatedAccentColor.copy(alpha = 0.08f),
+                            animatedAccentColor.copy(alpha = 0.20f),
+                            animatedAccentColor.copy(alpha = 0.05f),
                             Color.Transparent
                         ),
                         radius = 1200f
@@ -3049,7 +3122,7 @@ fun LauncherContent(
                 .padding(horizontal = 48.dp) // 48dp TV overscan safe padding
                 .padding(top = 26.dp, bottom = 20.dp)
         ) {
-            // Top bar: App name, Live Open-Meteo Weather with Search, Next Wallpaper & live clock/date
+            // Top bar: App name, Live Open-Meteo Weather with Search, Sort by Menu, Next Wallpaper & live clock/date
             TopBar(
                 weather = weather,
                 savedCities = savedCities,
@@ -3059,6 +3132,8 @@ fun LauncherContent(
                 onClearCitySearch = onClearCitySearch,
                 onSelectCity = onSelectCity,
                 onToggleUnit = onToggleUnit,
+                sortOrder = sortOrder,
+                onSelectSort = onSelectSort,
                 searchQuery = searchQuery,
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
@@ -3180,12 +3255,14 @@ fun LauncherContent(
                         }
                     }
 
-                    // Row 2: All Apps (alphabetical)
+                    // Row 2: All Apps (with sort by menu trigger)
                     item(key = "row_all_apps") {
                         AppRow(
                             title = "All Apps",
                             apps = apps,
                             favorites = favorites,
+                            sortOrder = sortOrder,
+                            onOpenSortMenu = { showRowSortDialog = true },
                             firstItemFocusRequester = if (favoriteApps.isEmpty()) firstItemFocusRequester else null,
                             onAppFocused = onAppFocused,
                             onAppClicked = onAppClicked,
@@ -3211,6 +3288,18 @@ fun LauncherContent(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
+        }
+
+        // App Library Sort By Dialog when opened from the row header
+        if (showRowSortDialog) {
+            SortSelectionDialog(
+                currentSort = sortOrder,
+                onSelectSort = { order ->
+                    onSelectSort(order)
+                    showRowSortDialog = false
+                },
+                onDismiss = { showRowSortDialog = false }
+            )
         }
     }
 }
@@ -3325,13 +3414,14 @@ class MainActivity : ComponentActivity() {
     name: 'README.md',
     language: 'markdown',
     category: 'docs',
-    description: 'Documentation: r/TVWallpapersSFW 30m auto rotation, Open-Meteo live weather with city search, ADB wireless connect, app-debug.apk installation, and Fire OS launcher note',
+    description: 'Documentation: Sort by menu (A-Z/Recent/Frequent), vivid r/TVWallpapersSFW 30m auto rotation, Open-Meteo live weather, ADB wireless connect, and Fire OS launcher setup',
     content: `# FireLauncher 🔥
 
 A high-performance custom home-screen launcher designed specifically for **Amazon Fire TV (Fire OS)**, built in Kotlin using **Jetpack Compose for TV (tv-material)**, **MVVM architecture**, **Preferences DataStore**, and **AndroidX Palette** for dynamic ambient theming.
 
 ## Key Highlights
-- **r/TVWallpapersSFW Backgrounds**: Dynamic 16:9 TV wallpapers fetched directly from Reddit r/TVWallpapersSFW, auto-rotating every 30 minutes with smooth crossfade and ambient dark vignette.
+- **Library 'Sort By' Menu**: Toggle between Alphabetical (A–Z), Most Recently Used (MRU with relative time badges), and Most Frequently Used (MFU with launch counts) via Top Bar and All Apps row header.
+- **Vivid r/TVWallpapersSFW Backgrounds**: Dynamic 16:9 TV wallpapers fetched directly from Reddit r/TVWallpapersSFW, auto-rotating every 30 minutes with smooth crossfade and clear, high-contrast glass scrim.
 - **Accurate Live Weather (Open-Meteo)**: Zero API keys required. Live temperature, condition summary, high/low, humidity, and wind speed. Includes global geocoding search to search and add any city.
 - **Global App Search**: Search icon in top bar with instant real-time app filtering and empty search state.
 - **D-Pad Focus & Palette Glow**: 16:9 rounded cards that scale to 1.12x on focus, with 2dp white border and dynamic Palette accent glow.

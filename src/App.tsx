@@ -208,18 +208,21 @@ export default function App() {
                   <strong>Toggle Fav:</strong> Hold Enter (or Hold Remote OK)
                 </span>
               </div>
-              <div className="flex items-center space-x-4 text-[11px]">
+              <div className="flex items-center space-x-3 text-[11px]">
+                <span className="text-amber-300 font-semibold">
+                  <strong>S:</strong> Sort Library
+                </span>
                 <span>
-                  <strong>W:</strong> Next Wallpaper (r/TVWallpapersSFW)
+                  <strong>W:</strong> Wallpaper
                 </span>
                 <span>
                   <strong>/:</strong> Search Apps
                 </span>
                 <span>
-                  <strong>H:</strong> Home (Scroll to Top)
+                  <strong>H:</strong> Home
                 </span>
                 <span>
-                  <strong>Esc:</strong> Back (Ignored on TV)
+                  <strong>Esc:</strong> Back
                 </span>
               </div>
             </div>

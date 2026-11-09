@@ -27,28 +27,35 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - Dedicated "Favorites" row dynamically appears whenever non-empty.
 5. **System Shortcuts Row**:
    - Instant 1-click access to TV system settings: **Wi-Fi**, **Display**, **Sound**, **Bluetooth**, and **All Settings**.
-6. **Dynamic r/TVWallpapersSFW Homepage Wallpapers (30-min Auto-Rotation)**:
+6. **Dynamic r/TVWallpapersSFW Homepage Wallpapers & Vivid Glass Scrim**:
    - Fetches authentic 16:9 high-resolution landscape TV wallpapers directly from `r/TVWallpapersSFW`.
    - Rotates automatically every **30 minutes** with smooth Coil image crossfading.
+   - **Enhanced Wallpaper Visibility**: Replaced heavy opaque masks with an ultra-clear, translucent glass scrim (12%–52% gradient). Wallpapers are now bright, vivid, and cinematic across the entire screen while maintaining 100% text/card legibility with subtle drop shadows.
    - Includes a discreet top-right attribution chip showing the wallpaper title and source subreddit.
    - Top bar "Next Wallpaper" button (or `W` key in simulator) allows manual instant cycling.
-   - Multi-layer TV ambient vignette (vertical and radial gradient) guarantees cards, text, and icons maintain 100% contrast over any bright wallpaper.
    - Built-in curated 4K fallback wallpapers ensure seamless operation even offline or in network-restricted environments.
-7. **Accurate Live Weather with Global City Search (Open-Meteo API)**:
+7. **Library 'Sort By' Menu (A–Z, Most Recent, Most Frequent)**:
+   - Dynamic sorting modal dialog accessible from the Top Bar ("Sort" button / `S` key) and directly on the "All Apps" row header (`Sorted by: ... ▾`).
+   - Three distinct sort orders:
+     - **Alphabetical (A–Z)**: Classic alphabetical ordering by application title.
+     - **Most Recently Used (MRU)**: Orders apps by latest launch timestamp, showing friendly relative time badges (e.g. *"5m ago"*, *"2h ago"*).
+     - **Most Frequently Used (MFU)**: Orders apps by total launch frequency, showing play count badges (e.g. *"24×"*).
+   - Tracks app launches and saves sorting preferences persistently in Preferences DataStore (`KEY_APP_SORT_ORDER` and `KEY_APP_USAGE_STATS`).
+8. **Accurate Live Weather with Global City Search (Open-Meteo API)**:
    - Replaces mock weather with real-time meteorological forecasts powered by **Open-Meteo** (free, no API key required, WMO weather standards).
    - Shows live temperature, weather condition icon/summary, high/low, humidity %, and wind speed.
    - **Global City Search Modal**: Users can search for any city in the world using Open-Meteo Geocoding, view region/country, and add it with one click.
    - Custom cities are saved persistently in AndroidX Preferences DataStore.
    - Quick toggle between **Fahrenheit (°F)** and **Celsius (°C)**.
-8. **Top Bar, Global App Search & Live Clock**:
+9. **Top Bar, Global App Search & Live Clock**:
    - Dedicated **Global Search** button with real-time app filtering by name and package identifier, expandable search bar, and empty search state.
    - Live clock honoring 12-hour / 24-hour system preferences, plus formatted date.
    - Hero header showing the currently focused app's title, category, and contextual action hint (*"Hold OK to add to favorites"* / *"Hold OK to remove from favorites"*).
-9. **TV Overscan & Remote Navigation Safeguards**:
-   - 48dp horizontal margins for TV overscan-safe rendering on any HDMI display.
-   - Hardware Back button is deliberately absorbed and ignored to prevent accidental launcher exit, but gracefully dismisses active search or modal dialogs first.
-   - Pressing the Home key while the launcher is open delivers an intent to `singleTask`'s `onNewIntent`, automatically scrolling to the top and refocusing the primary card.
-   - Automatic app catalog refresh in `onResume()`.
+10. **TV Overscan & Remote Navigation Safeguards**:
+    - 48dp horizontal margins for TV overscan-safe rendering on any HDMI display.
+    - Hardware Back button is deliberately absorbed and ignored to prevent accidental launcher exit, but gracefully dismisses active search or modal dialogs first.
+    - Pressing the Home key while the launcher is open delivers an intent to `singleTask`'s `onNewIntent`, automatically scrolling to the top and refocusing the primary card.
+    - Automatic app catalog refresh in `onResume()`.
 
 ---
 
@@ -214,9 +221,10 @@ FireLauncher/
 │           ├── FireLauncherApp.kt     # Application class
 │           ├── MainActivity.kt        # SingleTask TV activity + Home & Back interceptors
 │           ├── data/
-│           │   ├── AppModel.kt            # App data entity
+│           │   ├── AppModel.kt            # App data entity with launch stats
 │           │   ├── AppRepository.kt       # Dual scanner (Leanback + Launcher) & Explicit launcher
-│           │   ├── FavoritesStore.kt      # Preferences DataStore store for favorites & saved cities
+│           │   ├── AppSortOrder.kt        # AppSortOrder enum (A-Z, Recent, Frequent) & AppUsageStat
+│           │   ├── FavoritesStore.kt      # Preferences DataStore store for favorites, sort order & usage stats
 │           │   ├── PaletteHelper.kt       # Palette extractor with HSV saturation/brightness clamping
 │           │   ├── WallpaperModel.kt      # r/TVWallpapersSFW data entity
 │           │   ├── WallpaperRepository.kt # Subreddit fetcher, 30-min auto-rotation & curated fallbacks

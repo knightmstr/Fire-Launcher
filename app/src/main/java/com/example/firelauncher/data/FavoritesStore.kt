@@ -30,6 +30,8 @@ class FavoritesStore(private val context: Context) {
         private val KEY_WEATHER_LON = doublePreferencesKey("weather_selected_lon")
         private val KEY_WEATHER_CELSIUS = booleanPreferencesKey("weather_is_celsius")
         private val KEY_SAVED_CITIES = stringSetPreferencesKey("weather_saved_cities_set")
+        private val KEY_APP_SORT_ORDER = stringPreferencesKey("app_sort_order")
+        private val KEY_APP_USAGE_STATS = stringSetPreferencesKey("app_usage_stats_set")
 
         val DEFAULT_CITIES = setOf(
             "Seattle|WA, USA|47.6062|-122.3321",
@@ -139,6 +141,54 @@ class FavoritesStore(private val context: Context) {
     suspend fun setFavorites(packageNames: Set<String>) {
         context.dataStore.edit { preferences ->
             preferences[KEY_FAVORITES] = packageNames
+        }
+    }
+
+    val sortOrderFlow: Flow<AppSortOrder> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { prefs ->
+            val name = prefs[KEY_APP_SORT_ORDER]
+            AppSortOrder.fromName(name)
+        }
+
+    suspend fun setSortOrder(order: AppSortOrder) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_APP_SORT_ORDER] = order.name
+        }
+    }
+
+    val appUsageStatsFlow: Flow<Map<String, AppUsageStat>> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { prefs ->
+            val set = prefs[KEY_APP_USAGE_STATS] ?: emptySet()
+            val map = mutableMapOf<String, AppUsageStat>()
+            for (entry in set) {
+                val parts = entry.split("|")
+                if (parts.size >= 3) {
+                    val pkg = parts[0]
+                    val count = parts[1].toIntOrNull() ?: 0
+                    val lastLaunch = parts[2].toLongOrNull() ?: 0L
+                    map[pkg] = AppUsageStat(pkg, count, lastLaunch)
+                }
+            }
+            map
+        }
+
+    suspend fun recordAppLaunch(packageName: String) {
+        context.dataStore.edit { preferences ->
+            val currentSet = (preferences[KEY_APP_USAGE_STATS] ?: emptySet()).toMutableSet()
+            var currentCount = 0
+            val existing = currentSet.firstOrNull { it.startsWith("$packageName|") }
+            if (existing != null) {
+                currentSet.remove(existing)
+                val parts = existing.split("|")
+                if (parts.size >= 2) {
+                    currentCount = parts[1].toIntOrNull() ?: 0
+                }
+            }
+            val newEntry = "$packageName|${currentCount + 1}|${System.currentTimeMillis()}"
+            currentSet.add(newEntry)
+            preferences[KEY_APP_USAGE_STATS] = currentSet
         }
     }
 }

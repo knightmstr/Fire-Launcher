@@ -38,9 +38,13 @@ import {
   Loader2,
   Compass,
   Droplets,
-  Wind
+  Wind,
+  ArrowUpDown,
+  ArrowDownAZ,
+  History,
+  TrendingUp
 } from 'lucide-react';
-import { SimulatedApp } from '../types';
+import { SimulatedApp, AppSortOrder } from '../types';
 import { SIMULATED_INSTALLED_APPS, SIMULATED_SYSTEM_SHORTCUTS } from '../data/mockInstalledApps';
 import { CURATED_TV_WALLPAPERS, TvWallpaper, fetchRedditWallpapers, WALLPAPER_ROTATION_MS } from '../data/wallpapers';
 import {
@@ -57,6 +61,17 @@ import {
   playTvSelectSound,
   playTvFavoriteSound
 } from '../utils/soundEffects';
+
+const formatRelativeTime = (timestamp: number): string => {
+  const diff = Math.max(0, Date.now() - timestamp);
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
 
 interface FireTvSimulatorProps {
   onHoldProgressChange?: (progress: number) => void;
@@ -116,6 +131,42 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
   // Global App Search state
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchActive, setIsSearchActive] = useState<boolean>(false);
+
+  // --- App Library Sort by State ---
+  const [sortOrder, setSortOrder] = useState<AppSortOrder>(() => {
+    try {
+      const saved = localStorage.getItem('firelauncher_sort_order');
+      if (saved === 'recent' || saved === 'frequent' || saved === 'alphabetical') {
+        return saved;
+      }
+    } catch {}
+    return 'alphabetical';
+  });
+  const [isSortModalOpen, setIsSortModalOpen] = useState<boolean>(false);
+
+  // App Usage Metrics for Recents and Frequent sorting
+  const [appUsageStats, setAppUsageStats] = useState<Record<string, { count: number; lastLaunched: number }>>(() => {
+    try {
+      const saved = localStorage.getItem('firelauncher_app_usage_stats');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    const now = Date.now();
+    return {
+      'com.google.android.youtube.tv': { count: 86, lastLaunched: now - 8 * 60 * 1000 },
+      'com.amazon.avod': { count: 64, lastLaunched: now - 35 * 60 * 1000 },
+      'com.netflix.ninja': { count: 59, lastLaunched: now - 2 * 3600 * 1000 },
+      'com.spotify.tv.android': { count: 41, lastLaunched: now - 4 * 3600 * 1000 },
+      'com.plexapp.android': { count: 28, lastLaunched: now - 11 * 3600 * 1000 },
+      'tv.twitch.android.app': { count: 22, lastLaunched: now - 22 * 3600 * 1000 },
+      'com.disney.disneyplus': { count: 18, lastLaunched: now - 2 * 86400 * 1000 },
+      'org.videolan.vlc': { count: 14, lastLaunched: now - 3 * 86400 * 1000 },
+      'com.retroarch': { count: 11, lastLaunched: now - 4 * 86400 * 1000 },
+      'org.xbmc.kodi': { count: 7, lastLaunched: now - 6 * 86400 * 1000 }
+    };
+  });
+
+  // Wallpaper Visibility & Contrast Setting (Default to vibrant so wallpapers are clearly visible)
+  const [wallpaperVibrancy, setWallpaperVibrancy] = useState<'vibrant' | 'balanced' | 'subtle'>('vibrant');
 
   // Long press OK simulation state
   const [isPressingOk, setIsPressingOk] = useState(false);
@@ -225,10 +276,35 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
     showToast(`Weather location set to ${city.name} (${city.country})`);
   };
 
-  // Prepare all apps sorted A-Z
+  // Prepare all apps enriched with usage metrics and sorted dynamically
   const allApps = useMemo(() => {
-    return [...SIMULATED_INSTALLED_APPS].sort((a, b) => a.label.localeCompare(b.label));
-  }, []);
+    const enriched = SIMULATED_INSTALLED_APPS.map((app) => {
+      const stats = appUsageStats[app.packageName];
+      return {
+        ...app,
+        launchCount: stats?.count ?? 0,
+        lastLaunchedAt: stats?.lastLaunched ?? 0
+      };
+    });
+
+    switch (sortOrder) {
+      case 'recent':
+        return [...enriched].sort((a, b) => {
+          const timeDiff = (b.lastLaunchedAt || 0) - (a.lastLaunchedAt || 0);
+          if (timeDiff !== 0) return timeDiff;
+          return a.label.localeCompare(b.label);
+        });
+      case 'frequent':
+        return [...enriched].sort((a, b) => {
+          const countDiff = (b.launchCount || 0) - (a.launchCount || 0);
+          if (countDiff !== 0) return countDiff;
+          return a.label.localeCompare(b.label);
+        });
+      case 'alphabetical':
+      default:
+        return [...enriched].sort((a, b) => a.label.localeCompare(b.label));
+    }
+  }, [sortOrder, appUsageStats]);
 
   // Filter favorite apps
   const favoriteApps = useMemo(() => {
@@ -335,9 +411,27 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
     });
   };
 
-  // Launch app
+  // Launch app & record usage statistics
   const launchApp = (app: SimulatedApp) => {
     playTvSelectSound();
+
+    if (!app.isSystemShortcut) {
+      setAppUsageStats((prev) => {
+        const current = prev[app.packageName] || { count: 0, lastLaunched: 0 };
+        const updated = {
+          ...prev,
+          [app.packageName]: {
+            count: current.count + 1,
+            lastLaunched: Date.now()
+          }
+        };
+        try {
+          localStorage.setItem('firelauncher_app_usage_stats', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+
     if (app.id === 'sys:cleantv' || app.packageName === 'system.cleantv') {
       onOpenCleanTv?.();
       showToast('Opening CleanYourTV Debloat & Optimizer...');
@@ -397,6 +491,10 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
 
   // Back pressed
   const handleBackPressed = () => {
+    if (isSortModalOpen) {
+      setIsSortModalOpen(false);
+      return;
+    }
     if (isWeatherModalOpen) {
       setIsWeatherModalOpen(false);
       return;
@@ -485,6 +583,9 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
       } else if (e.key === 'w' || e.key === 'W') {
         e.preventDefault();
         handleNextWallpaper();
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        setIsSortModalOpen((prev) => !prev);
       }
     };
 
@@ -513,7 +614,7 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
       window.removeEventListener('keyup', handleKeyUp);
       if (pressTimerRef.current) clearInterval(pressTimerRef.current);
     };
-  }, [focusedRow, focusedCol, currentApp, isPressingOk, launchedApp, isSearchActive, searchQuery, isWeatherModalOpen]);
+  }, [focusedRow, focusedCol, currentApp, isPressingOk, launchedApp, isSearchActive, searchQuery, isWeatherModalOpen, isSortModalOpen]);
 
   // Render Icon helper
   const renderAppIcon = (iconName: string, className = 'w-6 h-6') => {
@@ -582,15 +683,25 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
         className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out pointer-events-none scale-105"
         style={{
           backgroundImage: `url("${currentWallpaper.url}")`,
-          filter: 'brightness(0.85) contrast(1.05)'
+          filter:
+            wallpaperVibrancy === 'vibrant'
+              ? 'brightness(1.04) contrast(1.05)'
+              : wallpaperVibrancy === 'balanced'
+              ? 'brightness(0.92) contrast(1.02)'
+              : 'brightness(0.80) contrast(1.0)'
         }}
       />
 
-      {/* Layer 2: TV Ambient Dark Vignette & Gradient (Guarantees 100% typography & card readability) */}
+      {/* Layer 2: TV Ambient Subtle Vignette & Scrim (Keeps 4K wallpaper highly visible while protecting text) */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 pointer-events-none transition-all duration-500"
         style={{
-          background: 'linear-gradient(to bottom, rgba(10,13,20,0.75) 0%, rgba(15,17,23,0.82) 40%, rgba(15,17,23,0.95) 85%, #0F1117 100%)'
+          background:
+            wallpaperVibrancy === 'vibrant'
+              ? 'linear-gradient(to bottom, rgba(10,13,20,0.32) 0%, rgba(10,13,20,0.12) 25%, rgba(10,13,20,0.22) 60%, rgba(15,17,23,0.52) 100%)'
+              : wallpaperVibrancy === 'balanced'
+              ? 'linear-gradient(to bottom, rgba(10,13,20,0.55) 0%, rgba(10,13,20,0.28) 25%, rgba(10,13,20,0.42) 60%, rgba(15,17,23,0.72) 100%)'
+              : 'linear-gradient(to bottom, rgba(10,13,20,0.75) 0%, rgba(15,17,23,0.50) 25%, rgba(15,17,23,0.65) 60%, rgba(15,17,23,0.90) 100%)'
         }}
       />
 
@@ -598,7 +709,7 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
       <div
         className="absolute inset-0 transition-colors duration-500 ease-out pointer-events-none"
         style={{
-          background: `radial-gradient(ellipse at 50% 15%, ${accentColor}38 0%, ${accentColor}12 50%, transparent 80%)`
+          background: `radial-gradient(ellipse at 50% 15%, ${accentColor}25 0%, ${accentColor}06 50%, transparent 80%)`
         }}
       />
 
@@ -689,7 +800,22 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
           </button>
 
           {/* Top Bar Center & Right Controls */}
-          <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-2">
+            {/* Sort by Library Menu Trigger Button */}
+            <button
+              onClick={() => {
+                playTvSelectSound();
+                setIsSortModalOpen(true);
+              }}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-neutral-700/60 hover:border-amber-400/60 transition group cursor-pointer shadow-lg backdrop-blur-md active:scale-95 text-xs text-neutral-200 hover:text-white"
+              title="Sort application library: A-Z, Most Recent, Most Frequent (Key: S)"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-180 transition-transform duration-300" />
+              <span className="font-medium hidden sm:inline">
+                {sortOrder === 'alphabetical' ? 'Sort: A–Z' : sortOrder === 'recent' ? 'Sort: Recent' : 'Sort: Frequent'}
+              </span>
+            </button>
+
             {/* Quick Next Wallpaper Trigger Button */}
             <button
               onClick={handleNextWallpaper}
@@ -700,6 +826,23 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
               <span className="hidden sm:inline font-medium">Wallpaper</span>
               <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-neutral-800 text-amber-300/80 border border-neutral-700">
                 {minutesUntilNext}m
+              </span>
+            </button>
+
+            {/* Wallpaper Vibrancy Toggle */}
+            <button
+              onClick={() => {
+                playTvSelectSound();
+                setWallpaperVibrancy((prev) => (prev === 'vibrant' ? 'balanced' : prev === 'balanced' ? 'subtle' : 'vibrant'));
+                const nextMode = wallpaperVibrancy === 'vibrant' ? 'Balanced' : wallpaperVibrancy === 'balanced' ? 'Subtle' : 'Vibrant';
+                showToast(`Wallpaper brightness: ${nextMode}`);
+              }}
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-neutral-700/60 hover:border-amber-400/60 transition group cursor-pointer shadow-lg backdrop-blur-md active:scale-95 text-xs text-neutral-300 hover:text-white"
+              title="Toggle wallpaper visibility (Vibrant, Balanced, Subtle)"
+            >
+              <Eye className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[11px] capitalize hidden xl:inline text-neutral-300">
+                {wallpaperVibrancy}
               </span>
             </button>
 
@@ -880,13 +1023,35 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
 
           {rows.map((row, rIdx) => (
             <div key={row.id} className="space-y-2.5">
-              <div className="flex items-center space-x-2">
-                <h2 className="text-sm font-semibold tracking-wide text-neutral-300">
-                  {row.title}
-                </h2>
-                <span className="text-[10px] text-neutral-500 font-mono">
-                  ({row.apps.length})
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-sm font-semibold tracking-wide text-neutral-300">
+                    {row.title}
+                  </h2>
+                  <span className="text-[10px] text-neutral-500 font-mono">
+                    ({row.apps.length})
+                  </span>
+                </div>
+
+                {row.id === 'all_apps' && (
+                  <button
+                    onClick={() => {
+                      playTvSelectSound();
+                      setIsSortModalOpen(true);
+                    }}
+                    className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-[11px] font-medium text-amber-300 hover:text-white transition cursor-pointer active:scale-95 shadow-sm"
+                    title="Change sort order (Key: S)"
+                  >
+                    <ArrowUpDown className="w-3 h-3 text-amber-400" />
+                    <span>
+                      {sortOrder === 'alphabetical'
+                        ? 'Sorted: A–Z'
+                        : sortOrder === 'recent'
+                        ? 'Sorted: Recent'
+                        : 'Sorted: Frequent'} ▾
+                    </span>
+                  </button>
+                )}
               </div>
 
               {/* 16:9 TV Cards Horizontal Row */}
@@ -947,11 +1112,21 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-                            {/* Top Left Icon or Category */}
+                            {/* Top Left Icon or Category & Sort Metric Badge */}
                             <div className="relative z-10 flex items-center justify-between w-full">
                               <div className="p-1 rounded bg-black/40 backdrop-blur-sm text-white">
                                 {renderAppIcon(app.iconName, 'w-4 h-4')}
                               </div>
+                              {row.id === 'all_apps' && sortOrder === 'frequent' && (app.launchCount || 0) > 0 && (
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-orange-500/80 text-white shadow flex items-center space-x-0.5">
+                                  <span>{app.launchCount}×</span>
+                                </span>
+                              )}
+                              {row.id === 'all_apps' && sortOrder === 'recent' && (app.lastLaunchedAt || 0) > 0 && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-black/60 text-sky-300 border border-sky-400/30 shadow flex items-center space-x-0.5">
+                                  <span>{formatRelativeTime(app.lastLaunchedAt!)}</span>
+                                </span>
+                              )}
                             </div>
 
                             {/* App Label */}
@@ -1222,6 +1397,121 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
                 className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold transition cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* App Library Sort By Modal Dialog */}
+      {isSortModalOpen && (
+        <div
+          className="absolute inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in"
+          onClick={() => setIsSortModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-[#131722] border-2 border-orange-500/60 rounded-3xl p-6 shadow-2xl flex flex-col space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
+                  <ArrowUpDown className="w-5 h-5 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">Sort App Library</h3>
+                  <p className="text-xs text-neutral-400">Choose how applications are arranged</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSortModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-neutral-400 hover:text-white transition cursor-pointer"
+              >
+                <CloseIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Options List */}
+            <div className="space-y-2.5">
+              {[
+                {
+                  id: 'alphabetical' as const,
+                  label: 'Alphabetical (A–Z)',
+                  desc: 'Standard alphabetical order by application name',
+                  icon: ArrowDownAZ
+                },
+                {
+                  id: 'recent' as const,
+                  label: 'Most Recently Used',
+                  desc: 'Applications you opened most recently appear first',
+                  icon: History
+                },
+                {
+                  id: 'frequent' as const,
+                  label: 'Most Frequently Used',
+                  desc: 'Applications you launch most often appear first',
+                  icon: Flame
+                }
+              ].map((opt) => {
+                const isSelected = sortOrder === opt.id;
+                const IconComp = opt.icon;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      playTvSelectSound();
+                      setSortOrder(opt.id);
+                      try {
+                        localStorage.setItem('firelauncher_sort_order', opt.id);
+                      } catch {}
+                      setIsSortModalOpen(false);
+                      showToast(`Library sorted by: ${opt.label}`);
+                    }}
+                    className={`w-full p-3.5 rounded-2xl border text-left transition flex items-center justify-between group cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500/15 border-amber-500/60 shadow-lg shadow-amber-500/10'
+                        : 'bg-neutral-900/60 hover:bg-neutral-800/80 border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                          isSelected
+                            ? 'bg-amber-500 text-black'
+                            : 'bg-neutral-800 text-neutral-400 group-hover:text-amber-400'
+                        }`}
+                      >
+                        <IconComp className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <div
+                          className={`text-sm font-semibold ${
+                            isSelected ? 'text-amber-300' : 'text-neutral-200 group-hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5">{opt.desc}</div>
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <div className="w-6 h-6 rounded-full bg-amber-400 text-black flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setIsSortModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold transition cursor-pointer"
+              >
+                Done
               </button>
             </div>
           </div>
