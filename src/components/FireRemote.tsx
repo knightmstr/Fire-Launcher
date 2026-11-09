@@ -20,8 +20,10 @@ interface FireRemoteProps {
   onSelectLongPress: () => void;
   onBackClick: () => void;
   onHomeClick: () => void;
+  onVoiceSearchClick?: () => void;
   isHoldingOk: boolean;
   holdProgress: number;
+  isVoiceListening?: boolean;
 }
 
 export const FireRemote: React.FC<FireRemoteProps> = ({
@@ -30,8 +32,10 @@ export const FireRemote: React.FC<FireRemoteProps> = ({
   onSelectLongPress,
   onBackClick,
   onHomeClick,
+  onVoiceSearchClick,
   isHoldingOk,
-  holdProgress
+  holdProgress,
+  isVoiceListening = false
 }) => {
   const holdTimerRef = useRef<number | null>(null);
   const [localHolding, setLocalHolding] = useState(false);
@@ -89,8 +93,13 @@ export const FireRemote: React.FC<FireRemoteProps> = ({
           <span className="text-[10px] font-bold tracking-widest text-neutral-500">FIRE TV</span>
         </div>
         <button
-          className="w-7 h-7 rounded-full bg-blue-600/30 text-blue-400 hover:bg-blue-600/40 active:scale-95 flex items-center justify-center transition"
-          title="Alexa Voice"
+          onClick={onVoiceSearchClick}
+          className={`w-7 h-7 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer ${
+            isVoiceListening
+              ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 ring-2 ring-blue-400 animate-pulse'
+              : 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/50 hover:text-white'
+          }`}
+          title="Alexa Voice Search (Click to speak app name)"
         >
           <Mic className="w-3.5 h-3.5" />
         </button>

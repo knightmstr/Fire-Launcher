@@ -210,6 +210,9 @@ export default function App() {
               </div>
               <div className="flex items-center space-x-4 text-[11px]">
                 <span>
+                  <strong>W:</strong> Next Wallpaper (r/TVWallpapersSFW)
+                </span>
+                <span>
                   <strong>/:</strong> Search Apps
                 </span>
                 <span>
@@ -350,10 +353,10 @@ export default function App() {
             <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-xl space-y-1.5">
               <div className="font-semibold text-white flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                <span>6. Top Bar, Global Search & Weather</span>
+                <span>6. Live Weather, City Search & r/TVWallpapersSFW</span>
               </div>
               <p className="text-neutral-400 text-[11px] leading-relaxed">
-                FireLauncher brand typography on left; <strong>Focusable Weather widget</strong> for the selected city with condition icon, temperature (°F/°C), high/low, and city selector dialog; dedicated <strong>Global Search</strong> button with real-time app filtering; plus live clock/date on right.
+                <strong>Live Open-Meteo Weather</strong> with real-time global city search (search and add any city worldwide, °F/°C toggle, feels-like, humidity, wind). Fullscreen <strong>r/TVWallpapersSFW backgrounds</strong> that auto-change every 30 minutes with an ambient dimming vignette overlay.
               </p>
               <button
                 onClick={() => openFileInModal('app/src/main/java/com/example/firelauncher/ui/components/TopBar.kt')}

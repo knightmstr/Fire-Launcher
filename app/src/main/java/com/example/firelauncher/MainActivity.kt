@@ -10,10 +10,14 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
+import android.app.Activity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
 import com.example.firelauncher.ui.LauncherRoot
 import com.example.firelauncher.ui.LauncherViewModel
+import com.example.firelauncher.ui.VoiceSearchHelper
 import com.example.firelauncher.ui.theme.FireLauncherTheme
+import kotlinx.coroutines.launch
 
 /**
  * Single-task main Activity acting as Leanback and Home launcher for Fire OS.
@@ -22,15 +26,48 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: LauncherViewModel by viewModels()
 
+    // Activity result launcher for TV remote voice recognition
+    private val speechRecognitionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val query = VoiceSearchHelper.extractSpokenQuery(result.data)
+            if (!query.isNullOrBlank()) {
+                viewModel.onVoiceResult(query)
+            }
+        }
+    }
+
+    private fun launchVoiceSearch() {
+        try {
+            val intent = VoiceSearchHelper.createSpeechIntent(this)
+            speechRecognitionLauncher.launch(intent)
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this, "Voice recognition service not available", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // Lock window to immersive TV fullscreen
         hideSystemUI()
 
+        // Observe voice search requests from the launcher UI
+        lifecycleScope.launch {
+            viewModel.voiceSearchTrigger.collect { count ->
+                if (count > 0L) {
+                    launchVoiceSearch()
+                }
+            }
+        }
+
         setContent {
             FireLauncherTheme {
-                LauncherRoot(viewModel = viewModel)
+                LauncherRoot(
+                    viewModel = viewModel,
+                    onRequestVoiceSearch = { launchVoiceSearch() }
+                )
             }
         }
     }
@@ -67,6 +104,11 @@ class MainActivity : ComponentActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             // Absorb back press
+            return true
+        }
+        if (keyCode == KeyEvent.KEYCODE_SEARCH || keyCode == 231 /* KEYCODE_VOICE_ASSIST */) {
+            // Intercept Fire TV Alexa remote microphone button press
+            launchVoiceSearch()
             return true
         }
         return super.onKeyDown(keyCode, event)

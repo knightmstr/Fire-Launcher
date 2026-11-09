@@ -5,23 +5,34 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.firelauncher.data.AppModel
 import com.example.firelauncher.data.AppRepository
+import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.FavoritesStore
+import com.example.firelauncher.data.WallpaperModel
+import com.example.firelauncher.data.WallpaperRepository
+import com.example.firelauncher.data.WeatherData
+import com.example.firelauncher.data.WeatherRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * Main ViewModel for FireLauncher adhering to MVVM architecture.
- * Exposes StateFlows for apps, favorites, system shortcuts, and home-button tick events.
+ * Exposes StateFlows for apps, favorites, system shortcuts, home-button tick events,
+ * periodic r/TVWallpapersSFW wallpapers (changing every 30 mins), and accurate live Open-Meteo weather with city search.
  */
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(application)
     private val favoritesStore = FavoritesStore(application)
+    private val wallpaperRepository = WallpaperRepository(application, viewModelScope)
+    private val weatherRepository = WeatherRepository()
 
     private val _apps = MutableStateFlow<List<AppModel>>(emptyList())
     val apps: StateFlow<List<AppModel>> = _apps.asStateFlow()
@@ -43,19 +54,28 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _homeTick = MutableStateFlow(0L)
     val homeTick: StateFlow<Long> = _homeTick.asStateFlow()
 
-    // Weather StateFlow derived from DataStore selected city and unit
-    val weather: StateFlow<com.example.firelauncher.data.WeatherData> = combine(
-        favoritesStore.selectedCityFlow,
-        favoritesStore.isCelsiusFlow
-    ) { city, isCelsius ->
-        com.example.firelauncher.data.WeatherData.forCity(city, isCelsius)
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.Eagerly,
-        com.example.firelauncher.data.WeatherData.forCity("Seattle", false)
-    )
+    // r/TVWallpapersSFW 30-minute auto-changing wallpaper
+    val currentWallpaper: StateFlow<WallpaperModel?> = wallpaperRepository.currentWallpaper
+    val allWallpapers: StateFlow<List<WallpaperModel>> = wallpaperRepository.wallpapers
 
-    val availableCities: List<String> = com.example.firelauncher.data.WeatherData.CITY_PRESETS.map { it.city }
+    // Live Weather State
+    private val _weather = MutableStateFlow(WeatherData.defaultSeattle())
+    val weather: StateFlow<WeatherData> = _weather.asStateFlow()
+
+    val savedCities: StateFlow<List<CityLocationModel>> = favoritesStore.savedCitiesFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val isCelsius: StateFlow<Boolean> = favoritesStore.isCelsiusFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    // Live City Geocoding Search State
+    private val _searchResults = MutableStateFlow<List<CityLocationModel>>(emptyList())
+    val searchResults: StateFlow<List<CityLocationModel>> = _searchResults.asStateFlow()
+
+    private val _isSearchingCities = MutableStateFlow(false)
+    val isSearchingCities: StateFlow<Boolean> = _isSearchingCities.asStateFlow()
+
+    private var citySearchJob: Job? = null
 
     // Global Search State
     private val _searchQuery = MutableStateFlow("")
@@ -78,11 +98,37 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     init {
         refreshApps()
+
+        // Observe location & unit changes to fetch live weather
+        viewModelScope.launch {
+            combine(
+                favoritesStore.selectedCityFlow,
+                favoritesStore.selectedCountryFlow,
+                favoritesStore.selectedLatFlow,
+                favoritesStore.selectedLonFlow,
+                favoritesStore.isCelsiusFlow
+            ) { city, country, lat, lon, celsius ->
+                fetchCurrentWeather(city, country, lat, lon, celsius)
+            }.collect {}
+        }
+
+        // Periodic live weather refresh (every 15 minutes)
+        viewModelScope.launch {
+            while (isActive) {
+                delay(15 * 60 * 1000L)
+                val cur = _weather.value
+                fetchCurrentWeather(cur.city, cur.country, cur.latitude, cur.longitude, cur.isCelsius)
+            }
+        }
+    }
+
+    private suspend fun fetchCurrentWeather(city: String, country: String, lat: Double, lon: Double, celsius: Boolean) {
+        val result = weatherRepository.fetchLiveWeather(city, country, lat, lon, celsius)
+        _weather.value = result
     }
 
     /**
      * Refreshes the list of installed applications from PackageManager.
-     * Invoked initially and on every onResume of the Activity.
      */
     fun refreshApps() {
         viewModelScope.launch {
@@ -96,22 +142,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Called when the Home button is pressed while the launcher is open.
-     * Triggers the homeTick counter to notify UI to scroll to top and refocus the first card.
      */
     fun onHomePressed() {
         _homeTick.value += 1L
     }
 
-    /**
-     * Updates the currently focused app (for hero text and dynamic background color).
-     */
     fun setFocusedApp(app: AppModel) {
         _focusedApp.value = app
     }
 
-    /**
-     * Toggles the favorite status of the given app and saves to DataStore.
-     */
     fun toggleFavorite(app: AppModel) {
         if (app.isSystemShortcut) return
         viewModelScope.launch {
@@ -120,11 +159,43 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Updates the selected city for the top weather widget.
+     * Searches cities globally via Open-Meteo Geocoding API with debounce.
      */
-    fun selectCity(city: String) {
+    fun searchCities(query: String) {
+        citySearchJob?.cancel()
+        if (query.trim().length < 2) {
+            _searchResults.value = emptyList()
+            _isSearchingCities.value = false
+            return
+        }
+
+        citySearchJob = viewModelScope.launch {
+            _isSearchingCities.value = true
+            delay(300L) // Debounce
+            val results = weatherRepository.searchCities(query)
+            _searchResults.value = results
+            _isSearchingCities.value = false
+        }
+    }
+
+    fun clearCitySearch() {
+        citySearchJob?.cancel()
+        _searchResults.value = emptyList()
+        _isSearchingCities.value = false
+    }
+
+    /**
+     * Selects and adds a city to the user's saved cities list, and triggers live weather fetch.
+     */
+    fun selectCity(city: CityLocationModel) {
         viewModelScope.launch {
-            favoritesStore.setSelectedCity(city)
+            favoritesStore.setSelectedLocation(
+                city = city.name,
+                country = city.admin1?.let { "$it, ${city.countryCode ?: city.country}" } ?: city.country,
+                lat = city.latitude,
+                lon = city.longitude
+            )
+            clearCitySearch()
         }
     }
 
@@ -138,15 +209,24 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Updates the active global search query string.
+     * Cycles to the next wallpaper immediately.
      */
+    fun nextWallpaper() {
+        wallpaperRepository.nextWallpaper()
+    }
+
+    /**
+     * Sets a specific wallpaper.
+     */
+    fun setWallpaper(wallpaper: WallpaperModel) {
+        wallpaperRepository.setWallpaper(wallpaper)
+    }
+
+    // Global Search Actions
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
-    /**
-     * Activates or closes the global search bar.
-     */
     fun setSearchActive(active: Boolean) {
         _isSearchActive.value = active
         if (!active) {
@@ -154,16 +234,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /**
-     * Clears the search query while keeping search active.
-     */
     fun clearSearch() {
         _searchQuery.value = ""
     }
 
-    /**
-     * Launches the specified application or system settings shortcut.
-     */
     fun launchApp(app: AppModel): Boolean {
         return repository.launchApp(app)
     }

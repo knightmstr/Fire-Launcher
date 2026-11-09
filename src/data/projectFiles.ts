@@ -202,6 +202,10 @@ dependencies {
     content: `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Network permissions for r/TVWallpapersSFW and live Open-Meteo weather -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- Leanback TV & Touchscreen flags -->
     <uses-feature
         android:name="android.software.leanback"
@@ -602,55 +606,452 @@ object CleanTvManager {
 `
   },
   {
+    path: 'app/src/main/java/com/example/firelauncher/data/WallpaperModel.kt',
+    name: 'WallpaperModel.kt',
+    language: 'kotlin',
+    category: 'kotlin',
+    description: 'Data model for 16:9 TV wallpapers fetched from r/TVWallpapersSFW',
+    content: `package com.example.firelauncher.data
+
+/**
+ * Data model representing a 16:9 TV wallpaper fetched from r/TVWallpapersSFW or curated fallback.
+ */
+data class WallpaperModel(
+    val id: String,
+    val title: String,
+    val url: String,
+    val author: String = "r/TVWallpapersSFW",
+    val permalink: String = "https://reddit.com/r/TVWallpapersSFW",
+    val source: String = "reddit"
+)
+`
+  },
+  {
+    path: 'app/src/main/java/com/example/firelauncher/data/WallpaperRepository.kt',
+    name: 'WallpaperRepository.kt',
+    language: 'kotlin',
+    category: 'kotlin',
+    description: 'Fetches high-res 16:9 TV wallpapers from r/TVWallpapersSFW and rotates every 30 minutes',
+    content: `package com.example.firelauncher.data
+
+import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * Manages fetching wallpapers from r/TVWallpapersSFW and automatically
+ * cycling through them every 30 minutes.
+ */
+class WallpaperRepository(
+    private val context: Context,
+    private val scope: CoroutineScope
+) {
+    companion object {
+        const val ROTATION_INTERVAL_MS = 30 * 60 * 1000L // 30 minutes
+
+        val FALLBACK_WALLPAPERS = listOf(
+            WallpaperModel(
+                id = "wp_01",
+                title = "Twilight Over Yosemite Valley (4K)",
+                url = "https://images.unsplash.com/photo-1426604966848-d7adac402bff?auto=format&fit=crop&w=2560&q=85",
+                author = "u/NatureLover4K"
+            ),
+            WallpaperModel(
+                id = "wp_02",
+                title = "Deep Space Carina Nebula & Cosmic Dust (OLED)",
+                url = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=2560&q=85",
+                author = "u/AstroCinema"
+            ),
+            WallpaperModel(
+                id = "wp_03",
+                title = "Mount Fuji at Golden Hour with Cherry Blossoms",
+                url = "https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?auto=format&fit=crop&w=2560&q=85",
+                author = "u/TokyoDriftViews"
+            ),
+            WallpaperModel(
+                id = "wp_04",
+                title = "Lofoten Islands Emerald Aurora Borealis Night",
+                url = "https://images.unsplash.com/photo-1517411032315-54ef2cb783bb?auto=format&fit=crop&w=2560&q=85",
+                author = "u/NordicLightWalker"
+            ),
+            WallpaperModel(
+                id = "wp_05",
+                title = "Tokyo Rainy Shibuya Cyberpunk Reflections 4K",
+                url = "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=2560&q=85",
+                author = "u/NeonCityScape"
+            ),
+            WallpaperModel(
+                id = "wp_06",
+                title = "Italian Dolomites Alpine Lakes & Mist",
+                url = "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2560&q=85",
+                author = "u/AlpineDreamer"
+            ),
+            WallpaperModel(
+                id = "wp_07",
+                title = "Big Sur Pacific Coastline Sunset Horizon",
+                url = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2560&q=85",
+                author = "u/CoastToCoastTV"
+            ),
+            WallpaperModel(
+                id = "wp_08",
+                title = "Sunbeams Through Redwood Forest Canopy",
+                url = "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2560&q=85",
+                author = "u/ForestWhispers"
+            )
+        )
+    }
+
+    private val _wallpapers = MutableStateFlow<List<WallpaperModel>>(FALLBACK_WALLPAPERS)
+    val wallpapers: StateFlow<List<WallpaperModel>> = _wallpapers.asStateFlow()
+
+    private val _currentIndex = MutableStateFlow(0)
+
+    private val _currentWallpaper = MutableStateFlow<WallpaperModel?>(FALLBACK_WALLPAPERS.first())
+    val currentWallpaper: StateFlow<WallpaperModel?> = _currentWallpaper.asStateFlow()
+
+    init {
+        // Start background fetch from Reddit
+        scope.launch {
+            fetchRedditWallpapers()
+        }
+
+        // Start 30-minute auto-rotation timer
+        scope.launch {
+            while (isActive) {
+                delay(ROTATION_INTERVAL_MS)
+                nextWallpaper()
+            }
+        }
+    }
+
+    fun nextWallpaper() {
+        val list = _wallpapers.value
+        if (list.isEmpty()) return
+        val nextIdx = (_currentIndex.value + 1) % list.size
+        _currentIndex.value = nextIdx
+        _currentWallpaper.value = list[nextIdx]
+    }
+
+    fun setWallpaper(wallpaper: WallpaperModel) {
+        val idx = _wallpapers.value.indexOfFirst { it.id == wallpaper.id }
+        if (idx >= 0) {
+            _currentIndex.value = idx
+        }
+        _currentWallpaper.value = wallpaper
+    }
+
+    suspend fun fetchRedditWallpapers() = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("https://www.reddit.com/r/TVWallpapersSFW/hot.json?limit=40")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 5000
+                readTimeout = 7000
+                setRequestProperty("User-Agent", "android:com.example.firelauncher:v1.0 (Fire OS Leanback)")
+                setRequestProperty("Accept", "application/json")
+            }
+
+            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                val jsonString = reader.use { it.readText() }
+                val root = JSONObject(jsonString)
+                val children = root.getJSONObject("data").getJSONArray("children")
+
+                val parsedList = mutableListOf<WallpaperModel>()
+
+                for (i in 0 until children.length()) {
+                    val childData = children.getJSONObject(i).getJSONObject("data")
+                    val isNsfw = childData.optBoolean("over_18", false)
+                    val isVideo = childData.optBoolean("is_video", false)
+                    if (isNsfw || isVideo) continue
+
+                    var imgUrl = childData.optString("url", "")
+                    val isDirectImage = imgUrl.endsWith(".jpg", true) ||
+                            imgUrl.endsWith(".jpeg", true) ||
+                            imgUrl.endsWith(".png", true) ||
+                            imgUrl.endsWith(".webp", true)
+
+                    if (!isDirectImage && childData.has("preview")) {
+                        try {
+                            val images = childData.getJSONObject("preview").getJSONArray("images")
+                            if (images.length() > 0) {
+                                val sourceUrl = images.getJSONObject(0).getJSONObject("source").getString("url")
+                                imgUrl = sourceUrl.replace("&amp;", "&")
+                            }
+                        } catch (_: Exception) {
+                            // continue with direct url
+                        }
+                    }
+
+                    if (imgUrl.isNotBlank() && (imgUrl.contains("redd.it") || imgUrl.contains("imgur") || isDirectImage)) {
+                        parsedList.add(
+                            WallpaperModel(
+                                id = childData.optString("id", "post_\$i"),
+                                title = childData.optString("title", "TV Wallpaper"),
+                                url = imgUrl,
+                                author = "u/" + childData.optString("author", "reddit_user"),
+                                permalink = "https://reddit.com" + childData.optString("permalink", ""),
+                                source = "reddit"
+                            )
+                        )
+                    }
+                }
+
+                if (parsedList.isNotEmpty()) {
+                    _wallpapers.value = parsedList
+                    _currentWallpaper.value = parsedList.first()
+                }
+            }
+        } catch (_: Exception) {
+            // Keep fallback wallpapers if offline or restricted
+        }
+    }
+}
+`
+  },
+  {
     path: 'app/src/main/java/com/example/firelauncher/data/WeatherData.kt',
     name: 'WeatherData.kt',
     language: 'kotlin',
     category: 'kotlin',
-    description: 'Weather data model with city presets, temperatures, conditions, and unit formatting',
+    description: 'Weather data model with Open-Meteo live metrics and CityLocationModel for global search',
     content: `package com.example.firelauncher.data
 
 /**
  * Data model representing current weather conditions for the top-bar launcher widget.
+ * Sourced live from the free and accurate Open-Meteo Weather API.
  */
 data class WeatherData(
     val city: String = "Seattle",
+    val country: String = "WA, USA",
+    val latitude: Double = 47.6062,
+    val longitude: Double = -122.3321,
     val temperatureF: Int = 68,
     val temperatureC: Int = 20,
+    val feelsLikeF: Int = 68,
+    val feelsLikeC: Int = 20,
     val condition: String = "Partly Cloudy",
-    val iconType: String = "partly_cloudy", // "clear", "partly_cloudy", "cloudy", "rain", "snow", "thunder"
+    val iconType: String = "partly_cloudy",
     val highF: Int = 72,
     val lowF: Int = 55,
-    val isCelsius: Boolean = false
+    val humidity: Int = 65,
+    val windMph: Int = 8,
+    val isCelsius: Boolean = false,
+    val isLive: Boolean = true
 ) {
     val displayTemperature: String
-        get() = if (isCelsius) "$temperatureC°C" else "$temperatureF°F"
+        get() = if (isCelsius) "\$temperatureC°C" else "\$temperatureF°F"
 
     val displayHighLow: String
         get() = if (isCelsius) {
             "H:\${((highF - 32) * 5 / 9)}° L:\${((lowF - 32) * 5 / 9)}°"
         } else {
-            "H:$highF° L:$lowF°"
+            "H:\$highF° L:\$lowF°"
         }
 
-    companion object {
-        val CITY_PRESETS = listOf(
-            WeatherData("Seattle", 64, 18, "Partly Cloudy", "partly_cloudy", 68, 52),
-            WeatherData("New York", 72, 22, "Sunny", "clear", 76, 61),
-            WeatherData("Los Angeles", 78, 26, "Clear", "clear", 82, 65),
-            WeatherData("Chicago", 61, 16, "Breezy", "cloudy", 65, 48),
-            WeatherData("London", 59, 15, "Light Rain", "rain", 63, 50),
-            WeatherData("Tokyo", 66, 19, "Clear", "clear", 70, 54),
-            WeatherData("Paris", 63, 17, "Partly Cloudy", "partly_cloudy", 68, 52),
-            WeatherData("Berlin", 57, 14, "Overcast", "cloudy", 61, 46),
-            WeatherData("Sydney", 74, 23, "Sunny", "clear", 79, 62),
-            WeatherData("Miami", 84, 29, "Scattered Showers", "rain", 88, 76),
-            WeatherData("Denver", 65, 18, "Sunny", "clear", 71, 45)
-        )
+    val displayLocation: String
+        get() = if (country.isNotBlank()) "\$city, \$country" else city
 
-        fun forCity(cityName: String, isCelsius: Boolean = false): WeatherData {
-            val preset = CITY_PRESETS.find { it.city.equals(cityName, ignoreCase = true) }
-                ?: WeatherData(city = cityName, temperatureF = 70, temperatureC = 21, condition = "Fair", iconType = "clear", highF = 75, lowF = 58)
-            return preset.copy(isCelsius = isCelsius)
+    companion object {
+        fun defaultSeattle(isCelsius: Boolean = false): WeatherData {
+            return WeatherData(
+                city = "Seattle",
+                country = "WA, USA",
+                latitude = 47.6062,
+                longitude = -122.3321,
+                temperatureF = 64,
+                temperatureC = 18,
+                condition = "Partly Cloudy",
+                iconType = "partly_cloudy",
+                highF = 68,
+                lowF = 52,
+                isCelsius = isCelsius
+            )
+        }
+    }
+}
+
+data class CityLocationModel(
+    val id: String,
+    val name: String,
+    val admin1: String? = null,
+    val country: String,
+    val countryCode: String? = null,
+    val latitude: Double,
+    val longitude: Double
+) {
+    val displayName: String
+        get() = if (!admin1.isNullOrBlank()) "\$name, \$admin1, \$country" else "\$name, \$country"
+}
+`
+  },
+  {
+    path: 'app/src/main/java/com/example/firelauncher/data/WeatherRepository.kt',
+    name: 'WeatherRepository.kt',
+    language: 'kotlin',
+    category: 'kotlin',
+    description: 'Queries Open-Meteo Geocoding API for city search and Forecast API for accurate live weather',
+    content: `package com.example.firelauncher.data
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+
+class WeatherRepository {
+
+    suspend fun searchCities(query: String): List<CityLocationModel> = withContext(Dispatchers.IO) {
+        if (query.trim().length < 2) return@withContext emptyList()
+        try {
+            val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+            val url = URL("https://geocoding-api.open-meteo.com/v1/search?name=\$encoded&count=8&language=en&format=json")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 4000
+                readTimeout = 5000
+                setRequestProperty("Accept", "application/json")
+            }
+
+            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                val root = JSONObject(text)
+                if (!root.has("results")) return@withContext emptyList()
+                val array = root.getJSONArray("results")
+                val list = mutableListOf<CityLocationModel>()
+
+                for (i in 0 until array.length()) {
+                    val item = array.getJSONObject(i)
+                    list.add(
+                        CityLocationModel(
+                            id = "geo_" + item.optLong("id", i.toLong()),
+                            name = item.optString("name", "Unknown"),
+                            admin1 = if (item.has("admin1")) item.optString("admin1") else null,
+                            country = item.optString("country", ""),
+                            countryCode = item.optString("country_code", ""),
+                            latitude = item.optDouble("latitude", 0.0),
+                            longitude = item.optDouble("longitude", 0.0)
+                        )
+                    )
+                }
+                return@withContext list
+            }
+        } catch (_: Exception) {}
+        emptyList()
+    }
+
+    suspend fun fetchLiveWeather(
+        cityName: String,
+        country: String,
+        lat: Double,
+        lon: Double,
+        isCelsius: Boolean
+    ): WeatherData = withContext(Dispatchers.IO) {
+        try {
+            val urlStr = "https://api.open-meteo.com/v1/forecast?latitude=\$lat&longitude=\$lon" +
+                    "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m" +
+                    "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph"
+
+            val url = URL(urlStr)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 4000
+                readTimeout = 5000
+                setRequestProperty("Accept", "application/json")
+            }
+
+            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                val text = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                val root = JSONObject(text)
+                val current = root.getJSONObject("current")
+                val daily = root.optJSONObject("daily")
+
+                val tempF = Math.round(current.optDouble("temperature_2m", 68.0)).toInt()
+                val tempC = Math.round(((tempF - 32) * 5.0) / 9.0).toInt()
+
+                val feelsLikeF = Math.round(current.optDouble("apparent_temperature", tempF.toDouble())).toInt()
+                val feelsLikeC = Math.round(((feelsLikeF - 32) * 5.0) / 9.0).toInt()
+
+                val wmoCode = current.optInt("weather_code", 1)
+                val isDay = current.optInt("is_day", 1) == 1
+
+                val highF = if (daily != null && daily.has("temperature_2m_max")) {
+                    Math.round(daily.getJSONArray("temperature_2m_max").optDouble(0, (tempF + 5).toDouble())).toInt()
+                } else tempF + 5
+
+                val lowF = if (daily != null && daily.has("temperature_2m_min")) {
+                    Math.round(daily.getJSONArray("temperature_2m_min").optDouble(0, (tempF - 6).toDouble())).toInt()
+                } else tempF - 6
+
+                val humidity = Math.round(current.optDouble("relative_humidity_2m", 55.0)).toInt()
+                val windMph = Math.round(current.optDouble("wind_speed_10m", 8.0)).toInt()
+
+                val (conditionStr, iconStr) = mapWmoCode(wmoCode, isDay)
+
+                return@withContext WeatherData(
+                    city = cityName,
+                    country = country,
+                    latitude = lat,
+                    longitude = lon,
+                    temperatureF = tempF,
+                    temperatureC = tempC,
+                    feelsLikeF = feelsLikeF,
+                    feelsLikeC = feelsLikeC,
+                    condition = conditionStr,
+                    iconType = iconStr,
+                    highF = highF,
+                    lowF = lowF,
+                    humidity = humidity,
+                    windMph = windMph,
+                    isCelsius = isCelsius,
+                    isLive = true
+                )
+            }
+        } catch (_: Exception) {}
+
+        WeatherData(
+            city = cityName,
+            country = country,
+            latitude = lat,
+            longitude = lon,
+            temperatureF = 68,
+            temperatureC = 20,
+            condition = "Partly Cloudy",
+            iconType = "partly_cloudy",
+            isCelsius = isCelsius,
+            isLive = false
+        )
+    }
+
+    private fun mapWmoCode(code: Int, isDay: Boolean): Pair<String, String> {
+        return when (code) {
+            0 -> (if (isDay) "Sunny" else "Clear Sky") to "clear"
+            1 -> (if (isDay) "Mainly Sunny" else "Mainly Clear") to "clear"
+            2 -> "Partly Cloudy" to "partly_cloudy"
+            3 -> "Overcast" to "cloudy"
+            45, 48 -> "Fog & Mist" to "cloudy"
+            51, 53, 55, 56, 57 -> "Light Drizzle" to "rain"
+            61, 63, 65, 66, 67 -> "Rain" to "rain"
+            71, 73, 75, 77 -> "Snow" to "snow"
+            80, 81, 82 -> "Passing Showers" to "rain"
+            85, 86 -> "Snow Showers" to "snow"
+            95, 96, 99 -> "Thunderstorm" to "thunder"
+            else -> "Fair" to "partly_cloudy"
         }
     }
 }
@@ -661,14 +1062,17 @@ data class WeatherData(
     name: 'FavoritesStore.kt',
     language: 'kotlin',
     category: 'kotlin',
-    description: 'Preferences DataStore manager for persistent favorites and weather city selection',
+    description: 'Preferences DataStore manager for persistent favorites, weather coordinates, and saved cities',
     content: `package com.example.firelauncher.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -678,24 +1082,83 @@ import java.io.IOException
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "firelauncher_prefs")
 
-/**
- * Manages persisting favorite app package names and selected weather city using AndroidX DataStore Preferences.
- */
 class FavoritesStore(private val context: Context) {
 
     companion object {
         private val KEY_FAVORITES = stringSetPreferencesKey("favorite_packages_set")
-        private val KEY_WEATHER_CITY = androidx.datastore.preferences.core.stringPreferencesKey("weather_selected_city")
-        private val KEY_WEATHER_CELSIUS = androidx.datastore.preferences.core.booleanPreferencesKey("weather_is_celsius")
+        private val KEY_WEATHER_CITY = stringPreferencesKey("weather_selected_city")
+        private val KEY_WEATHER_COUNTRY = stringPreferencesKey("weather_selected_country")
+        private val KEY_WEATHER_LAT = doublePreferencesKey("weather_selected_lat")
+        private val KEY_WEATHER_LON = doublePreferencesKey("weather_selected_lon")
+        private val KEY_WEATHER_CELSIUS = booleanPreferencesKey("weather_is_celsius")
+        private val KEY_SAVED_CITIES = stringSetPreferencesKey("weather_saved_cities_set")
+
+        val DEFAULT_CITIES = setOf(
+            "Seattle|WA, USA|47.6062|-122.3321",
+            "New York|NY, USA|40.7128|-74.0060",
+            "Los Angeles|CA, USA|34.0522|-118.2437",
+            "London|UK|51.5074|-0.1278",
+            "Tokyo|Japan|35.6762|139.6503",
+            "Paris|France|48.8566|2.3522",
+            "Sydney|Australia|-33.8688|151.2093",
+            "Denver|CO, USA|39.7392|-104.9903"
+        )
     }
 
     val selectedCityFlow: Flow<String> = context.dataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { it[KEY_WEATHER_CITY] ?: "Seattle" }
 
+    val selectedCountryFlow: Flow<String> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { it[KEY_WEATHER_COUNTRY] ?: "WA, USA" }
+
+    val selectedLatFlow: Flow<Double> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { it[KEY_WEATHER_LAT] ?: 47.6062 }
+
+    val selectedLonFlow: Flow<Double> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { it[KEY_WEATHER_LON] ?: -122.3321 }
+
     val isCelsiusFlow: Flow<Boolean> = context.dataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { it[KEY_WEATHER_CELSIUS] ?: false }
+
+    val savedCitiesFlow: Flow<List<CityLocationModel>> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { prefs ->
+            val set = prefs[KEY_SAVED_CITIES] ?: DEFAULT_CITIES
+            set.mapNotNull { entry ->
+                val parts = entry.split("|")
+                if (parts.size >= 4) {
+                    val name = parts[0]
+                    val country = parts[1]
+                    val lat = parts[2].toDoubleOrNull() ?: 0.0
+                    val lon = parts[3].toDoubleOrNull() ?: 0.0
+                    CityLocationModel(
+                        id = "saved_\${name}_\$country",
+                        name = name,
+                        country = country,
+                        latitude = lat,
+                        longitude = lon
+                    )
+                } else null
+            }
+        }
+
+    suspend fun setSelectedLocation(city: String, country: String, lat: Double, lon: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_WEATHER_CITY] = city
+            preferences[KEY_WEATHER_COUNTRY] = country
+            preferences[KEY_WEATHER_LAT] = lat
+            preferences[KEY_WEATHER_LON] = lon
+
+            val currentSet = (preferences[KEY_SAVED_CITIES] ?: DEFAULT_CITIES).toMutableSet()
+            currentSet.add("\$city|\$country|\$lat|\$lon")
+            preferences[KEY_SAVED_CITIES] = currentSet
+        }
+    }
 
     suspend fun setSelectedCity(city: String) {
         context.dataStore.edit { preferences ->
@@ -975,7 +1438,7 @@ class AppRepository(private val context: Context) {
     name: 'LauncherViewModel.kt',
     language: 'kotlin',
     category: 'kotlin',
-    description: 'MVVM AndroidViewModel exposing apps, favorites, system shortcuts, and homeTick StateFlows',
+    description: 'MVVM AndroidViewModel exposing apps, favorites, 30m r/TVWallpapersSFW rotation, and live Open-Meteo weather with city search',
     content: `package com.example.firelauncher.ui
 
 import android.app.Application
@@ -983,23 +1446,34 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.firelauncher.data.AppModel
 import com.example.firelauncher.data.AppRepository
+import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.FavoritesStore
+import com.example.firelauncher.data.WallpaperModel
+import com.example.firelauncher.data.WallpaperRepository
+import com.example.firelauncher.data.WeatherData
+import com.example.firelauncher.data.WeatherRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * Main ViewModel for FireLauncher adhering to MVVM architecture.
- * Exposes StateFlows for apps, favorites, system shortcuts, and home-button tick events.
+ * Exposes StateFlows for apps, favorites, system shortcuts, home-button tick events,
+ * periodic r/TVWallpapersSFW wallpapers (changing every 30 mins), and accurate live Open-Meteo weather with city search.
  */
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(application)
     private val favoritesStore = FavoritesStore(application)
+    private val wallpaperRepository = WallpaperRepository(application, viewModelScope)
+    private val weatherRepository = WeatherRepository()
 
     private val _apps = MutableStateFlow<List<AppModel>>(emptyList())
     val apps: StateFlow<List<AppModel>> = _apps.asStateFlow()
@@ -1009,7 +1483,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     val systemShortcuts: StateFlow<List<AppModel>> = MutableStateFlow(repository.getSystemShortcuts())
 
-    // Combined favorites app list
     val favoriteApps: StateFlow<List<AppModel>> = combine(_apps, favorites) { allApps, favSet ->
         allApps.filter { favSet.contains(it.packageName) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -1017,32 +1490,35 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _focusedApp = MutableStateFlow<AppModel?>(null)
     val focusedApp: StateFlow<AppModel?> = _focusedApp.asStateFlow()
 
-    // Incremented whenever Home is pressed while launcher is active
     private val _homeTick = MutableStateFlow(0L)
     val homeTick: StateFlow<Long> = _homeTick.asStateFlow()
 
-    // Weather StateFlow derived from DataStore selected city and unit
-    val weather: StateFlow<com.example.firelauncher.data.WeatherData> = combine(
-        favoritesStore.selectedCityFlow,
-        favoritesStore.isCelsiusFlow
-    ) { city, isCelsius ->
-        com.example.firelauncher.data.WeatherData.forCity(city, isCelsius)
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.Eagerly,
-        com.example.firelauncher.data.WeatherData.forCity("Seattle", false)
-    )
+    val currentWallpaper: StateFlow<WallpaperModel?> = wallpaperRepository.currentWallpaper
+    val allWallpapers: StateFlow<List<WallpaperModel>> = wallpaperRepository.wallpapers
 
-    val availableCities: List<String> = com.example.firelauncher.data.WeatherData.CITY_PRESETS.map { it.city }
+    private val _weather = MutableStateFlow(WeatherData.defaultSeattle())
+    val weather: StateFlow<WeatherData> = _weather.asStateFlow()
 
-    // Global Search State
+    val savedCities: StateFlow<List<CityLocationModel>> = favoritesStore.savedCitiesFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val isCelsius: StateFlow<Boolean> = favoritesStore.isCelsiusFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _searchResults = MutableStateFlow<List<CityLocationModel>>(emptyList())
+    val searchResults: StateFlow<List<CityLocationModel>> = _searchResults.asStateFlow()
+
+    private val _isSearchingCities = MutableStateFlow(false)
+    val isSearchingCities: StateFlow<Boolean> = _isSearchingCities.asStateFlow()
+
+    private var citySearchJob: Job? = null
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _isSearchActive = MutableStateFlow(false)
     val isSearchActive: StateFlow<Boolean> = _isSearchActive.asStateFlow()
 
-    // Apps dynamically filtered by the global search query
     val filteredApps: StateFlow<List<AppModel>> = combine(_apps, _searchQuery) { allApps, query ->
         if (query.isBlank()) {
             allApps
@@ -1056,12 +1532,33 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     init {
         refreshApps()
+
+        viewModelScope.launch {
+            combine(
+                favoritesStore.selectedCityFlow,
+                favoritesStore.selectedCountryFlow,
+                favoritesStore.selectedLatFlow,
+                favoritesStore.selectedLonFlow,
+                favoritesStore.isCelsiusFlow
+            ) { city, country, lat, lon, celsius ->
+                fetchCurrentWeather(city, country, lat, lon, celsius)
+            }.collect {}
+        }
+
+        viewModelScope.launch {
+            while (isActive) {
+                delay(15 * 60 * 1000L)
+                val cur = _weather.value
+                fetchCurrentWeather(cur.city, cur.country, cur.latitude, cur.longitude, cur.isCelsius)
+            }
+        }
     }
 
-    /**
-     * Refreshes the list of installed applications from PackageManager.
-     * Invoked initially and on every onResume of the Activity.
-     */
+    private suspend fun fetchCurrentWeather(city: String, country: String, lat: Double, lon: Double, celsius: Boolean) {
+        val result = weatherRepository.fetchLiveWeather(city, country, lat, lon, celsius)
+        _weather.value = result
+    }
+
     fun refreshApps() {
         viewModelScope.launch {
             val list = repository.getInstalledApps()
@@ -1072,24 +1569,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /**
-     * Called when the Home button is pressed while the launcher is open.
-     * Triggers the homeTick counter to notify UI to scroll to top and refocus the first card.
-     */
     fun onHomePressed() {
         _homeTick.value += 1L
     }
 
-    /**
-     * Updates the currently focused app (for hero text and dynamic background color).
-     */
     fun setFocusedApp(app: AppModel) {
         _focusedApp.value = app
     }
 
-    /**
-     * Toggles the favorite status of the given app and saves to DataStore.
-     */
     fun toggleFavorite(app: AppModel) {
         if (app.isSystemShortcut) return
         viewModelScope.launch {
@@ -1097,34 +1584,59 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /**
-     * Updates the selected city for the top weather widget.
-     */
-    fun selectCity(city: String) {
-        viewModelScope.launch {
-            favoritesStore.setSelectedCity(city)
+    fun searchCities(query: String) {
+        citySearchJob?.cancel()
+        if (query.trim().length < 2) {
+            _searchResults.value = emptyList()
+            _isSearchingCities.value = false
+            return
+        }
+
+        citySearchJob = viewModelScope.launch {
+            _isSearchingCities.value = true
+            delay(300L)
+            val results = weatherRepository.searchCities(query)
+            _searchResults.value = results
+            _isSearchingCities.value = false
         }
     }
 
-    /**
-     * Toggles between Fahrenheit and Celsius.
-     */
+    fun clearCitySearch() {
+        citySearchJob?.cancel()
+        _searchResults.value = emptyList()
+        _isSearchingCities.value = false
+    }
+
+    fun selectCity(city: CityLocationModel) {
+        viewModelScope.launch {
+            favoritesStore.setSelectedLocation(
+                city = city.name,
+                country = city.admin1?.let { "\$it, \${city.countryCode ?: city.country}" } ?: city.country,
+                lat = city.latitude,
+                lon = city.longitude
+            )
+            clearCitySearch()
+        }
+    }
+
     fun toggleTemperatureUnit() {
         viewModelScope.launch {
             favoritesStore.toggleTemperatureUnit()
         }
     }
 
-    /**
-     * Updates the active global search query string.
-     */
+    fun nextWallpaper() {
+        wallpaperRepository.nextWallpaper()
+    }
+
+    fun setWallpaper(wallpaper: WallpaperModel) {
+        wallpaperRepository.setWallpaper(wallpaper)
+    }
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
-    /**
-     * Activates or closes the global search bar.
-     */
     fun setSearchActive(active: Boolean) {
         _isSearchActive.value = active
         if (!active) {
@@ -1132,16 +1644,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /**
-     * Clears the search query while keeping search active.
-     */
     fun clearSearch() {
         _searchQuery.value = ""
     }
 
-    /**
-     * Launches the specified application or system settings shortcut.
-     */
     fun launchApp(app: AppModel): Boolean {
         return repository.launchApp(app)
     }
@@ -1153,14 +1659,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     name: 'TopBar.kt',
     language: 'kotlin',
     category: 'kotlin',
-    description: 'TopBar with brand, live clock/date, focusable Weather widget, and dedicated Global Search button',
+    description: 'TopBar with brand, live clock/date, live Open-Meteo Weather with city search, Wallpaper trigger, and Global Search',
     content: `package com.example.firelauncher.ui.components
 
 import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -1178,11 +1682,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Thunderstorm
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.WbCloudy
 import androidx.compose.material.icons.rounded.WbSunny
@@ -1213,6 +1721,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.theme.DarkSurface
 import com.example.firelauncher.ui.theme.DarkSurfaceVariant
@@ -1225,24 +1734,23 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * Top bar displaying:
- * - Launcher brand on the left
- * - Focusable Weather widget in the center
- * - Global Search icon button / expandable search input
- * - Dynamic clock (12h/24h) and formatted calendar date on the right.
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TopBar(
     weather: WeatherData,
-    availableCities: List<String> = WeatherData.CITY_PRESETS.map { it.city },
+    savedCities: List<CityLocationModel>,
+    searchResults: List<CityLocationModel>,
+    isSearchingCities: Boolean,
+    onSearchCities: (String) -> Unit,
+    onClearCitySearch: () -> Unit,
+    onSelectCity: (CityLocationModel) -> Unit,
+    onToggleUnit: () -> Unit,
     searchQuery: String = "",
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
     onToggleSearch: (Boolean) -> Unit = {},
-    onSelectCity: (String) -> Unit = {},
-    onToggleUnit: () -> Unit = {},
+    onNextWallpaper: () -> Unit = {},
+    wallpaperTitle: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1266,7 +1774,6 @@ fun TopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Brand logo & title
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1287,18 +1794,26 @@ fun TopBar(
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "FireLauncher",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    letterSpacing = 0.5.sp
-                )
+                Column {
+                    Text(
+                        text = "FireLauncher",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        letterSpacing = 0.5.sp
+                    )
+                    if (wallpaperTitle != null) {
+                        Text(
+                            text = "r/TVWallpapersSFW",
+                            fontSize = 9.sp,
+                            color = FireAmber,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
-            // Center: Weather Widget or Search Input
             if (isSearchActive) {
-                // Expanded TV Search Bar
                 GlobalSearchBar(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange,
@@ -1306,7 +1821,6 @@ fun TopBar(
                     modifier = Modifier.weight(1f, fill = false).padding(horizontal = 24.dp)
                 )
             } else {
-                // Top Weather Widget (Current weather for selected city)
                 WeatherWidget(
                     weather = weather,
                     onClick = { showCityDialog = true },
@@ -1314,54 +1828,110 @@ fun TopBar(
                 )
             }
 
-            // Right: Search Trigger Button + Live Clock & Date
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Dedicated Search Icon Trigger
+                WallpaperTriggerButton(
+                    onClick = onNextWallpaper,
+                    title = "Change Wallpaper (30m auto)"
+                )
+
                 SearchTriggerButton(
                     isActive = isSearchActive,
                     onClick = { onToggleSearch(!isSearchActive) }
                 )
 
-                // Live clock and date
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
                         text = currentTimeString,
-                        fontSize = 20.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
                     Text(
                         text = currentDateString,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         color = TextSecondary
                     )
                 }
             }
         }
 
-        // City Selector Overlay Dialog
         if (showCityDialog) {
             CitySelectionDialog(
                 currentCity = weather.city,
-                cities = availableCities,
+                savedCities = savedCities,
+                searchResults = searchResults,
+                isSearching = isSearchingCities,
+                isCelsius = weather.isCelsius,
+                onSearch = onSearchCities,
+                onClearSearch = onClearCitySearch,
                 onCitySelected = { city ->
                     onSelectCity(city)
                     showCityDialog = false
                 },
-                onDismiss = { showCityDialog = false }
+                onToggleUnit = onToggleUnit,
+                onDismiss = {
+                    onClearCitySearch()
+                    showCityDialog = false
+                }
             )
         }
     }
 }
 
-/**
- * Dedicated TV-Material focusable Search Icon button in the top bar.
- */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun WallpaperTriggerButton(
+    onClick: () -> Unit,
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    val shape = CircleShape
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier.size(40.dp),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
+        border = ClickableSurfaceDefaults.border(
+            border = Border(
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                shape = shape
+            ),
+            focusedBorder = Border(
+                border = BorderStroke(2.dp, Color.White),
+                shape = shape
+            )
+        ),
+        glow = ClickableSurfaceDefaults.glow(
+            focusedGlow = Glow(
+                elevationColor = FireOrange.copy(alpha = 0.7f),
+                elevation = 14.dp
+            )
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = DarkSurface.copy(alpha = 0.85f),
+            focusedContainerColor = DarkSurfaceVariant
+        )
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = Icons.Rounded.Wallpaper,
+                contentDescription = title,
+                tint = FireAmber,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun SearchTriggerButton(
@@ -1373,7 +1943,7 @@ fun SearchTriggerButton(
 
     Surface(
         onClick = onClick,
-        modifier = modifier.size(42.dp),
+        modifier = modifier.size(40.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
         border = ClickableSurfaceDefaults.border(
@@ -1398,22 +1968,19 @@ fun SearchTriggerButton(
         )
     ) {
         Box(
-            modifier = Modifier.size(42.dp),
+            modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
         ) {
             androidx.compose.material3.Icon(
                 imageVector = if (isActive) Icons.Rounded.Close else Icons.Rounded.Search,
                 contentDescription = if (isActive) "Close Search" else "Search Apps",
                 tint = if (isActive) FireOrange else TextPrimary,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
     }
 }
 
-/**
- * Expanded Search Bar with real-time text input and clear button.
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun GlobalSearchBar(
@@ -1436,7 +2003,7 @@ fun GlobalSearchBar(
                 shape = shape
             )
         ),
-        modifier = modifier.width(380.dp).height(42.dp)
+        modifier = modifier.width(360.dp).height(40.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1470,7 +2037,7 @@ fun GlobalSearchBar(
                     singleLine = true,
                     textStyle = TextStyle(
                         color = TextPrimary,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     ),
                     cursorBrush = SolidColor(FireOrange),
@@ -1493,9 +2060,6 @@ fun GlobalSearchBar(
     }
 }
 
-/**
- * TV-Material focusable weather surface displaying weather icon, temp, condition, and selected city.
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun WeatherWidget(
@@ -1536,7 +2100,7 @@ fun WeatherWidget(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
         ) {
             val weatherIcon: ImageVector = when (weather.iconType) {
                 "clear" -> Icons.Rounded.WbSunny
@@ -1576,6 +2140,15 @@ fun WeatherWidget(
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
+                    if (weather.isLive) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981))
+                        )
+                    }
                 }
 
                 Row(
@@ -1607,105 +2180,280 @@ fun WeatherWidget(
     }
 }
 
-/**
- * TV dialog modal allowing user to change the selected city with D-pad navigation.
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun CitySelectionDialog(
     currentCity: String,
-    cities: List<String>,
-    onCitySelected: (String) -> Unit,
+    savedCities: List<CityLocationModel>,
+    searchResults: List<CityLocationModel>,
+    isSearching: Boolean,
+    isCelsius: Boolean,
+    onSearch: (String) -> Unit,
+    onClearSearch: () -> Unit,
+    onCitySelected: (CityLocationModel) -> Unit,
+    onToggleUnit: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 64.dp),
+            .padding(top = 40.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         Surface(
             onClick = {},
-            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(20.dp)),
+            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(24.dp)),
             colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xFF141824)
+                containerColor = Color(0xFF121622)
             ),
             border = ClickableSurfaceDefaults.border(
                 border = Border(
-                    border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(20.dp)
+                    border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(24.dp)
                 )
             ),
-            modifier = Modifier.width(360.dp)
+            modifier = Modifier.width(480.dp)
         ) {
             Column(
-                modifier = Modifier.padding(18.dp)
+                modifier = Modifier.padding(20.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Select Weather Location",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Close",
-                        fontSize = 12.sp,
-                        color = TextSecondary,
-                        modifier = Modifier.clickable { onDismiss() }
-                    )
-                }
+                    Column {
+                        Text(
+                            text = "Live Weather Location",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Powered by Open-Meteo • Search any city globally",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                TvLazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                ) {
-                    items(cities) { city ->
-                        val isSelected = city.equals(currentCity, ignoreCase = true)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            onClick = { onCitySelected(city) },
-                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
+                            onClick = onToggleUnit,
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isSelected) FireOrange.copy(alpha = 0.2f) else Color.Transparent,
-                                focusedContainerColor = DarkSurfaceVariant
+                                containerColor = DarkSurfaceVariant
                             ),
                             border = ClickableSurfaceDefaults.border(
                                 focusedBorder = Border(
                                     border = BorderStroke(1.5.dp, Color.White),
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(8.dp)
                                 )
                             ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp)
+                            modifier = Modifier.padding(end = 12.dp)
                         ) {
-                            Row(
+                            Text(
+                                text = if (isCelsius) "Unit: °C" else "Unit: °F",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FireAmber,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Close",
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.clickable { onDismiss() }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurfaceVariant)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search",
+                        tint = FireOrange,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Type city name (e.g. Tokyo, London, Austin)...",
+                                color = TextSecondary,
+                                fontSize = 13.sp
+                            )
+                        }
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = {
+                                searchQuery = it
+                                onSearch(it)
+                            },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            cursorBrush = SolidColor(FireOrange),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (searchQuery.isNotEmpty()) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Clear",
+                            tint = TextSecondary,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable {
+                                    searchQuery = ""
+                                    onClearSearch()
+                                }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = if (searchQuery.trim().length >= 2) "Search Results (Click to add & set)" else "Saved Locations",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = FireAmber,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                val displayList = if (searchQuery.trim().length >= 2) searchResults else savedCities
+
+                TvLazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                ) {
+                    if (isSearching) {
+                        item {
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = city,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) FireAmber else TextPrimary
+                                    text = "Searching Open-Meteo cities...",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
                                 )
-                                if (isSelected) {
-                                    Text(
-                                        text = "SELECTED",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = FireAmber
+                            }
+                        }
+                    } else if (displayList.isEmpty() && searchQuery.trim().length >= 2) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No cities found matching \\\"\$searchQuery\\\"",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    } else {
+                        items(displayList) { cityItem ->
+                            val isSelected = cityItem.name.equals(currentCity, ignoreCase = true)
+
+                            Surface(
+                                onClick = { onCitySelected(cityItem) },
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = if (isSelected) FireOrange.copy(alpha = 0.2f) else DarkSurface.copy(alpha = 0.4f),
+                                    focusedContainerColor = DarkSurfaceVariant
+                                ),
+                                border = ClickableSurfaceDefaults.border(
+                                    focusedBorder = Border(
+                                        border = BorderStroke(1.5.dp, Color.White),
+                                        shape = RoundedCornerShape(10.dp)
                                     )
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = Icons.Rounded.Public,
+                                            contentDescription = "City",
+                                            tint = if (isSelected) FireAmber else TextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = cityItem.name,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) FireAmber else TextPrimary
+                                            )
+                                            val sub = if (!cityItem.admin1.isNullOrBlank()) {
+                                                "\${cityItem.admin1}, \${cityItem.country}"
+                                            } else cityItem.country
+                                            Text(
+                                                text = sub,
+                                                fontSize = 10.sp,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                    }
+
+                                    if (isSelected) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            androidx.compose.material3.Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = "Selected",
+                                                tint = FireAmber,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "ACTIVE",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = FireAmber
+                                            )
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "Select",
+                                            fontSize = 11.sp,
+                                            color = TextSecondary
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2047,32 +2795,42 @@ private fun IconFallbackContent(
     name: 'LauncherRoot.kt',
     language: 'kotlin',
     category: 'kotlin',
-    description: 'Dynamic background gradient, 48dp overscan padding, search filtering, BackHandler, and Home scroll-to-top handler',
+    description: 'Dynamic background gradient, r/TVWallpapersSFW crossfade, 48dp overscan padding, city search, and Home scroll-to-top handler',
     content: `package com.example.firelauncher.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -2081,11 +2839,17 @@ import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.firelauncher.data.AppModel
+import com.example.firelauncher.data.CityLocationModel
+import com.example.firelauncher.data.WallpaperModel
+import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.components.AppRow
 import com.example.firelauncher.ui.components.HeroSection
 import com.example.firelauncher.ui.components.TopBar
 import com.example.firelauncher.ui.theme.DarkBackground
+import com.example.firelauncher.ui.theme.FireAmber
 import com.example.firelauncher.ui.theme.FireOrange
 import com.example.firelauncher.ui.theme.TextPrimary
 import com.example.firelauncher.ui.theme.TextSecondary
@@ -2094,7 +2858,7 @@ import kotlinx.coroutines.delay
 /**
  * Main stateless container collecting ViewModel state, managing D-pad focus,
  * animating dynamic background accent gradients, handling TV overscan padding,
- * and intercepting Back/Home events.
+ * auto-changing r/TVWallpapersSFW 30-minute wallpapers, and intercepting Back/Home events.
  */
 @Composable
 fun LauncherRoot(
@@ -2116,6 +2880,10 @@ fun LauncherRoot(
     val focusedApp by viewModel.focusedApp.collectAsStateWithLifecycle()
     val homeTick by viewModel.homeTick.collectAsStateWithLifecycle()
     val weather by viewModel.weather.collectAsStateWithLifecycle()
+    val savedCities by viewModel.savedCities.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val isSearchingCities by viewModel.isSearchingCities.collectAsStateWithLifecycle()
+    val currentWallpaper by viewModel.currentWallpaper.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filteredApps by viewModel.filteredApps.collectAsStateWithLifecycle()
 
@@ -2127,14 +2895,20 @@ fun LauncherRoot(
         focusedApp = focusedApp,
         homeTick = homeTick,
         weather = weather,
-        availableCities = viewModel.availableCities,
+        savedCities = savedCities,
+        searchResults = searchResults,
+        isSearchingCities = isSearchingCities,
+        currentWallpaper = currentWallpaper,
         searchQuery = searchQuery,
         isSearchActive = isSearchActive,
         filteredApps = filteredApps,
-        onSearchQueryChange = { viewModel.setSearchQuery(it) },
-        onToggleSearch = { viewModel.setSearchActive(it) },
+        onSearchCities = { viewModel.searchCities(it) },
+        onClearCitySearch = { viewModel.clearCitySearch() },
         onSelectCity = { viewModel.selectCity(it) },
         onToggleUnit = { viewModel.toggleTemperatureUnit() },
+        onNextWallpaper = { viewModel.nextWallpaper() },
+        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+        onToggleSearch = { viewModel.setSearchActive(it) },
         onAppFocused = { viewModel.setFocusedApp(it) },
         onAppClicked = { viewModel.launchApp(it) },
         onAppLongClicked = { viewModel.toggleFavorite(it) },
@@ -2154,15 +2928,21 @@ fun LauncherContent(
     systemShortcuts: List<AppModel>,
     focusedApp: AppModel?,
     homeTick: Long,
-    weather: com.example.firelauncher.data.WeatherData,
-    availableCities: List<String>,
+    weather: WeatherData,
+    savedCities: List<CityLocationModel>,
+    searchResults: List<CityLocationModel>,
+    isSearchingCities: Boolean,
+    currentWallpaper: WallpaperModel?,
     searchQuery: String,
     isSearchActive: Boolean,
     filteredApps: List<AppModel>,
+    onSearchCities: (String) -> Unit,
+    onClearCitySearch: () -> Unit,
+    onSelectCity: (CityLocationModel) -> Unit,
+    onToggleUnit: () -> Unit,
+    onNextWallpaper: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: (Boolean) -> Unit,
-    onSelectCity: (String) -> Unit,
-    onToggleUnit: () -> Unit,
     onAppFocused: (AppModel) -> Unit,
     onAppClicked: (AppModel) -> Unit,
     onAppLongClicked: (AppModel) -> Unit,
@@ -2208,46 +2988,127 @@ fun LauncherContent(
         modifier = modifier
             .fillMaxSize()
             .background(DarkBackground)
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        animatedAccentColor.copy(alpha = 0.32f),
-                        animatedAccentColor.copy(alpha = 0.12f),
-                        DarkBackground.copy(alpha = 0.95f),
-                        DarkBackground
-                    ),
-                    startY = 0f,
-                    endY = 900f
-                )
-            )
     ) {
+        // Layer 1: Fullscreen r/TVWallpapersSFW Wallpaper Background
+        currentWallpaper?.let { wp ->
+            Crossfade(
+                targetState = wp.url,
+                animationSpec = tween(700),
+                label = "WallpaperFade"
+            ) { imgUrl ->
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imgUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = wp.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        // Layer 2: TV Ambient Dark Vignette & Gradient (Guarantees card & typography readability)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0x990A0D14),
+                            Color(0xB30F1117),
+                            Color(0xEB0F1117),
+                            Color(0xFF0F1117)
+                        ),
+                        startY = 0f,
+                        endY = 1000f
+                    )
+                )
+        )
+
+        // Layer 3: Dynamic Focused App Ambient Tint Accent
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            animatedAccentColor.copy(alpha = 0.32f),
+                            animatedAccentColor.copy(alpha = 0.08f),
+                            Color.Transparent
+                        ),
+                        radius = 1200f
+                    )
+                )
+        )
+
+        // Layer 4: Main Content with 48dp Overscan Safe Margins
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 48.dp) // 48dp TV overscan safe padding
-                .padding(top = 28.dp, bottom = 20.dp)
+                .padding(top = 26.dp, bottom = 20.dp)
         ) {
-            // Top bar: App name, Weather widget, Global Search & live clock/date
+            // Top bar: App name, Live Open-Meteo Weather with Search, Next Wallpaper & live clock/date
             TopBar(
                 weather = weather,
-                availableCities = availableCities,
+                savedCities = savedCities,
+                searchResults = searchResults,
+                isSearchingCities = isSearchingCities,
+                onSearchCities = onSearchCities,
+                onClearCitySearch = onClearCitySearch,
+                onSelectCity = onSelectCity,
+                onToggleUnit = onToggleUnit,
                 searchQuery = searchQuery,
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
                 onToggleSearch = onToggleSearch,
-                onSelectCity = onSelectCity,
-                onToggleUnit = onToggleUnit
+                onNextWallpaper = onNextWallpaper,
+                wallpaperTitle = currentWallpaper?.title
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Hero section: Focused app title and dynamic hints
-            HeroSection(
-                focusedApp = focusedApp,
-                isFavorite = focusedApp != null && favorites.contains(focusedApp.packageName)
-            )
+            // Hero section: Focused app title, dynamic hints, and active wallpaper badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    HeroSection(
+                        focusedApp = focusedApp,
+                        isFavorite = focusedApp != null && favorites.contains(focusedApp.packageName)
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                // Discreet Wallpaper Attribution Chip
+                currentWallpaper?.let { wp ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x66181C28))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Rounded.Wallpaper,
+                            contentDescription = "Wallpaper",
+                            tint = FireAmber,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "\${wp.title.take(28)}... • r/TVWallpapersSFW",
+                            fontSize = 10.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Scrollable rows of apps or filtered search results
             TvLazyColumn(
@@ -2288,7 +3149,7 @@ fun LauncherContent(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "No apps found matching \"$searchQuery\"",
+                                    text = "No apps found matching \\\"\$searchQuery\\\"",
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TextPrimary
@@ -2464,12 +3325,19 @@ class MainActivity : ComponentActivity() {
     name: 'README.md',
     language: 'markdown',
     category: 'docs',
-    description: 'Documentation: ADB wireless connect, app-debug.apk installation, and Fire OS default launcher note',
+    description: 'Documentation: r/TVWallpapersSFW 30m auto rotation, Open-Meteo live weather with city search, ADB wireless connect, app-debug.apk installation, and Fire OS launcher note',
     content: `# FireLauncher 🔥
 
 A high-performance custom home-screen launcher designed specifically for **Amazon Fire TV (Fire OS)**, built in Kotlin using **Jetpack Compose for TV (tv-material)**, **MVVM architecture**, **Preferences DataStore**, and **AndroidX Palette** for dynamic ambient theming.
 
-See complete repository instructions and ADB installation steps.
+## Key Highlights
+- **r/TVWallpapersSFW Backgrounds**: Dynamic 16:9 TV wallpapers fetched directly from Reddit r/TVWallpapersSFW, auto-rotating every 30 minutes with smooth crossfade and ambient dark vignette.
+- **Accurate Live Weather (Open-Meteo)**: Zero API keys required. Live temperature, condition summary, high/low, humidity, and wind speed. Includes global geocoding search to search and add any city.
+- **Global App Search**: Search icon in top bar with instant real-time app filtering and empty search state.
+- **D-Pad Focus & Palette Glow**: 16:9 rounded cards that scale to 1.12x on focus, with 2dp white border and dynamic Palette accent glow.
+- **Overscan-Safe**: 48dp horizontal padding, singleTask Home scroll-to-top handler, and hardware Back button absorption.
+
+See the complete README.md on disk for ADB setup commands, Button Mapper configurations, and CleanYourTV debloat scripts.
 `
   }
 ];

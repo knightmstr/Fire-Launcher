@@ -1,28 +1,38 @@
 package com.example.firelauncher.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,11 +41,17 @@ import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.firelauncher.data.AppModel
+import com.example.firelauncher.data.CityLocationModel
+import com.example.firelauncher.data.WallpaperModel
+import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.components.AppRow
 import com.example.firelauncher.ui.components.HeroSection
 import com.example.firelauncher.ui.components.TopBar
 import com.example.firelauncher.ui.theme.DarkBackground
+import com.example.firelauncher.ui.theme.FireAmber
 import com.example.firelauncher.ui.theme.FireOrange
 import com.example.firelauncher.ui.theme.TextPrimary
 import com.example.firelauncher.ui.theme.TextSecondary
@@ -44,7 +60,7 @@ import kotlinx.coroutines.delay
 /**
  * Main stateless container collecting ViewModel state, managing D-pad focus,
  * animating dynamic background accent gradients, handling TV overscan padding,
- * and intercepting Back/Home events.
+ * auto-changing r/TVWallpapersSFW 30-minute wallpapers, and intercepting Back/Home events.
  */
 @Composable
 fun LauncherRoot(
@@ -66,6 +82,10 @@ fun LauncherRoot(
     val focusedApp by viewModel.focusedApp.collectAsStateWithLifecycle()
     val homeTick by viewModel.homeTick.collectAsStateWithLifecycle()
     val weather by viewModel.weather.collectAsStateWithLifecycle()
+    val savedCities by viewModel.savedCities.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val isSearchingCities by viewModel.isSearchingCities.collectAsStateWithLifecycle()
+    val currentWallpaper by viewModel.currentWallpaper.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filteredApps by viewModel.filteredApps.collectAsStateWithLifecycle()
 
@@ -77,14 +97,20 @@ fun LauncherRoot(
         focusedApp = focusedApp,
         homeTick = homeTick,
         weather = weather,
-        availableCities = viewModel.availableCities,
+        savedCities = savedCities,
+        searchResults = searchResults,
+        isSearchingCities = isSearchingCities,
+        currentWallpaper = currentWallpaper,
         searchQuery = searchQuery,
         isSearchActive = isSearchActive,
         filteredApps = filteredApps,
-        onSearchQueryChange = { viewModel.setSearchQuery(it) },
-        onToggleSearch = { viewModel.setSearchActive(it) },
+        onSearchCities = { viewModel.searchCities(it) },
+        onClearCitySearch = { viewModel.clearCitySearch() },
         onSelectCity = { viewModel.selectCity(it) },
         onToggleUnit = { viewModel.toggleTemperatureUnit() },
+        onNextWallpaper = { viewModel.nextWallpaper() },
+        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+        onToggleSearch = { viewModel.setSearchActive(it) },
         onAppFocused = { viewModel.setFocusedApp(it) },
         onAppClicked = { viewModel.launchApp(it) },
         onAppLongClicked = { viewModel.toggleFavorite(it) },
@@ -104,15 +130,21 @@ fun LauncherContent(
     systemShortcuts: List<AppModel>,
     focusedApp: AppModel?,
     homeTick: Long,
-    weather: com.example.firelauncher.data.WeatherData,
-    availableCities: List<String>,
+    weather: WeatherData,
+    savedCities: List<CityLocationModel>,
+    searchResults: List<CityLocationModel>,
+    isSearchingCities: Boolean,
+    currentWallpaper: WallpaperModel?,
     searchQuery: String,
     isSearchActive: Boolean,
     filteredApps: List<AppModel>,
+    onSearchCities: (String) -> Unit,
+    onClearCitySearch: () -> Unit,
+    onSelectCity: (CityLocationModel) -> Unit,
+    onToggleUnit: () -> Unit,
+    onNextWallpaper: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: (Boolean) -> Unit,
-    onSelectCity: (String) -> Unit,
-    onToggleUnit: () -> Unit,
     onAppFocused: (AppModel) -> Unit,
     onAppClicked: (AppModel) -> Unit,
     onAppLongClicked: (AppModel) -> Unit,
@@ -158,46 +190,127 @@ fun LauncherContent(
         modifier = modifier
             .fillMaxSize()
             .background(DarkBackground)
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        animatedAccentColor.copy(alpha = 0.32f),
-                        animatedAccentColor.copy(alpha = 0.12f),
-                        DarkBackground.copy(alpha = 0.95f),
-                        DarkBackground
-                    ),
-                    startY = 0f,
-                    endY = 900f
-                )
-            )
     ) {
+        // Layer 1: Fullscreen r/TVWallpapersSFW Wallpaper Background
+        currentWallpaper?.let { wp ->
+            Crossfade(
+                targetState = wp.url,
+                animationSpec = tween(700),
+                label = "WallpaperFade"
+            ) { imgUrl ->
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imgUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = wp.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        // Layer 2: TV Ambient Dark Vignette & Gradient (Guarantees card & typography readability)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0x990A0D14),
+                            Color(0xB30F1117),
+                            Color(0xEB0F1117),
+                            Color(0xFF0F1117)
+                        ),
+                        startY = 0f,
+                        endY = 1000f
+                    )
+                )
+        )
+
+        // Layer 3: Dynamic Focused App Ambient Tint Accent
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            animatedAccentColor.copy(alpha = 0.32f),
+                            animatedAccentColor.copy(alpha = 0.08f),
+                            Color.Transparent
+                        ),
+                        radius = 1200f
+                    )
+                )
+        )
+
+        // Layer 4: Main Content with 48dp Overscan Safe Margins
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 48.dp) // 48dp TV overscan safe padding
-                .padding(top = 28.dp, bottom = 20.dp)
+                .padding(top = 26.dp, bottom = 20.dp)
         ) {
-            // Top bar: App name, Weather widget, Global Search & live clock/date
+            // Top bar: App name, Live Open-Meteo Weather with Search, Next Wallpaper & live clock/date
             TopBar(
                 weather = weather,
-                availableCities = availableCities,
+                savedCities = savedCities,
+                searchResults = searchResults,
+                isSearchingCities = isSearchingCities,
+                onSearchCities = onSearchCities,
+                onClearCitySearch = onClearCitySearch,
+                onSelectCity = onSelectCity,
+                onToggleUnit = onToggleUnit,
                 searchQuery = searchQuery,
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
                 onToggleSearch = onToggleSearch,
-                onSelectCity = onSelectCity,
-                onToggleUnit = onToggleUnit
+                onNextWallpaper = onNextWallpaper,
+                wallpaperTitle = currentWallpaper?.title
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Hero section: Focused app title and dynamic hints
-            HeroSection(
-                focusedApp = focusedApp,
-                isFavorite = focusedApp != null && favorites.contains(focusedApp.packageName)
-            )
+            // Hero section: Focused app title, dynamic hints, and active wallpaper badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    HeroSection(
+                        focusedApp = focusedApp,
+                        isFavorite = focusedApp != null && favorites.contains(focusedApp.packageName)
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                // Discreet Wallpaper Attribution Chip
+                currentWallpaper?.let { wp ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x66181C28))
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Rounded.Wallpaper,
+                            contentDescription = "Wallpaper",
+                            tint = FireAmber,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${wp.title.take(28)}... • r/TVWallpapersSFW",
+                            fontSize = 10.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Scrollable rows of apps or filtered search results
             TvLazyColumn(

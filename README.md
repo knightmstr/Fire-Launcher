@@ -27,14 +27,24 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - Dedicated "Favorites" row dynamically appears whenever non-empty.
 5. **System Shortcuts Row**:
    - Instant 1-click access to TV system settings: **Wi-Fi**, **Display**, **Sound**, **Bluetooth**, and **All Settings**.
-6. **Live Top Bar, Global Search & City Weather Widget**:
+6. **Dynamic r/TVWallpapersSFW Homepage Wallpapers (30-min Auto-Rotation)**:
+   - Fetches authentic 16:9 high-resolution landscape TV wallpapers directly from `r/TVWallpapersSFW`.
+   - Rotates automatically every **30 minutes** with smooth Coil image crossfading.
+   - Includes a discreet top-right attribution chip showing the wallpaper title and source subreddit.
+   - Top bar "Next Wallpaper" button (or `W` key in simulator) allows manual instant cycling.
+   - Multi-layer TV ambient vignette (vertical and radial gradient) guarantees cards, text, and icons maintain 100% contrast over any bright wallpaper.
+   - Built-in curated 4K fallback wallpapers ensure seamless operation even offline or in network-restricted environments.
+7. **Accurate Live Weather with Global City Search (Open-Meteo API)**:
+   - Replaces mock weather with real-time meteorological forecasts powered by **Open-Meteo** (free, no API key required, WMO weather standards).
+   - Shows live temperature, weather condition icon/summary, high/low, humidity %, and wind speed.
+   - **Global City Search Modal**: Users can search for any city in the world using Open-Meteo Geocoding, view region/country, and add it with one click.
+   - Custom cities are saved persistently in AndroidX Preferences DataStore.
+   - Quick toggle between **Fahrenheit (°F)** and **Celsius (°C)**.
+8. **Top Bar, Global App Search & Live Clock**:
    - Dedicated **Global Search** button with real-time app filtering by name and package identifier, expandable search bar, and empty search state.
-   - Focusable TV weather widget showing current weather conditions, temperature, condition summary, high/low, and selected city.
-   - City selection modal with D-pad navigation and °F / °C unit toggle.
-   - Selected city and temperature unit persisted in Preferences DataStore.
    - Live clock honoring 12-hour / 24-hour system preferences, plus formatted date.
    - Hero header showing the currently focused app's title, category, and contextual action hint (*"Hold OK to add to favorites"* / *"Hold OK to remove from favorites"*).
-7. **TV Overscan & Remote Navigation Safeguards**:
+9. **TV Overscan & Remote Navigation Safeguards**:
    - 48dp horizontal margins for TV overscan-safe rendering on any HDMI display.
    - Hardware Back button is deliberately absorbed and ignored to prevent accidental launcher exit, but gracefully dismisses active search or modal dialogs first.
    - Pressing the Home key while the launcher is open delivers an intent to `singleTask`'s `onNewIntent`, automatically scrolling to the top and refocusing the primary card.
@@ -204,18 +214,22 @@ FireLauncher/
 │           ├── FireLauncherApp.kt     # Application class
 │           ├── MainActivity.kt        # SingleTask TV activity + Home & Back interceptors
 │           ├── data/
-│           │   ├── AppModel.kt        # App data entity
-│           │   ├── AppRepository.kt   # Dual scanner (Leanback + Launcher) & Explicit launcher
-│           │   ├── FavoritesStore.kt  # Preferences DataStore store for favorites
-│           │   └── PaletteHelper.kt   # Palette extractor with HSV saturation/brightness clamping
+│           │   ├── AppModel.kt            # App data entity
+│           │   ├── AppRepository.kt       # Dual scanner (Leanback + Launcher) & Explicit launcher
+│           │   ├── FavoritesStore.kt      # Preferences DataStore store for favorites & saved cities
+│           │   ├── PaletteHelper.kt       # Palette extractor with HSV saturation/brightness clamping
+│           │   ├── WallpaperModel.kt      # r/TVWallpapersSFW data entity
+│           │   ├── WallpaperRepository.kt # Subreddit fetcher, 30-min auto-rotation & curated fallbacks
+│           │   ├── WeatherData.kt         # Open-Meteo live weather & city location models
+│           │   └── WeatherRepository.kt   # Open-Meteo live forecast & global geocoding city search
 │           └── ui/
-│               ├── LauncherViewModel.kt # MVVM StateFlow coordinator
-│               ├── LauncherRoot.kt      # State collector, overscan padding & dynamic gradient
+│               ├── LauncherViewModel.kt   # MVVM StateFlow coordinator (apps, search, weather, wallpaper)
+│               ├── LauncherRoot.kt        # State collector, 48dp overscan padding, wallpaper & ambient vignette
 │               ├── components/
-│               │   ├── AppCard.kt       # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
-│               │   ├── AppRow.kt        # TvLazyRow with category header
-│               │   ├── HeroSection.kt   # App title & hold-OK instructions
-│               │   └── TopBar.kt        # 12h/24h clock, date, and brand header
+│               │   ├── AppCard.kt         # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
+│               │   ├── AppRow.kt          # TvLazyRow with category header
+│               │   ├── HeroSection.kt     # App title, category & hold-OK instructions
+│               │   └── TopBar.kt          # Live weather with city search modal, wallpaper cycle, clock & search
 │               └── theme/
 │                   ├── Color.kt         # Color palette constants
 │                   └── Theme.kt         # Material3 TV DarkColorScheme

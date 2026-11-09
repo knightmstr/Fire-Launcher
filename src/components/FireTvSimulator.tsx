@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Wifi,
   Tv,
@@ -26,23 +26,36 @@ import {
   Cloud,
   CloudRain,
   CloudLightning,
+  CloudSnow,
   MapPin,
   ChevronDown as ChevronDownIcon,
   ShieldCheck,
-  Sparkles as SparklesIcon,
   Search,
   SearchX,
-  X as CloseIcon
+  X as CloseIcon,
+  Wallpaper as WallpaperIcon,
+  RefreshCw,
+  Loader2,
+  Compass,
+  Droplets,
+  Wind
 } from 'lucide-react';
 import { SimulatedApp } from '../types';
 import { SIMULATED_INSTALLED_APPS, SIMULATED_SYSTEM_SHORTCUTS } from '../data/mockInstalledApps';
-import { WEATHER_CITIES, WeatherCityInfo } from '../data/mockWeather';
+import { CURATED_TV_WALLPAPERS, TvWallpaper, fetchRedditWallpapers, WALLPAPER_ROTATION_MS } from '../data/wallpapers';
+import {
+  CityLocation,
+  LiveWeatherData,
+  getSavedCities,
+  saveCityToStorage,
+  getSelectedCityFromStorage,
+  searchCitiesApi,
+  fetchLiveWeather
+} from '../utils/weatherApi';
 import {
   playTvNavSound,
   playTvSelectSound,
-  playTvFavoriteSound,
-  isSoundEnabled,
-  toggleSound
+  playTvFavoriteSound
 } from '../utils/soundEffects';
 
 interface FireTvSimulatorProps {
@@ -69,7 +82,7 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
     () => new Set(['com.amazon.avod', 'com.netflix.ninja'])
   );
 
-  // Active focus coordinates: row (0: favorites, 1: all apps, 2: system) and column index
+  // Active focus coordinates: row and column index
   const [focusedRow, setFocusedRow] = useState<number>(0);
   const [focusedCol, setFocusedCol] = useState<number>(0);
 
@@ -77,16 +90,30 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
 
-  // Toast notifications for TV actions (launching app, back ignored, etc.)
+  // Toast notifications for TV actions
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [launchedApp, setLaunchedApp] = useState<SimulatedApp | null>(null);
 
-  // Weather state (selected city & temperature unit)
-  const [selectedWeather, setSelectedWeather] = useState<WeatherCityInfo>(WEATHER_CITIES[0]);
+  // --- r/TVWallpapersSFW Wallpaper State (Changes every 30 minutes) ---
+  const [wallpapers, setWallpapers] = useState<TvWallpaper[]>(CURATED_TV_WALLPAPERS);
+  const [currentWallpaperIndex, setCurrentWallpaperIndex] = useState<number>(0);
+  const [wallpaperLoaded, setWallpaperLoaded] = useState<boolean>(true);
+  const [nextRotationSeconds, setNextRotationSeconds] = useState<number>(30 * 60);
+
+  // --- Open-Meteo Accurate Live Weather State ---
+  const [savedCities, setSavedCities] = useState<CityLocation[]>(getSavedCities);
+  const [selectedCity, setSelectedCity] = useState<CityLocation>(getSelectedCityFromStorage);
+  const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null);
+  const [isWeatherLoading, setIsWeatherLoading] = useState<boolean>(false);
   const [isCelsius, setIsCelsius] = useState<boolean>(false);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState<boolean>(false);
 
-  // Global Search state
+  // Live City Search in modal
+  const [citySearchQuery, setCitySearchQuery] = useState<string>('');
+  const [citySearchResults, setCitySearchResults] = useState<CityLocation[]>([]);
+  const [isSearchingCities, setIsSearchingCities] = useState<boolean>(false);
+
+  // Global App Search state
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchActive, setIsSearchActive] = useState<boolean>(false);
 
@@ -96,22 +123,120 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
   const pressTimerRef = useRef<number | null>(null);
   const pressStartTimeRef = useRef<number>(0);
 
-  // Scroll container ref
+  // Scroll container ref & search inputs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const citySearchInputRef = useRef<HTMLInputElement>(null);
+
+  // --- 1. Fetch Reddit Wallpapers & 30-Minute Rotation Timer ---
+  useEffect(() => {
+    let isMounted = true;
+    fetchRedditWallpapers().then((fetched) => {
+      if (isMounted && fetched && fetched.length > 0) {
+        setWallpapers(fetched);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 30-minute auto-rotation timer countdown and switch
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNextRotationSeconds((prev) => {
+        if (prev <= 1) {
+          // Trigger wallpaper switch
+          setCurrentWallpaperIndex((idx) => (idx + 1) % wallpapers.length);
+          return 30 * 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [wallpapers.length]);
+
+  const handleNextWallpaper = () => {
+    playTvNavSound();
+    setCurrentWallpaperIndex((prev) => (prev + 1) % wallpapers.length);
+    setNextRotationSeconds(30 * 60);
+    const nextWp = wallpapers[(currentWallpaperIndex + 1) % wallpapers.length];
+    showToast(`Wallpaper: ${nextWp.title.slice(0, 30)}... (r/TVWallpapersSFW)`);
+  };
+
+  const currentWallpaper = wallpapers[currentWallpaperIndex] || CURATED_TV_WALLPAPERS[0];
+
+  // --- 2. Live Weather Fetching via Open-Meteo ---
+  useEffect(() => {
+    let isMounted = true;
+    setIsWeatherLoading(true);
+
+    fetchLiveWeather(selectedCity)
+      .then((data) => {
+        if (isMounted) {
+          setLiveWeather(data);
+          setIsWeatherLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        if (isMounted) setIsWeatherLoading(false);
+      });
+
+    // Refresh weather every 15 minutes
+    const weatherInterval = setInterval(() => {
+      fetchLiveWeather(selectedCity).then((data) => {
+        if (isMounted) setLiveWeather(data);
+      });
+    }, 15 * 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(weatherInterval);
+    };
+  }, [selectedCity]);
+
+  // Debounced live city search
+  useEffect(() => {
+    if (!citySearchQuery || citySearchQuery.trim().length < 2) {
+      setCitySearchResults([]);
+      setIsSearchingCities(false);
+      return;
+    }
+
+    setIsSearchingCities(true);
+    const timeout = setTimeout(async () => {
+      const results = await searchCitiesApi(citySearchQuery);
+      setCitySearchResults(results);
+      setIsSearchingCities(false);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [citySearchQuery]);
+
+  const handleSelectCity = (city: CityLocation) => {
+    playTvSelectSound();
+    setSelectedCity(city);
+    saveCityToStorage(city);
+    setSavedCities(getSavedCities());
+    setCitySearchQuery('');
+    setCitySearchResults([]);
+    setIsWeatherModalOpen(false);
+    showToast(`Weather location set to ${city.name} (${city.country})`);
+  };
 
   // Prepare all apps sorted A-Z
-  const allApps = React.useMemo(() => {
+  const allApps = useMemo(() => {
     return [...SIMULATED_INSTALLED_APPS].sort((a, b) => a.label.localeCompare(b.label));
   }, []);
 
   // Filter favorite apps
-  const favoriteApps = React.useMemo(() => {
+  const favoriteApps = useMemo(() => {
     return allApps.filter((app) => favorites.has(app.packageName));
   }, [allApps, favorites]);
 
   // Filter apps by search query
-  const filteredApps = React.useMemo(() => {
+  const filteredApps = useMemo(() => {
     if (!searchQuery.trim()) return allApps;
     const q = searchQuery.toLowerCase().trim();
     return allApps.filter(
@@ -121,8 +246,8 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
 
   const systemShortcuts = SIMULATED_SYSTEM_SHORTCUTS;
 
-  // Compute row definitions dynamically (when search is active or non-empty, show Search Results row!)
-  const rows = React.useMemo(() => {
+  // Compute row definitions dynamically
+  const rows = useMemo(() => {
     if (isSearchActive || searchQuery.trim().length > 0) {
       if (filteredApps.length === 0) {
         return [];
@@ -270,7 +395,7 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
     showToast('Home pressed: Scrolled to top & refocused first card');
   };
 
-  // Back pressed: Ignored per Fire TV spec (dismisses search/modals if open)
+  // Back pressed
   const handleBackPressed = () => {
     if (isWeatherModalOpen) {
       setIsWeatherModalOpen(false);
@@ -307,10 +432,9 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
     }
   }, [externalTrigger]);
 
-  // Keyboard navigation listener (Arrow keys, Enter, Back, Home)
+  // Keyboard navigation listener (Arrow keys, Enter, Back, Home, /, W)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Avoid intercepting if user is typing in a modal input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
       if (e.key === 'ArrowUp') {
@@ -358,6 +482,9 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
         e.preventDefault();
         setIsSearchActive(true);
         setTimeout(() => searchInputRef.current?.focus(), 50);
+      } else if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        handleNextWallpaper();
       }
     };
 
@@ -372,7 +499,6 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
           setPressProgress(0);
           onHoldingOkChange?.(false);
           onHoldProgressChange?.(0);
-          // If released before 700ms, it is a click/launch!
           if (elapsed < 700 && currentApp) {
             launchApp(currentApp);
           }
@@ -435,6 +561,8 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
         return <Cloud className={`${className} text-neutral-300`} />;
       case 'rain':
         return <CloudRain className={`${className} text-cyan-400`} />;
+      case 'snow':
+        return <CloudSnow className={`${className} text-blue-200`} />;
       case 'thunder':
         return <CloudLightning className={`${className} text-yellow-400`} />;
       default:
@@ -445,20 +573,38 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
   const accentColor = currentApp ? currentApp.accentColor : '#FF9900';
   const isCurrentFavorite = currentApp ? favorites.has(currentApp.packageName) : false;
 
+  const minutesUntilNext = Math.ceil(nextRotationSeconds / 60);
+
   return (
     <div className="relative w-full aspect-[16/9] max-w-5xl mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 border-neutral-800 bg-[#0F1117] select-none text-white">
-      {/* Dynamic Animated Ambient Background Gradient */}
+      {/* Layer 1: High-Definition r/TVWallpapersSFW Background with Smooth Transition */}
+      <div
+        className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out pointer-events-none scale-105"
+        style={{
+          backgroundImage: `url("${currentWallpaper.url}")`,
+          filter: 'brightness(0.85) contrast(1.05)'
+        }}
+      />
+
+      {/* Layer 2: TV Ambient Dark Vignette & Gradient (Guarantees 100% typography & card readability) */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'linear-gradient(to bottom, rgba(10,13,20,0.75) 0%, rgba(15,17,23,0.82) 40%, rgba(15,17,23,0.95) 85%, #0F1117 100%)'
+        }}
+      />
+
+      {/* Layer 3: Dynamic Animated Ambient Background Gradient from Focused Card Accent */}
       <div
         className="absolute inset-0 transition-colors duration-500 ease-out pointer-events-none"
         style={{
-          background: `radial-gradient(ellipse at 50% 10%, ${accentColor}44 0%, ${accentColor}18 45%, #0F1117 85%)`
+          background: `radial-gradient(ellipse at 50% 15%, ${accentColor}38 0%, ${accentColor}12 50%, transparent 80%)`
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0F1117]/60 to-[#0F1117] pointer-events-none" />
 
-      {/* 48dp Overscan Safe Boundaries Overlay (Optional visual guide) */}
+      {/* 48dp Overscan Safe Boundaries Overlay */}
       {showOverscanGuides && (
-        <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-amber-400/40 m-[48px] rounded-2xl flex flex-col justify-between p-2 text-[10px] text-amber-300 font-mono">
+        <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-amber-400/40 m-[48px] rounded-2xl flex flex-col justify-between p-2 text-[10px] text-amber-300 font-mono z-30">
           <div className="flex justify-between">
             <span>48dp Overscan Safe Zone</span>
             <span>Fire OS TV Safe Area</span>
@@ -473,49 +619,69 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
       {/* Main Content Area with 48dp Horizontal Padding */}
       <div
         ref={scrollContainerRef}
-        className="relative z-10 w-full h-full overflow-y-auto px-[48px] pt-6 pb-8 flex flex-col justify-between no-scrollbar"
+        className="relative z-10 w-full h-full overflow-y-auto px-[48px] pt-5 pb-7 flex flex-col justify-between no-scrollbar"
       >
-        {/* Top Bar: Brand Logo, Weather Widget & Live Clock */}
+        {/* Top Bar: Brand Logo, Accurate Live Weather & Next Wallpaper & Live Clock */}
         <div className="flex items-center justify-between h-14 shrink-0">
-          {/* Brand Logo */}
+          {/* Brand Logo & Subreddit attribution */}
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
               <Flame className="w-4 h-4 text-white fill-white" />
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-xl font-bold tracking-tight text-white font-sans">
-                FireLauncher
-              </span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                Fire OS
+            <div className="flex flex-col">
+              <div className="flex items-baseline space-x-2">
+                <span className="text-xl font-bold tracking-tight text-white font-sans">
+                  FireLauncher
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                  Fire OS
+                </span>
+              </div>
+              <span className="text-[9px] text-amber-400/80 font-medium">
+                r/TVWallpapersSFW 30m Auto-Cycle
               </span>
             </div>
           </div>
 
-          {/* Current Weather Widget for Selected City */}
+          {/* Accurate Live Open-Meteo Weather Widget */}
           <button
             onClick={() => setIsWeatherModalOpen(true)}
-            className="flex items-center space-x-3 px-3.5 py-1.5 rounded-2xl bg-neutral-900/80 hover:bg-neutral-800/90 border border-neutral-700/60 hover:border-amber-400/60 transition group cursor-pointer shadow-lg backdrop-blur-md active:scale-95"
-            title="Click or press OK to change city and weather settings"
+            className="flex items-center space-x-3 px-3.5 py-1.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-850 border border-neutral-700/70 hover:border-amber-400/70 transition group cursor-pointer shadow-lg backdrop-blur-md active:scale-95"
+            title="Click to search any city globally or change weather units"
           >
             <div className="p-1 rounded-lg bg-black/40">
-              {renderWeatherIcon(selectedWeather.icon, 'w-5 h-5')}
+              {renderWeatherIcon(liveWeather?.icon || 'sun', 'w-5 h-5')}
             </div>
             <div className="text-left">
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-bold text-white tracking-tight">
-                  {isCelsius ? `${selectedWeather.tempC}°C` : `${selectedWeather.tempF}°F`}
+                  {isWeatherLoading ? (
+                    <span className="text-neutral-400 text-xs flex items-center space-x-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Updating...</span>
+                    </span>
+                  ) : liveWeather ? (
+                    isCelsius ? `${liveWeather.tempC}°C` : `${liveWeather.tempF}°F`
+                  ) : (
+                    '--'
+                  )}
                 </span>
-                <span className="text-[11px] text-neutral-300 font-medium">
-                  {selectedWeather.condition}
+                <span className="text-[11px] text-neutral-300 font-medium truncate max-w-[120px]">
+                  {liveWeather?.condition || 'Loading'}
                 </span>
+                {liveWeather?.isLive && (
+                  <span className="flex items-center space-x-1 text-[9px] text-emerald-400 font-bold bg-emerald-500/20 px-1 py-0.2 rounded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>LIVE</span>
+                  </span>
+                )}
               </div>
               <div className="flex items-center space-x-1.5 text-[10px] text-neutral-400">
                 <MapPin className="w-2.5 h-2.5 text-amber-400" />
-                <span className="text-amber-300 font-medium">{selectedWeather.city}</span>
+                <span className="text-amber-300 font-medium">{selectedCity.name}</span>
                 <span>•</span>
                 <span>
-                  H:{isCelsius ? selectedWeather.highC : selectedWeather.highF}° L:{isCelsius ? selectedWeather.lowC : selectedWeather.lowF}°
+                  H:{isCelsius ? liveWeather?.highC ?? 20 : liveWeather?.highF ?? 68}° L:{isCelsius ? liveWeather?.lowC ?? 12 : liveWeather?.lowF ?? 54}°
                 </span>
               </div>
             </div>
@@ -523,11 +689,24 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
           </button>
 
           {/* Top Bar Center & Right Controls */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2.5">
+            {/* Quick Next Wallpaper Trigger Button */}
+            <button
+              onClick={handleNextWallpaper}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-2xl bg-neutral-900/85 hover:bg-neutral-800 border border-neutral-700/60 hover:border-amber-400/60 transition group cursor-pointer shadow-lg backdrop-blur-md active:scale-95 text-xs text-neutral-300 hover:text-white"
+              title={`Switch wallpaper from r/TVWallpapersSFW (HotKey: W) • Next auto-change in ${minutesUntilNext}m`}
+            >
+              <WallpaperIcon className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition transform" />
+              <span className="hidden sm:inline font-medium">Wallpaper</span>
+              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-neutral-800 text-amber-300/80 border border-neutral-700">
+                {minutesUntilNext}m
+              </span>
+            </button>
+
             {/* Global Search Bar & Icon Button */}
             <div className="flex items-center">
               {isSearchActive ? (
-                <div className="flex items-center space-x-2 bg-neutral-900/90 border border-amber-400/80 rounded-2xl px-3 py-1.5 shadow-lg backdrop-blur-md">
+                <div className="flex items-center space-x-2 bg-neutral-900/90 border border-amber-400/80 rounded-2xl px-3 py-1.5 shadow-lg backdrop-blur-md animate-fade-in">
                   <Search className="w-4 h-4 text-amber-400 shrink-0" />
                   <input
                     ref={searchInputRef}
@@ -609,8 +788,8 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
           </div>
         </div>
 
-        {/* Hero Section: Focused App Details & Hint */}
-        <div className="my-4 h-20 shrink-0 flex flex-col justify-center transition-all duration-300">
+        {/* Hero Section: Focused App Details & Active Wallpaper Info */}
+        <div className="my-3 h-20 shrink-0 flex items-center justify-between transition-all duration-300">
           {currentApp ? (
             <div>
               <div className="flex items-center space-x-3">
@@ -639,7 +818,6 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
                     ? 'Hold OK to remove from favorites'
                     : 'Hold OK to add to favorites'}
                 </span>
-                {/* Visual hold indicator on screen */}
                 {isPressingOk && (
                   <div className="flex items-center space-x-1.5 ml-2 bg-neutral-800/80 px-2 py-0.5 rounded-full border border-yellow-400/40 text-[11px] text-yellow-300 animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
@@ -651,13 +829,36 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
           ) : (
             <div className="text-neutral-500 text-lg">Select an app using the remote</div>
           )}
+
+          {/* Wallpaper Attribution & Auto-Timer Badge */}
+          <div className="hidden md:flex flex-col items-end">
+            <button
+              onClick={handleNextWallpaper}
+              className="flex items-center space-x-2 bg-black/40 hover:bg-black/60 border border-neutral-700/50 hover:border-amber-400/50 px-3 py-1.5 rounded-xl text-left transition backdrop-blur-md group cursor-pointer"
+              title="Click to advance to next r/TVWallpapersSFW image"
+            >
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+              <div>
+                <div className="text-[11px] font-medium text-neutral-200 group-hover:text-amber-300 truncate max-w-[220px]">
+                  {currentWallpaper.title}
+                </div>
+                <div className="text-[9px] text-neutral-400 flex items-center space-x-1.5">
+                  <span>{currentWallpaper.author}</span>
+                  <span>•</span>
+                  <span>r/TVWallpapersSFW</span>
+                  <span>•</span>
+                  <span className="text-amber-400 font-mono">Next in {minutesUntilNext}m</span>
+                </div>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Rows Container */}
-        <div className="space-y-6 overflow-x-hidden pb-4">
+        <div className="space-y-6 overflow-x-hidden pb-3">
           {/* Empty Search State */}
           {(isSearchActive || searchQuery.trim().length > 0) && filteredApps.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="flex flex-col items-center justify-center py-10 text-center">
               <div className="w-14 h-14 rounded-2xl bg-neutral-800/80 border border-neutral-700/80 flex items-center justify-center mb-3 text-neutral-400 shadow-xl">
                 <SearchX className="w-7 h-7 text-amber-400/80" />
               </div>
@@ -710,7 +911,7 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
                       className={`relative shrink-0 w-44 aspect-[16/9] rounded-xl cursor-pointer transition-all duration-200 select-none ${
                         isFocused
                           ? 'scale-[1.12] z-30 ring-2 ring-white shadow-2xl'
-                          : 'scale-100 z-10 opacity-85 hover:opacity-100 ring-1 ring-white/10'
+                          : 'scale-100 z-10 opacity-90 hover:opacity-100 ring-1 ring-white/10'
                       }`}
                       style={{
                         boxShadow: isFocused
@@ -792,7 +993,7 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
         </div>
       )}
 
-      {/* Simulated App Fullscreen Modal (When an app is launched) */}
+      {/* Simulated App Fullscreen Modal */}
       {launchedApp && (
         <div className="absolute inset-0 z-40 bg-neutral-950 flex flex-col items-center justify-center p-8 text-center animate-fade-in">
           <div
@@ -810,7 +1011,7 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
           <div className="mt-8 flex items-center space-x-3">
             <button
               onClick={() => setLaunchedApp(null)}
-              className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shadow-lg transition active:scale-95"
+              className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shadow-lg transition active:scale-95 cursor-pointer"
             >
               Return to FireLauncher (Home)
             </button>
@@ -821,81 +1022,206 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
         </div>
       )}
 
-      {/* Weather City Selection TV Modal */}
+      {/* --- Accurate Live Open-Meteo Weather & City Search Modal --- */}
       {isWeatherModalOpen && (
         <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
-          <div className="bg-[#141824] border border-neutral-700/80 rounded-3xl w-full max-w-xl p-6 shadow-2xl flex flex-col max-h-[85%]">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
+          <div className="bg-[#121622] border border-neutral-700/80 rounded-3xl w-full max-w-2xl p-6 shadow-2xl flex flex-col max-h-[90%]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-neutral-800">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
-                  <Sun className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                  <Sun className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Weather Location & Settings</h3>
-                  <p className="text-[11px] text-neutral-400">Select city for the FireLauncher home-screen widget</p>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-base font-bold text-white">Live Weather & City Search</h3>
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                      Open-Meteo API
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">Search and add any city globally with accurate live forecasts</p>
                 </div>
               </div>
 
               {/* °F / °C Unit Toggle */}
               <button
                 onClick={() => setIsCelsius((prev) => !prev)}
-                className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-200 transition active:scale-95 flex items-center space-x-1.5"
+                className="px-3 py-1.5 rounded-xl bg-neutral-850 hover:bg-neutral-800 border border-neutral-700 text-xs font-semibold text-neutral-200 transition active:scale-95 flex items-center space-x-1.5 cursor-pointer"
               >
                 <span>Unit:</span>
                 <span className="text-amber-400 font-bold">{isCelsius ? '°C (Celsius)' : '°F (Fahrenheit)'}</span>
               </button>
             </div>
 
-            {/* City Grid List */}
-            <div className="flex-1 overflow-y-auto py-4 space-y-2 pr-1">
-              <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider px-1">
-                Preset Cities
+            {/* Current Active Weather Card */}
+            {liveWeather && (
+              <div className="mt-3 p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-neutral-900 to-neutral-900 border border-amber-500/30 flex items-center justify-between">
+                <div className="flex items-center space-x-3.5">
+                  <div className="p-2.5 rounded-xl bg-black/40 border border-neutral-700/50">
+                    {renderWeatherIcon(liveWeather.icon, 'w-7 h-7')}
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xl font-extrabold text-white">
+                        {isCelsius ? `${liveWeather.tempC}°C` : `${liveWeather.tempF}°F`}
+                      </span>
+                      <span className="text-xs text-neutral-200 font-semibold">{liveWeather.condition}</span>
+                    </div>
+                    <div className="text-xs text-amber-300 font-medium flex items-center space-x-1">
+                      <MapPin className="w-3 h-3" />
+                      <span>{liveWeather.city}, {liveWeather.country}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-right text-[11px] text-neutral-400">
+                  <div>
+                    <span className="block text-[9px] uppercase tracking-wider text-neutral-500">Feels Like</span>
+                    <span className="font-semibold text-neutral-200">
+                      {isCelsius ? `${liveWeather.feelsLikeC}°C` : `${liveWeather.feelsLikeF}°F`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] uppercase tracking-wider text-neutral-500">High / Low</span>
+                    <span className="font-semibold text-neutral-200">
+                      {isCelsius ? `${liveWeather.highC}° / ${liveWeather.lowC}°` : `${liveWeather.highF}° / ${liveWeather.lowF}°`}
+                    </span>
+                  </div>
+                  <div className="hidden sm:block">
+                    <span className="block text-[9px] uppercase tracking-wider text-neutral-500">Humidity & Wind</span>
+                    <span className="font-semibold text-neutral-200">
+                      {liveWeather.humidity}% • {liveWeather.windMph} mph
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {WEATHER_CITIES.map((item) => {
-                  const isSelected = selectedWeather.city === item.city;
-                  return (
-                    <button
-                      key={item.city}
-                      onClick={() => {
-                        setSelectedWeather(item);
-                        setIsWeatherModalOpen(false);
-                        showToast(`Weather location set to ${item.city}`);
-                      }}
-                      className={`text-left p-3 rounded-xl border transition flex items-center justify-between ${
-                        isSelected
-                          ? 'bg-amber-500/20 border-amber-500 text-white shadow-lg'
-                          : 'bg-neutral-900/80 hover:bg-neutral-850 border-neutral-800 text-neutral-300 hover:border-neutral-700'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="p-1.5 rounded-lg bg-black/40">
-                          {renderWeatherIcon(item.icon, 'w-4 h-4')}
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-white flex items-center space-x-1.5">
-                            <span>{item.city}</span>
-                            {isSelected && <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-300 font-bold">CURRENT</span>}
-                          </div>
-                          <div className="text-[10px] text-neutral-400">{item.country} • {item.condition}</div>
-                        </div>
-                      </div>
-                      <div className="text-xs font-bold text-right text-neutral-200">
-                        {isCelsius ? `${item.tempC}°C` : `${item.tempF}°F`}
-                      </div>
-                    </button>
-                  );
-                })}
+            )}
+
+            {/* Live City Search Input Field */}
+            <div className="mt-4">
+              <div className="flex items-center space-x-2 bg-neutral-900 border border-neutral-700/80 rounded-xl px-3.5 py-2 focus-within:border-amber-400 transition">
+                <Search className="w-4 h-4 text-amber-400 shrink-0" />
+                <input
+                  ref={citySearchInputRef}
+                  type="text"
+                  value={citySearchQuery}
+                  onChange={(e) => setCitySearchQuery(e.target.value)}
+                  placeholder="Type city name to search & add (e.g. Tokyo, London, Austin, Munich)..."
+                  className="bg-transparent text-white text-xs placeholder-neutral-400 focus:outline-none w-full"
+                />
+                {isSearchingCities && <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />}
+                {citySearchQuery && !isSearchingCities && (
+                  <button
+                    onClick={() => {
+                      setCitySearchQuery('');
+                      setCitySearchResults([]);
+                      citySearchInputRef.current?.focus();
+                    }}
+                    className="text-neutral-400 hover:text-white"
+                  >
+                    <CloseIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="pt-3 border-t border-neutral-800 flex justify-end">
+            {/* Search Results List or Saved Cities */}
+            <div className="flex-1 overflow-y-auto py-3 space-y-2 pr-1 mt-1 max-h-60">
+              {citySearchQuery.trim().length >= 2 ? (
+                <div>
+                  <div className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider px-1 mb-2 flex items-center justify-between">
+                    <span>Open-Meteo Global Search Results</span>
+                    <span className="text-[10px] text-neutral-400">Click to add & set as active</span>
+                  </div>
+
+                  {citySearchResults.length === 0 && !isSearchingCities ? (
+                    <div className="p-6 text-center text-neutral-400 text-xs">
+                      No matching cities found for &ldquo;{citySearchQuery}&rdquo;. Try another spelling.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {citySearchResults.map((city) => (
+                        <button
+                          key={city.id}
+                          onClick={() => handleSelectCity(city)}
+                          className="text-left p-3 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700/70 hover:border-amber-400 transition flex items-center justify-between group cursor-pointer"
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20">
+                              <Compass className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-white group-hover:text-amber-300">
+                                {city.name}
+                              </div>
+                              <div className="text-[10px] text-neutral-400">
+                                {city.admin1 ? `${city.admin1}, ` : ''}{city.country}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-semibold text-amber-400 opacity-0 group-hover:opacity-100 transition">
+                            + Add & Set
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider px-1 mb-2 flex items-center justify-between">
+                    <span>Saved Locations</span>
+                    <span className="text-[10px] text-neutral-500">Fast 1-click switch</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {savedCities.map((item) => {
+                      const isSelected = selectedCity.name.toLowerCase() === item.name.toLowerCase();
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleSelectCity(item)}
+                          className={`text-left p-3 rounded-xl border transition flex items-center justify-between cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-500/20 border-amber-500 text-white shadow-lg'
+                              : 'bg-neutral-900/80 hover:bg-neutral-850 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <div className="p-1.5 rounded-lg bg-black/40 text-amber-400">
+                              <MapPin className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-white flex items-center space-x-1.5">
+                                <span>{item.name}</span>
+                                {isSelected && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-300 font-bold">
+                                    ACTIVE
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-neutral-400">
+                                {item.admin1 ? `${item.admin1}, ` : ''}{item.country}
+                              </div>
+                            </div>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-amber-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
+              <span>Open-Meteo data updates automatically every 15 minutes</span>
               <button
                 onClick={() => setIsWeatherModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold transition"
+                className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold transition cursor-pointer"
               >
-                Done
+                Close
               </button>
             </div>
           </div>

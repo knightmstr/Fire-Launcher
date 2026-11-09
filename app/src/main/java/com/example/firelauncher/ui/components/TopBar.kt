@@ -3,8 +3,6 @@ package com.example.firelauncher.ui.components
 import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,11 +20,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Thunderstorm
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.WbCloudy
 import androidx.compose.material.icons.rounded.WbSunny
@@ -57,6 +59,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.theme.DarkSurface
 import com.example.firelauncher.ui.theme.DarkSurfaceVariant
@@ -72,21 +75,27 @@ import java.util.Locale
 /**
  * Top bar displaying:
  * - Launcher brand on the left
- * - Focusable Weather widget in the center
- * - Global Search icon button / expandable search input
+ * - Focusable Live Weather widget in the center with Open-Meteo city search
+ * - Wallpaper skip & Search icon buttons
  * - Dynamic clock (12h/24h) and formatted calendar date on the right.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TopBar(
     weather: WeatherData,
-    availableCities: List<String> = WeatherData.CITY_PRESETS.map { it.city },
+    savedCities: List<CityLocationModel>,
+    searchResults: List<CityLocationModel>,
+    isSearchingCities: Boolean,
+    onSearchCities: (String) -> Unit,
+    onClearCitySearch: () -> Unit,
+    onSelectCity: (CityLocationModel) -> Unit,
+    onToggleUnit: () -> Unit,
     searchQuery: String = "",
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
     onToggleSearch: (Boolean) -> Unit = {},
-    onSelectCity: (String) -> Unit = {},
-    onToggleUnit: () -> Unit = {},
+    onNextWallpaper: () -> Unit = {},
+    wallpaperTitle: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -131,13 +140,23 @@ fun TopBar(
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "FireLauncher",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    letterSpacing = 0.5.sp
-                )
+                Column {
+                    Text(
+                        text = "FireLauncher",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        letterSpacing = 0.5.sp
+                    )
+                    if (wallpaperTitle != null) {
+                        Text(
+                            text = "r/TVWallpapersSFW",
+                            fontSize = 9.sp,
+                            color = FireAmber,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             // Center: Weather Widget or Search Input
@@ -150,7 +169,7 @@ fun TopBar(
                     modifier = Modifier.weight(1f, fill = false).padding(horizontal = 24.dp)
                 )
             } else {
-                // Top Weather Widget (Current weather for selected city)
+                // Top Weather Widget (Live weather for selected city)
                 WeatherWidget(
                     weather = weather,
                     onClick = { showCityDialog = true },
@@ -158,11 +177,17 @@ fun TopBar(
                 )
             }
 
-            // Right: Search Trigger Button + Live Clock & Date
+            // Right: Next Wallpaper + Search Trigger Button + Live Clock & Date
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Next Wallpaper Button
+                WallpaperTriggerButton(
+                    onClick = onNextWallpaper,
+                    title = "Change Wallpaper (30m auto)"
+                )
+
                 // Dedicated Search Icon Trigger
                 SearchTriggerButton(
                     isActive = isSearchActive,
@@ -175,29 +200,90 @@ fun TopBar(
                 ) {
                     Text(
                         text = currentTimeString,
-                        fontSize = 20.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
                     Text(
                         text = currentDateString,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         color = TextSecondary
                     )
                 }
             }
         }
 
-        // City Selector Overlay Dialog
+        // Live City Search & Selection Dialog
         if (showCityDialog) {
             CitySelectionDialog(
                 currentCity = weather.city,
-                cities = availableCities,
+                savedCities = savedCities,
+                searchResults = searchResults,
+                isSearching = isSearchingCities,
+                isCelsius = weather.isCelsius,
+                onSearch = onSearchCities,
+                onClearSearch = onClearCitySearch,
                 onCitySelected = { city ->
                     onSelectCity(city)
                     showCityDialog = false
                 },
-                onDismiss = { showCityDialog = false }
+                onToggleUnit = onToggleUnit,
+                onDismiss = {
+                    onClearCitySearch()
+                    showCityDialog = false
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Dedicated TV-Material focusable Wallpaper trigger button in the top bar.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun WallpaperTriggerButton(
+    onClick: () -> Unit,
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    val shape = CircleShape
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier.size(40.dp),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
+        border = ClickableSurfaceDefaults.border(
+            border = Border(
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                shape = shape
+            ),
+            focusedBorder = Border(
+                border = BorderStroke(2.dp, Color.White),
+                shape = shape
+            )
+        ),
+        glow = ClickableSurfaceDefaults.glow(
+            focusedGlow = Glow(
+                elevationColor = FireOrange.copy(alpha = 0.7f),
+                elevation = 14.dp
+            )
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = DarkSurface.copy(alpha = 0.85f),
+            focusedContainerColor = DarkSurfaceVariant
+        )
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = Icons.Rounded.Wallpaper,
+                contentDescription = title,
+                tint = FireAmber,
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -217,7 +303,7 @@ fun SearchTriggerButton(
 
     Surface(
         onClick = onClick,
-        modifier = modifier.size(42.dp),
+        modifier = modifier.size(40.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
         border = ClickableSurfaceDefaults.border(
@@ -242,14 +328,14 @@ fun SearchTriggerButton(
         )
     ) {
         Box(
-            modifier = Modifier.size(42.dp),
+            modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
         ) {
             androidx.compose.material3.Icon(
                 imageVector = if (isActive) Icons.Rounded.Close else Icons.Rounded.Search,
                 contentDescription = if (isActive) "Close Search" else "Search Apps",
                 tint = if (isActive) FireOrange else TextPrimary,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -280,7 +366,7 @@ fun GlobalSearchBar(
                 shape = shape
             )
         ),
-        modifier = modifier.width(380.dp).height(42.dp)
+        modifier = modifier.width(360.dp).height(40.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -314,7 +400,7 @@ fun GlobalSearchBar(
                     singleLine = true,
                     textStyle = TextStyle(
                         color = TextPrimary,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     ),
                     cursorBrush = SolidColor(FireOrange),
@@ -380,7 +466,7 @@ fun WeatherWidget(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
         ) {
             // Weather icon
             val weatherIcon: ImageVector = when (weather.iconType) {
@@ -422,6 +508,15 @@ fun WeatherWidget(
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
+                    if (weather.isLive) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981))
+                        )
+                    }
                 }
 
                 // City badge with pin
@@ -455,104 +550,288 @@ fun WeatherWidget(
 }
 
 /**
- * TV dialog modal allowing user to change the selected city with D-pad navigation.
+ * TV dialog modal allowing user to search and add ANY city globally via Open-Meteo
+ * or pick from saved locations, with D-pad navigation.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun CitySelectionDialog(
     currentCity: String,
-    cities: List<String>,
-    onCitySelected: (String) -> Unit,
+    savedCities: List<CityLocationModel>,
+    searchResults: List<CityLocationModel>,
+    isSearching: Boolean,
+    isCelsius: Boolean,
+    onSearch: (String) -> Unit,
+    onClearSearch: () -> Unit,
+    onCitySelected: (CityLocationModel) -> Unit,
+    onToggleUnit: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 64.dp),
+            .padding(top = 40.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         Surface(
             onClick = {},
-            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(20.dp)),
+            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(24.dp)),
             colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xFF141824)
+                containerColor = Color(0xFF121622)
             ),
             border = ClickableSurfaceDefaults.border(
                 border = Border(
-                    border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(20.dp)
+                    border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(24.dp)
                 )
             ),
-            modifier = Modifier.width(360.dp)
+            modifier = Modifier.width(480.dp)
         ) {
             Column(
-                modifier = Modifier.padding(18.dp)
+                modifier = Modifier.padding(20.dp)
             ) {
+                // Header with title and °F / °C unit toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Select Weather Location",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Close",
-                        fontSize = 12.sp,
-                        color = TextSecondary,
-                        modifier = Modifier.clickable { onDismiss() }
-                    )
-                }
+                    Column {
+                        Text(
+                            text = "Live Weather Location",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Powered by Open-Meteo • Search any city globally",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                TvLazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                ) {
-                    items(cities) { city ->
-                        val isSelected = city.equals(currentCity, ignoreCase = true)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // °F / °C toggle
                         Surface(
-                            onClick = { onCitySelected(city) },
-                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
+                            onClick = onToggleUnit,
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isSelected) FireOrange.copy(alpha = 0.2f) else Color.Transparent,
-                                focusedContainerColor = DarkSurfaceVariant
+                                containerColor = DarkSurfaceVariant
                             ),
                             border = ClickableSurfaceDefaults.border(
                                 focusedBorder = Border(
                                     border = BorderStroke(1.5.dp, Color.White),
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(8.dp)
                                 )
                             ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp)
+                            modifier = Modifier.padding(end = 12.dp)
                         ) {
-                            Row(
+                            Text(
+                                text = if (isCelsius) "Unit: °C" else "Unit: °F",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FireAmber,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Close",
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.clickable { onDismiss() }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // City Search Input Field
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurfaceVariant)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search",
+                        tint = FireOrange,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Type city name (e.g. Tokyo, London, Austin)...",
+                                color = TextSecondary,
+                                fontSize = 13.sp
+                            )
+                        }
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = {
+                                searchQuery = it
+                                onSearch(it)
+                            },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            cursorBrush = SolidColor(FireOrange),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (searchQuery.isNotEmpty()) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Clear",
+                            tint = TextSecondary,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable {
+                                    searchQuery = ""
+                                    onClearSearch()
+                                }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // List header
+                Text(
+                    text = if (searchQuery.trim().length >= 2) "Search Results (Click to add & set)" else "Saved Locations",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = FireAmber,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                // Results or Saved Cities list
+                val displayList = if (searchQuery.trim().length >= 2) searchResults else savedCities
+
+                TvLazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                ) {
+                    if (isSearching) {
+                        item {
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = city,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) FireAmber else TextPrimary
+                                    text = "Searching Open-Meteo cities...",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
                                 )
-                                if (isSelected) {
-                                    Text(
-                                        text = "SELECTED",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = FireAmber
+                            }
+                        }
+                    } else if (displayList.isEmpty() && searchQuery.trim().length >= 2) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No cities found matching \"$searchQuery\"",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    } else {
+                        items(displayList) { cityItem ->
+                            val isSelected = cityItem.name.equals(currentCity, ignoreCase = true)
+
+                            Surface(
+                                onClick = { onCitySelected(cityItem) },
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = if (isSelected) FireOrange.copy(alpha = 0.2f) else DarkSurface.copy(alpha = 0.4f),
+                                    focusedContainerColor = DarkSurfaceVariant
+                                ),
+                                border = ClickableSurfaceDefaults.border(
+                                    focusedBorder = Border(
+                                        border = BorderStroke(1.5.dp, Color.White),
+                                        shape = RoundedCornerShape(10.dp)
                                     )
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = Icons.Rounded.Public,
+                                            contentDescription = "City",
+                                            tint = if (isSelected) FireAmber else TextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = cityItem.name,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) FireAmber else TextPrimary
+                                            )
+                                            val sub = if (!cityItem.admin1.isNullOrBlank()) {
+                                                "${cityItem.admin1}, ${cityItem.country}"
+                                            } else cityItem.country
+                                            Text(
+                                                text = sub,
+                                                fontSize = 10.sp,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                    }
+
+                                    if (isSelected) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            androidx.compose.material3.Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = "Selected",
+                                                tint = FireAmber,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "ACTIVE",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = FireAmber
+                                            )
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "Select",
+                                            fontSize = 11.sp,
+                                            color = TextSecondary
+                                        )
+                                    }
                                 }
                             }
                         }
