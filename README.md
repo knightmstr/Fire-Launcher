@@ -243,6 +243,9 @@ FireLauncher/
 │               └── theme/
 │                   ├── Color.kt         # Color palette constants
 │                   └── Theme.kt         # Material3 TV DarkColorScheme
+├── tools/
+│   └── get_tv_ip.py                   # Fire TV IP discovery, IPv4 regex validator & SUCCESS token CLI
+├── AI_STEPS.md                        # AI agent automation manifest (ADB connect, APK install, debloat, reboot)
 └── README.md
 ```
 

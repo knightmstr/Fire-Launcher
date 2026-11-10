@@ -21,6 +21,6 @@ export interface ProjectFile {
   name: string;
   language: string;
   description: string;
-  category: 'gradle' | 'manifest' | 'kotlin' | 'res' | 'docs';
+  category: 'gradle' | 'manifest' | 'kotlin' | 'res' | 'docs' | 'scripts';
   content: string;
 }

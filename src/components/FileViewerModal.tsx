@@ -36,6 +36,7 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
     { id: 'manifest', label: 'Manifest' },
     { id: 'gradle', label: 'Gradle (.kts)' },
     { id: 'res', label: 'Resources' },
+    { id: 'scripts', label: 'Automation & Scripts' },
     { id: 'docs', label: 'Documentation' }
   ];
 

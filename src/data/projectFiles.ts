@@ -3484,5 +3484,176 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
 
 See the complete README.md on disk for ADB setup commands, Button Mapper configurations, and CleanYourTV debloat scripts.
 `
+  },
+  {
+    path: 'AI_STEPS.md',
+    name: 'AI_STEPS.md',
+    language: 'markdown',
+    category: 'docs',
+    description: 'Sequential automation manifest for AI agents (ADB pairing, APK deployment, 5-package debloating, and reboot)',
+    content: `# AI Automation Manifest: Fire TV Deployment & Safe Debloating
+
+This document is a sequential, machine-readable execution manifest intended for terminal-based AI agents (such as Gemini CLI, Claude Code, or automated CI/CD runners) to connect to an Amazon Fire TV device over Wi-Fi, deploy the FireLauncher APK, and execute the CleanYourTV debloat routine.
+
+---
+
+## Pre-Flight Requirements & Context
+- Target Architecture: Android 7.1+ / 9.0 (Fire OS 6, 7, 8)
+- Target Device: Amazon Fire TV Stick / Fire TV Cube / Fire TV Edition
+- Default ADB Port: 5555
+- Target Package Name: com.example.firelauncher
+- Pre-compiled APK Path: app/build/outputs/apk/debug/app-debug.apk
+
+---
+
+## Target Debloat Package Registry
+The following 5 Amazon packages are targeted for user-space disabling (pm disable-user --user 0):
+- com.amazon.advertising.firetv (Home banner & ads)
+- com.amazon.device.sale.service (Promo checks)
+- com.amazon.client.metrics (Telemetry & analytics)
+- com.amazon.device.crashmanager (Crash logs)
+- com.amazon.ftv.screensaver (Ad screensavers)
+
+---
+
+## Sequential Execution Steps
+
+### STEP 1: Verify Host Environment Dependencies
+\`\`\`bash
+adb version || { echo "ERROR: ADB is not installed or not in PATH"; exit 1; }
+python3 --version || { echo "ERROR: Python 3 is not installed or not in PATH"; exit 1; }
+\`\`\`
+
+### STEP 2: Obtain and Validate Fire TV IP Address
+\`\`\`bash
+IP_OUTPUT=\$(python3 tools/get_tv_ip.py)
+FIRETV_IP=\$(echo "\$IP_OUTPUT" | grep "^SUCCESS:" | cut -d':' -f2 | tr -d ' \\r\\n')
+echo "Target Fire TV IP: \$FIRETV_IP"
+\`\`\`
+
+### STEP 3: Establish Authenticated ADB Connection
+\`\`\`bash
+adb kill-server
+adb start-server
+adb connect "\$FIRETV_IP:5555"
+\`\`\`
+Poll until device state is 'device', prompting user to accept the TV screen authorization dialog.
+
+### STEP 4: Deploy FireLauncher APK
+\`\`\`bash
+adb -s "\$FIRETV_IP:5555" install -r -d "app/build/outputs/apk/debug/app-debug.apk"
+\`\`\`
+
+### STEP 5: Execute Debloat Routine
+\`\`\`bash
+adb -s "\$FIRETV_IP:5555" shell pm disable-user --user 0 com.amazon.advertising.firetv
+adb -s "\$FIRETV_IP:5555" shell pm disable-user --user 0 com.amazon.device.sale.service
+adb -s "\$FIRETV_IP:5555" shell pm disable-user --user 0 com.amazon.client.metrics
+adb -s "\$FIRETV_IP:5555" shell pm disable-user --user 0 com.amazon.device.crashmanager
+adb -s "\$FIRETV_IP:5555" shell pm disable-user --user 0 com.amazon.ftv.screensaver
+\`\`\`
+
+### STEP 6: Verify Debloat Success
+\`\`\`bash
+adb -s "\$FIRETV_IP:5555" shell pm list packages -d
+\`\`\`
+
+### STEP 7: Launch FireLauncher & Reboot Device
+\`\`\`bash
+adb -s "\$FIRETV_IP:5555" shell am start -n com.example.firelauncher/.MainActivity
+sleep 3
+adb -s "\$FIRETV_IP:5555" reboot
+\`\`\`
+`
+  },
+  {
+    path: 'tools/get_tv_ip.py',
+    name: 'get_tv_ip.py',
+    language: 'python',
+    category: 'scripts',
+    description: 'CLI tool to guide users to their Fire TV IP address, validate IPv4 octets (0-255), and emit SUCCESS:IP_ADDRESS',
+    content: `#!/usr/bin/env python3
+"""
+tools/get_tv_ip.py
+CLI helper to prompt for, validate, and emit a valid Amazon Fire TV IPv4 address.
+Formats the final successful IP as 'SUCCESS:<IP_ADDRESS>' for programmatic agent consumption.
+"""
+
+import sys
+import re
+
+IPV4_REGEX = re.compile(
+    r"^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}"
+    r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"
+)
+
+BANNER = r"""
+========================================================================
+            🔥 Fire TV Wireless IP Discovery & Configuration 🔥
+========================================================================
+To locate your Fire TV's local IP address on your television screen:
+
+  1. Turn on your Amazon Fire TV.
+  2. Navigate to:
+       Settings  ->  My Fire TV (or 'Device & Software')  ->  About
+  3. Select 'Network' from the menu on the right.
+  4. Look for the 'IP Address' field on the network status card.
+       (Example: 192.168.1.45 or 10.0.0.88)
+========================================================================
+"""
+
+def is_valid_ipv4(ip_str: str) -> bool:
+    if not ip_str or not isinstance(ip_str, str):
+        return False
+    trimmed = ip_str.strip()
+    if not IPV4_REGEX.match(trimmed):
+        return False
+    try:
+        octets = [int(part) for part in trimmed.split(".")]
+        if len(octets) != 4:
+            return False
+        for octet in octets:
+            if octet < 0 or octet > 255:
+                return False
+        if octets == [0, 0, 0, 0] or octets == [255, 255, 255, 255]:
+            return False
+        return True
+    except (ValueError, TypeError):
+        return False
+
+def main():
+    sys.stderr.write(BANNER + "\\n")
+    sys.stderr.flush()
+
+    while True:
+        try:
+            sys.stderr.write("Enter your Fire TV IP address (e.g. 192.168.1.50): ")
+            sys.stderr.flush()
+            raw_input = input().strip()
+            if not raw_input:
+                sys.stderr.write("  [!] Input cannot be empty. Please enter an IPv4 address.\\n\\n")
+                continue
+
+            if is_valid_ipv4(raw_input):
+                valid_ip = raw_input
+                sys.stderr.write(f"\\n[+] Valid IPv4 address confirmed: {valid_ip}\\n")
+                sys.stderr.flush()
+                print(f"SUCCESS:{valid_ip}")
+                sys.stdout.flush()
+                sys.exit(0)
+            else:
+                sys.stderr.write(
+                    f"  [X] '{raw_input}' is not a valid IPv4 address.\\n"
+                    "      Each of the 4 octets must be a number between 0 and 255.\\n"
+                    "      Example of a valid address: 192.168.0.125\\n\\n"
+                )
+                sys.stderr.flush()
+        except (KeyboardInterrupt, EOFError):
+            sys.stderr.write("\\n\\nOperation cancelled by user. Exiting.\\n")
+            sys.exit(130)
+
+if __name__ == "__main__":
+    main()
+`
   }
 ];
