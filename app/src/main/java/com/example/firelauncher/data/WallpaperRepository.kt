@@ -170,14 +170,28 @@ class WallpaperRepository(
                         }
                     }
 
-                    if (imgUrl.isNotBlank() && (imgUrl.contains("redd.it") || imgUrl.contains("imgur") || isDirectImage)) {
+                    val isSafeUrl = imgUrl.startsWith("https://", ignoreCase = true) &&
+                            try {
+                                val host = java.net.URI(imgUrl).host?.lowercase() ?: ""
+                                host == "i.redd.it" ||
+                                        host == "preview.redd.it" ||
+                                        host == "external-preview.redd.it" ||
+                                        host.endsWith(".redd.it") ||
+                                        host == "i.imgur.com" ||
+                                        host.endsWith(".imgur.com") ||
+                                        host == "images.unsplash.com"
+                            } catch (_: Exception) {
+                                false
+                            }
+
+                    if (isSafeUrl) {
                         parsedList.add(
                             WallpaperModel(
                                 id = childData.optString("id", "post_$i"),
-                                title = childData.optString("title", "TV Wallpaper"),
+                                title = childData.optString("title", "TV Wallpaper").take(120),
                                 url = imgUrl,
-                                author = "u/" + childData.optString("author", "reddit_user"),
-                                permalink = "https://reddit.com" + childData.optString("permalink", ""),
+                                author = "u/" + childData.optString("author", "reddit_user").take(40),
+                                permalink = "https://reddit.com" + childData.optString("permalink", "").take(200),
                                 source = "reddit"
                             )
                         )

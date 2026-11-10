@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Enforce HTTPS across all domains, forbidding unencrypted cleartext HTTP -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Pinned domains for dynamic wallpaper and weather services -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">reddit.com</domain>
+        <domain includeSubdomains="true">redd.it</domain>
+        <domain includeSubdomains="true">imgur.com</domain>
+        <domain includeSubdomains="true">unsplash.com</domain>
+        <domain includeSubdomains="true">open-meteo.com</domain>
+    </domain-config>
+</network-security-config>

@@ -72,31 +72,38 @@ class FavoritesStore(private val context: Context) {
             set.mapNotNull { entry ->
                 val parts = entry.split("|")
                 if (parts.size >= 4) {
-                    val name = parts[0]
-                    val country = parts[1]
+                    val name = parts[0].trim()
+                    val country = parts[1].trim()
                     val lat = parts[2].toDoubleOrNull() ?: 0.0
                     val lon = parts[3].toDoubleOrNull() ?: 0.0
-                    CityLocationModel(
-                        id = "saved_${name}_$country",
-                        name = name,
-                        country = country,
-                        latitude = lat,
-                        longitude = lon
-                    )
+                    if (name.isNotEmpty() && lat in -90.0..90.0 && lon in -180.0..180.0) {
+                        CityLocationModel(
+                            id = "saved_${name}_$country",
+                            name = name,
+                            country = country,
+                            latitude = lat,
+                            longitude = lon
+                        )
+                    } else null
                 } else null
             }
         }
 
     suspend fun setSelectedLocation(city: String, country: String, lat: Double, lon: Double) {
+        val safeCity = city.replace("|", "-").trim()
+        val safeCountry = country.replace("|", "-").trim()
+        val safeLat = if (lat.isFinite() && lat in -90.0..90.0) lat else 0.0
+        val safeLon = if (lon.isFinite() && lon in -180.0..180.0) lon else 0.0
+
         context.dataStore.edit { preferences ->
-            preferences[KEY_WEATHER_CITY] = city
-            preferences[KEY_WEATHER_COUNTRY] = country
-            preferences[KEY_WEATHER_LAT] = lat
-            preferences[KEY_WEATHER_LON] = lon
+            preferences[KEY_WEATHER_CITY] = safeCity
+            preferences[KEY_WEATHER_COUNTRY] = safeCountry
+            preferences[KEY_WEATHER_LAT] = safeLat
+            preferences[KEY_WEATHER_LON] = safeLon
 
             // Also add to saved cities set
             val currentSet = (preferences[KEY_SAVED_CITIES] ?: DEFAULT_CITIES).toMutableSet()
-            currentSet.add("$city|$country|$lat|$lon")
+            currentSet.add("$safeCity|$safeCountry|$safeLat|$safeLon")
             preferences[KEY_SAVED_CITIES] = currentSet
         }
     }
@@ -175,18 +182,21 @@ class FavoritesStore(private val context: Context) {
         }
 
     suspend fun recordAppLaunch(packageName: String) {
+        val safePkg = packageName.replace("|", "_").trim()
+        if (safePkg.isBlank()) return
+
         context.dataStore.edit { preferences ->
             val currentSet = (preferences[KEY_APP_USAGE_STATS] ?: emptySet()).toMutableSet()
             var currentCount = 0
-            val existing = currentSet.firstOrNull { it.startsWith("$packageName|") }
+            val existing = currentSet.firstOrNull { it.startsWith("$safePkg|") }
             if (existing != null) {
                 currentSet.remove(existing)
                 val parts = existing.split("|")
                 if (parts.size >= 2) {
-                    currentCount = parts[1].toIntOrNull() ?: 0
+                    currentCount = parts[1].toIntOrNull()?.coerceAtLeast(0) ?: 0
                 }
             }
-            val newEntry = "$packageName|${currentCount + 1}|${System.currentTimeMillis()}"
+            val newEntry = "$safePkg|${currentCount + 1}|${System.currentTimeMillis()}"
             currentSet.add(newEntry)
             preferences[KEY_APP_USAGE_STATS] = currentSet
         }

@@ -282,7 +282,7 @@ export const CleanTvModal: React.FC<CleanTvModalProps> = ({ isOpen, onClose }) =
             <a
               href="https://github.com/Gathin23/cleanyourtv"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="text-emerald-400 hover:underline flex items-center space-x-1"
             >
               <span>Gathin23/cleanyourtv</span>

@@ -228,7 +228,9 @@ dependencies {
 
     <application
         android:name=".FireLauncherApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:banner="@drawable/banner"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -260,6 +262,32 @@ dependencies {
     </application>
 
 </manifest>
+`
+  },
+  {
+    path: 'app/src/main/res/xml/network_security_config.xml',
+    name: 'network_security_config.xml',
+    language: 'xml',
+    category: 'res',
+    description: 'Enforces TLS-only network traffic and strictly forbids cleartext HTTP',
+    content: `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Enforce HTTPS across all domains, forbidding unencrypted cleartext HTTP -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Pinned domains for dynamic wallpaper and weather services -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">reddit.com</domain>
+        <domain includeSubdomains="true">redd.it</domain>
+        <domain includeSubdomains="true">imgur.com</domain>
+        <domain includeSubdomains="true">unsplash.com</domain>
+        <domain includeSubdomains="true">open-meteo.com</domain>
+    </domain-config>
+</network-security-config>
 `
   },
   {
@@ -839,14 +867,28 @@ class WallpaperRepository(
                         }
                     }
 
-                    if (imgUrl.isNotBlank() && (imgUrl.contains("redd.it") || imgUrl.contains("imgur") || isDirectImage)) {
+                    val isSafeUrl = imgUrl.startsWith("https://", ignoreCase = true) &&
+                            try {
+                                val host = java.net.URI(imgUrl).host?.lowercase() ?: ""
+                                host == "i.redd.it" ||
+                                        host == "preview.redd.it" ||
+                                        host == "external-preview.redd.it" ||
+                                        host.endsWith(".redd.it") ||
+                                        host == "i.imgur.com" ||
+                                        host.endsWith(".imgur.com") ||
+                                        host == "images.unsplash.com"
+                            } catch (_: Exception) {
+                                false
+                            }
+
+                    if (isSafeUrl) {
                         parsedList.add(
                             WallpaperModel(
                                 id = childData.optString("id", "post_\$i"),
-                                title = childData.optString("title", "TV Wallpaper"),
+                                title = childData.optString("title", "TV Wallpaper").take(120),
                                 url = imgUrl,
-                                author = "u/" + childData.optString("author", "reddit_user"),
-                                permalink = "https://reddit.com" + childData.optString("permalink", ""),
+                                author = "u/" + childData.optString("author", "reddit_user").take(40),
+                                permalink = "https://reddit.com" + childData.optString("permalink", "").take(200),
                                 source = "reddit"
                             )
                         )
@@ -961,9 +1003,10 @@ import java.net.URLEncoder
 class WeatherRepository {
 
     suspend fun searchCities(query: String): List<CityLocationModel> = withContext(Dispatchers.IO) {
-        if (query.trim().length < 2) return@withContext emptyList()
+        val cleanQuery = query.trim().take(64)
+        if (cleanQuery.length < 2) return@withContext emptyList()
         try {
-            val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val url = URL("https://geocoding-api.open-meteo.com/v1/search?name=\$encoded&count=8&language=en&format=json")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -1192,14 +1235,19 @@ class FavoritesStore(private val context: Context) {
         }
 
     suspend fun setSelectedLocation(city: String, country: String, lat: Double, lon: Double) {
+        val safeCity = city.replace("|", "-").trim()
+        val safeCountry = country.replace("|", "-").trim()
+        val safeLat = if (lat.isFinite() && lat in -90.0..90.0) lat else 0.0
+        val safeLon = if (lon.isFinite() && lon in -180.0..180.0) lon else 0.0
+
         context.dataStore.edit { preferences ->
-            preferences[KEY_WEATHER_CITY] = city
-            preferences[KEY_WEATHER_COUNTRY] = country
-            preferences[KEY_WEATHER_LAT] = lat
-            preferences[KEY_WEATHER_LON] = lon
+            preferences[KEY_WEATHER_CITY] = safeCity
+            preferences[KEY_WEATHER_COUNTRY] = safeCountry
+            preferences[KEY_WEATHER_LAT] = safeLat
+            preferences[KEY_WEATHER_LON] = safeLon
 
             val currentSet = (preferences[KEY_SAVED_CITIES] ?: DEFAULT_CITIES).toMutableSet()
-            currentSet.add("\$city|\$country|\$lat|\$lon")
+            currentSet.add("\$safeCity|\$safeCountry|\$safeLat|\$safeLon")
             preferences[KEY_SAVED_CITIES] = currentSet
         }
     }
@@ -1438,9 +1486,16 @@ class AppRepository(private val context: Context) {
             if (app.isSystemShortcut && app.systemIntentAction != null) {
                 val intent = Intent(app.systemIntentAction).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if (app.packageName == "system.cleantv" || app.systemIntentAction.startsWith("com.example.firelauncher")) {
+                        setPackage(context.packageName)
+                    }
                 }
-                context.startActivity(intent)
-                true
+                if (intent.resolveActivity(packageManager) != null) {
+                    context.startActivity(intent)
+                    true
+                } else {
+                    false
+                }
             } else {
                 val intent = Intent(Intent.ACTION_MAIN).apply {
                     component = ComponentName(app.packageName, app.activityName)

@@ -131,16 +131,38 @@ export async function fetchRedditWallpapers(): Promise<TvWallpaper[]> {
       }
 
       if (imageUrl && (isDirectImage || p.preview)) {
-        parsed.push({
-          id: p.id || String(Math.random()),
-          title: p.title || 'Untitled TV Wallpaper',
-          url: imageUrl,
-          thumbnail: p.thumbnail?.startsWith('http') ? p.thumbnail : undefined,
-          author: `u/${p.author || 'reddit_user'}`,
-          permalink: `https://reddit.com${p.permalink || '/r/TVWallpapersSFW'}`,
-          category: 'r/TVWallpapersSFW',
-          source: 'reddit'
-        });
+        // Enforce HTTPS and trusted CDN hosts
+        const isSafeUrl = (() => {
+          try {
+            const u = new URL(imageUrl);
+            if (u.protocol !== 'https:') return false;
+            const h = u.hostname.toLowerCase();
+            return (
+              h === 'i.redd.it' ||
+              h === 'preview.redd.it' ||
+              h === 'external-preview.redd.it' ||
+              h.endsWith('.redd.it') ||
+              h === 'i.imgur.com' ||
+              h.endsWith('.imgur.com') ||
+              h === 'images.unsplash.com'
+            );
+          } catch {
+            return false;
+          }
+        })();
+
+        if (isSafeUrl) {
+          parsed.push({
+            id: String(p.id || Math.random()),
+            title: String(p.title || 'Untitled TV Wallpaper').slice(0, 120),
+            url: imageUrl,
+            thumbnail: p.thumbnail?.startsWith('https://') ? p.thumbnail : undefined,
+            author: `u/${String(p.author || 'reddit_user').slice(0, 40)}`,
+            permalink: `https://reddit.com${p.permalink || '/r/TVWallpapersSFW'}`,
+            category: 'r/TVWallpapersSFW',
+            source: 'reddit'
+          });
+        }
       }
     }
 

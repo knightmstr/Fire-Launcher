@@ -181,9 +181,16 @@ class AppRepository(private val context: Context) {
             if (app.isSystemShortcut && app.systemIntentAction != null) {
                 val intent = Intent(app.systemIntentAction).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if (app.packageName == "system.cleantv" || app.systemIntentAction.startsWith("com.example.firelauncher")) {
+                        setPackage(context.packageName)
+                    }
                 }
-                context.startActivity(intent)
-                true
+                if (intent.resolveActivity(packageManager) != null) {
+                    context.startActivity(intent)
+                    true
+                } else {
+                    false
+                }
             } else {
                 val intent = Intent(Intent.ACTION_MAIN).apply {
                     component = ComponentName(app.packageName, app.activityName)

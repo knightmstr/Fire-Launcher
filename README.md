@@ -213,10 +213,12 @@ FireLauncher/
 │       │   ├── mipmap-anydpi-v26/
 │       │   │   ├── ic_launcher.xml    # Adaptive launcher icon
 │       │   │   └── ic_launcher_round.xml
-│       │   └── values/
-│       │       ├── colors.xml         # Color definitions
-│       │       ├── strings.xml        # Localization strings
-│       │       └── themes.xml         # Fullscreen TV theme
+│       │   ├── values/
+│       │   │   ├── colors.xml         # Color definitions
+│       │   │   ├── strings.xml        # Localization strings
+│       │   │   └── themes.xml         # Fullscreen TV theme
+│       │   └── xml/
+│       │       └── network_security_config.xml # TLS-only policy & cleartext traffic block
 │       └── java/com/example/firelauncher/
 │           ├── FireLauncherApp.kt     # Application class
 │           ├── MainActivity.kt        # SingleTask TV activity + Home & Back interceptors
@@ -243,6 +245,27 @@ FireLauncher/
 │                   └── Theme.kt         # Material3 TV DarkColorScheme
 └── README.md
 ```
+
+---
+
+## 🔒 Security & Hardening Safeguards
+
+FireLauncher adheres to OWASP Mobile Application Security Verification Standards (MASVS v2.0):
+
+1. **Backup Data Protection**:
+   - `android:allowBackup="false"` in `AndroidManifest.xml` prevents arbitrary data extraction and state tampering over ADB debugging (`adb backup`).
+2. **Network Security Configuration**:
+   - Enforces TLS-only communication (`cleartextTrafficPermitted="false"`) via `res/xml/network_security_config.xml` and `android:usesCleartextTraffic="false"`, preventing Man-in-the-Middle (MITM) attacks.
+3. **Delimiter Injection Defense**:
+   - DataStore persistence sanitizes pipe characters (`.replace("|", "-")`) and checks numeric coordinate bounds (-90..90 lat, -180..180 lon) before serialization.
+4. **Remote URL Scheme & Host Validation**:
+   - Remote wallpapers fetched from Reddit are strictly validated for `https://` protocol and restricted to verified CDN hosts (`i.redd.it`, `preview.redd.it`, `i.imgur.com`, `images.unsplash.com`).
+5. **Intent Hijacking Mitigation**:
+   - Internal system shortcuts are explicitly scoped to `context.packageName` (`intent.setPackage(context.packageName)`) and validated with `resolveActivity()` before launching.
+6. **Input Length Bounds**:
+   - Weather and geocoding search queries are bounded to a maximum length of 64 characters to mitigate denial of service and URL overflow issues.
+7. **Web Simulator Hardening**:
+   - Configured with Content Security Policy (`CSP`), `strict-origin-when-cross-origin` referrer policy, and `rel="noopener noreferrer"` on external hyperlinks.
 
 ---
 

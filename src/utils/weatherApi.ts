@@ -95,10 +95,11 @@ export function getSelectedCityFromStorage(): CityLocation {
  * Searches global cities using Open-Meteo Free Geocoding API (Zero API Keys required).
  */
 export async function searchCitiesApi(query: string): Promise<CityLocation[]> {
-  if (!query || query.trim().length < 2) return [];
+  const cleanQuery = (query || '').trim().slice(0, 64);
+  if (cleanQuery.length < 2) return [];
 
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
-    query.trim()
+    cleanQuery
   )}&count=8&language=en&format=json`;
 
   try {

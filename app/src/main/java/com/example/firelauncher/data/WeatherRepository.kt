@@ -19,9 +19,10 @@ class WeatherRepository {
      * Searches cities globally using Open-Meteo Geocoding API.
      */
     suspend fun searchCities(query: String): List<CityLocationModel> = withContext(Dispatchers.IO) {
-        if (query.trim().length < 2) return@withContext emptyList()
+        val cleanQuery = query.trim().take(64)
+        if (cleanQuery.length < 2) return@withContext emptyList()
         try {
-            val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val url = URL("https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=8&language=en&format=json")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
