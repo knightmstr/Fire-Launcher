@@ -3,7 +3,9 @@
 A high-performance custom home-screen launcher designed specifically for **Amazon Fire TV (Fire OS)**, built in Kotlin using **Jetpack Compose for TV (tv-material)**, **MVVM architecture**, **Preferences DataStore**, and **AndroidX Palette** for dynamic ambient theming.
 
 <p align="center">
-  <img src="docs/firelauncher_screenshot.jpg" alt="FireLauncher Interface Preview" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+  <img src="docs/firelauncher_screenshot.jpg" alt="FireLauncher Interface Preview - Dynamic r/TVWallpapersSFW Background, Live Weather, and App Options Context Menu" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+  <br/>
+  <em>FireLauncher on Fire TV: Dynamic 4K wallpaper, live Open-Meteo weather, A–Z / Recent / Frequent sorting, and D-pad App Options menu (Force Stop / App Info & Favorites)</em>
 </p>
 
 ---
