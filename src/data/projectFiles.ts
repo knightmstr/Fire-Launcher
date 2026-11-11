@@ -3556,7 +3556,7 @@ class MainActivity : ComponentActivity() {
     name: 'README.md',
     language: 'markdown',
     category: 'docs',
-    description: 'Documentation: Sort by menu (A-Z/Recent/Frequent), vivid r/TVWallpapersSFW 30m auto rotation, Open-Meteo live weather, ADB wireless connect, and Fire OS launcher setup',
+    description: 'Documentation: Quick Start AI agent automation, Sort by menu (A-Z/Recent/Frequent), vivid r/TVWallpapersSFW 30m auto rotation, Open-Meteo live weather, ADB wireless connect, and Fire OS launcher setup',
     content: `# FireLauncher 🔥
 
 A high-performance custom home-screen launcher designed specifically for **Amazon Fire TV (Fire OS)**, built in Kotlin using **Jetpack Compose for TV (tv-material)**, **MVVM architecture**, **Preferences DataStore**, and **AndroidX Palette** for dynamic ambient theming.
@@ -3568,6 +3568,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
 </p>
 
 ## Key Highlights
+- **🚀 Quick Start (Automated with AI)**: Point any terminal AI agent (Claude Code, Gemini CLI, Cursor) at \`AI_STEPS.md\` to automate device pairing, APK install, safe debloating, and rebooting.
 - **Library 'Sort By' Menu**: Toggle between Alphabetical (A–Z), Most Recently Used (MRU with relative time badges), and Most Frequently Used (MFU with launch counts) via Top Bar and All Apps row header.
 - **Vivid r/TVWallpapersSFW Backgrounds**: Dynamic 16:9 TV wallpapers fetched directly from Reddit r/TVWallpapersSFW, auto-rotating every 30 minutes with smooth crossfade and clear, high-contrast glass scrim.
 - **Accurate Live Weather (Open-Meteo)**: Zero API keys required. Live temperature, condition summary, high/low, humidity, and wind speed. Includes global geocoding search to search and add any city.
@@ -3575,7 +3576,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
 - **D-Pad Focus & Palette Glow**: 16:9 rounded cards that scale to 1.12x on focus, with 2dp white border and dynamic Palette accent glow.
 - **Overscan-Safe**: 48dp horizontal padding, singleTask Home scroll-to-top handler, and hardware Back button absorption.
 
-See the complete README.md on disk for ADB setup commands, Button Mapper configurations, and CleanYourTV debloat scripts.
+See the complete README.md on disk for the full AI agent manifest instructions, ADB setup commands, Button Mapper configurations, and CleanYourTV debloat scripts.
 `
   },
   {

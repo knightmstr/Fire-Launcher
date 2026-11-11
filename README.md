@@ -107,7 +107,43 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
-## 📡 Installing on Amazon Fire TV via ADB
+## 🚀 Quick Start: Automated AI Agent Deployment & Debloating
+
+Inspired by the [CleanYourTV Quick Start workflow](https://github.com/Gathin23/cleanyourtv#quick-start), FireLauncher includes a machine-readable execution manifest in [`AI_STEPS.md`](AI_STEPS.md). Instead of typing ADB commands manually, you can hand this project directory to a terminal-based AI coding assistant (such as **Claude Code**, **Gemini CLI**, or **Cursor**) to automate device pairing, APK compilation, installation, and debloating end-to-end.
+
+### How to Run with an AI Coding Assistant:
+
+1. **Prepare Your Fire TV**:
+   - Unlock Developer Options: Go to **Settings** > **My Fire TV** (or **Device & Software**) > **About**, highlight your device name, and press **OK / Center button 7 times**.
+   - Enable Debugging: Open **Developer Options** and turn **ADB Debugging** to **ON**.
+   - Ensure your computer and Fire TV are connected to the **same local Wi-Fi network**.
+
+2. **Open Terminal & Start Your AI Agent**:
+   In your computer terminal, navigate to the repository directory and start your AI assistant (e.g., `claude`, `gemini`, or `cursor`):
+   ```bash
+   cd firelauncher
+   claude
+   ```
+
+3. **Paste the Execution Prompt**:
+   Feed your AI agent this prompt:
+   ```text
+   I want to deploy FireLauncher to my Fire TV stick and safely debloat background ad services. Please read and execute AI_STEPS.md step by step. Run tools/get_tv_ip.py to prompt me for my TV's IP address, establish an authenticated ADB connection, pause for me to accept the TV screen authorization dialog with my remote, deploy the APK, execute the 5 safe non-root Amazon package disabling commands, verify debloat status, and reboot the device.
+   ```
+
+4. **What the AI Agent Handles Automatically**:
+   - **Prerequisite Validation**: Verifies that `adb` and `python3` are in `PATH`.
+   - **IP Discovery & Regex Validation**: Launches `tools/get_tv_ip.py` to prompt you for your Fire TV's IP address and validates octet boundaries (`0–255`).
+   - **Remote Handshake Wait**: Connects to port `5555` and pauses to remind you to click *"Always allow from this computer"* on your TV screen using your remote.
+   - **APK Deployment**: Compiles the debug build (if not already built) and deploys `app/build/outputs/apk/debug/app-debug.apk`.
+   - **5-Package Non-Root Debloating**: Safely disables background telemetry daemons, crash managers, and commercial ad screensavers.
+   - **Verification & Reboot**: Verifies package states via `pm list packages -d` and restarts the Fire TV stick cleanly.
+
+---
+
+## 📡 Manual Installation on Amazon Fire TV via ADB
+
+If you prefer to execute the steps manually without an AI assistant:
 
 ### Step 1: Enable Developer Options & ADB on Fire TV
 1. On your Fire TV, navigate to **Settings** > **My Fire TV** (or **Device & Software**) > **About**.
