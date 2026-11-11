@@ -3474,6 +3474,10 @@ class MainActivity : ComponentActivity() {
 
 A high-performance custom home-screen launcher designed specifically for **Amazon Fire TV (Fire OS)**, built in Kotlin using **Jetpack Compose for TV (tv-material)**, **MVVM architecture**, **Preferences DataStore**, and **AndroidX Palette** for dynamic ambient theming.
 
+<p align="center">
+  <img src="docs/firelauncher_screenshot.jpg" alt="FireLauncher Interface Preview" width="100%" />
+</p>
+
 ## Key Highlights
 - **Library 'Sort By' Menu**: Toggle between Alphabetical (A–Z), Most Recently Used (MRU with relative time badges), and Most Frequently Used (MFU with launch counts) via Top Bar and All Apps row header.
 - **Vivid r/TVWallpapersSFW Backgrounds**: Dynamic 16:9 TV wallpapers fetched directly from Reddit r/TVWallpapersSFW, auto-rotating every 30 minutes with smooth crossfade and clear, high-contrast glass scrim.

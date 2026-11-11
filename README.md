@@ -2,6 +2,10 @@
 
 A high-performance custom home-screen launcher designed specifically for **Amazon Fire TV (Fire OS)**, built in Kotlin using **Jetpack Compose for TV (tv-material)**, **MVVM architecture**, **Preferences DataStore**, and **AndroidX Palette** for dynamic ambient theming.
 
+<p align="center">
+  <img src="docs/firelauncher_screenshot.jpg" alt="FireLauncher Interface Preview" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+</p>
+
 ---
 
 ## 📺 Key Features
@@ -243,6 +247,8 @@ FireLauncher/
 │               └── theme/
 │                   ├── Color.kt         # Color palette constants
 │                   └── Theme.kt         # Material3 TV DarkColorScheme
+├── docs/
+│   └── firelauncher_screenshot.jpg    # 16:9 UI interface preview screenshot
 ├── tools/
 │   └── get_tv_ip.py                   # Fire TV IP discovery, IPv4 regex validator & SUCCESS token CLI
 ├── AI_STEPS.md                        # AI agent automation manifest (ADB connect, APK install, debloat, reboot)
