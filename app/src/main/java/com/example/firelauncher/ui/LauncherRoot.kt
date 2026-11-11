@@ -50,6 +50,7 @@ import com.example.firelauncher.data.AppSortOrder
 import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WallpaperModel
 import com.example.firelauncher.data.WeatherData
+import com.example.firelauncher.ui.components.AppContextMenuDialog
 import com.example.firelauncher.ui.components.AppRow
 import com.example.firelauncher.ui.components.HeroSection
 import com.example.firelauncher.ui.components.SortSelectionDialog
@@ -71,10 +72,14 @@ fun LauncherRoot(
     viewModel: LauncherViewModel,
     modifier: Modifier = Modifier
 ) {
-    // Intercept Back button: if search is active, close search; otherwise ignore
+    var contextMenuApp by remember { mutableStateOf<AppModel?>(null) }
+
+    // Intercept Back button: if context menu is open, close it; if search is active, close search; otherwise ignore
     val isSearchActive by viewModel.isSearchActive.collectAsStateWithLifecycle()
     BackHandler {
-        if (isSearchActive) {
+        if (contextMenuApp != null) {
+            contextMenuApp = null
+        } else if (isSearchActive) {
             viewModel.setSearchActive(false)
         }
     }
@@ -120,9 +125,27 @@ fun LauncherRoot(
         onToggleSearch = { viewModel.setSearchActive(it) },
         onAppFocused = { viewModel.setFocusedApp(it) },
         onAppClicked = { viewModel.launchApp(it) },
-        onAppLongClicked = { viewModel.toggleFavorite(it) },
+        onAppLongClicked = { app ->
+            if (!app.isSystemShortcut) {
+                contextMenuApp = app
+            } else {
+                viewModel.toggleFavorite(app)
+            }
+        },
         modifier = modifier
     )
+
+    // Context Menu for App Info / Force Stop / Favorite toggle
+    contextMenuApp?.let { app ->
+        AppContextMenuDialog(
+            app = app,
+            isFavorite = favorites.contains(app.packageName),
+            onToggleFavorite = { viewModel.toggleFavorite(app) },
+            onOpenAppDetails = { viewModel.openAppDetails(app) },
+            onLaunchApp = { viewModel.launchApp(app) },
+            onDismiss = { contextMenuApp = null }
+        )
+    }
 }
 
 /**

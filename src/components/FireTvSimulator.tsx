@@ -42,7 +42,9 @@ import {
   ArrowUpDown,
   ArrowDownAZ,
   History,
-  TrendingUp
+  TrendingUp,
+  StopCircle,
+  Trash2
 } from 'lucide-react';
 import { SimulatedApp, AppSortOrder } from '../types';
 import { SIMULATED_INSTALLED_APPS, SIMULATED_SYSTEM_SHORTCUTS } from '../data/mockInstalledApps';
@@ -143,6 +145,8 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
     return 'alphabetical';
   });
   const [isSortModalOpen, setIsSortModalOpen] = useState<boolean>(false);
+  const [contextMenuApp, setContextMenuApp] = useState<SimulatedApp | null>(null);
+  const [appDetailsApp, setAppDetailsApp] = useState<SimulatedApp | null>(null);
 
   // App Usage Metrics for Recents and Frequent sorting
   const [appUsageStats, setAppUsageStats] = useState<Record<string, { count: number; lastLaunched: number }>>(() => {
@@ -491,6 +495,14 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
 
   // Back pressed
   const handleBackPressed = () => {
+    if (appDetailsApp) {
+      setAppDetailsApp(null);
+      return;
+    }
+    if (contextMenuApp) {
+      setContextMenuApp(null);
+      return;
+    }
     if (isSortModalOpen) {
       setIsSortModalOpen(false);
       return;
@@ -522,7 +534,13 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
     } else if (action === 'click_ok') {
       if (currentApp) launchApp(currentApp);
     } else if (action === 'long_ok') {
-      if (currentApp) toggleFavorite(currentApp);
+      if (currentApp) {
+        if (!currentApp.isSystemShortcut) {
+          setContextMenuApp(currentApp);
+        } else {
+          toggleFavorite(currentApp);
+        }
+      }
     } else if (action === 'back') {
       handleBackPressed();
     } else if (action === 'home') {
@@ -566,7 +584,13 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
               setPressProgress(0);
               onHoldingOkChange?.(false);
               onHoldProgressChange?.(0);
-              if (currentApp) toggleFavorite(currentApp);
+              if (currentApp) {
+                if (!currentApp.isSystemShortcut) {
+                  setContextMenuApp(currentApp);
+                } else {
+                  toggleFavorite(currentApp);
+                }
+              }
             }
           }, 40);
         }
@@ -958,8 +982,8 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
                   {currentApp.isSystemShortcut
                     ? 'Press OK to open Fire TV system settings'
                     : isCurrentFavorite
-                    ? 'Hold OK to remove from favorites'
-                    : 'Hold OK to add to favorites'}
+                    ? 'Hold OK for Options (Remove Favorite, Force Stop / App Info)'
+                    : 'Hold OK for Options (Add Favorite, Force Stop / App Info)'}
                 </span>
                 {isPressingOk && (
                   <div className="flex items-center space-x-1.5 ml-2 bg-neutral-800/80 px-2 py-0.5 rounded-full border border-yellow-400/40 text-[11px] text-yellow-300 animate-pulse">
@@ -1068,6 +1092,14 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
                         setFocusedRow(rIdx);
                         setFocusedCol(cIdx);
                         launchApp(app);
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (!app.isSystemShortcut) {
+                          setFocusedRow(rIdx);
+                          setFocusedCol(cIdx);
+                          setContextMenuApp(app);
+                        }
                       }}
                       onMouseEnter={() => {
                         setFocusedRow(rIdx);
@@ -1512,6 +1544,196 @@ export const FireTvSimulator: React.FC<FireTvSimulatorProps> = ({
                 className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold transition cursor-pointer"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* App Context Menu Modal (Triggered by Long-Press D-pad OK or Card Right-Click) */}
+      {contextMenuApp && (
+        <div
+          className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in"
+          onClick={() => setContextMenuApp(null)}
+        >
+          <div
+            className="w-full max-w-md bg-[#131722] border-2 rounded-3xl p-6 shadow-2xl flex flex-col space-y-4"
+            style={{ borderColor: `${contextMenuApp.accentColor}88` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-3">
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white"
+                  style={{
+                    backgroundColor: `${contextMenuApp.accentColor}33`,
+                    border: `1px solid ${contextMenuApp.accentColor}66`
+                  }}
+                >
+                  {renderAppIcon(contextMenuApp.iconName, 'w-6 h-6')}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-wide">{contextMenuApp.label}</h3>
+                  <p className="text-xs text-neutral-400 font-mono">{contextMenuApp.packageName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setContextMenuApp(null)}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-neutral-400 hover:text-white transition cursor-pointer"
+              >
+                <CloseIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Actions List */}
+            <div className="space-y-2.5">
+              {/* Toggle Favorite */}
+              <button
+                onClick={() => {
+                  toggleFavorite(contextMenuApp);
+                  setContextMenuApp(null);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-between transition cursor-pointer text-left group"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-yellow-400/20 text-yellow-300 flex items-center justify-center">
+                    <Star className="w-5 h-5 fill-yellow-400/30" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-bold text-white">
+                      {favorites.has(contextMenuApp.packageName) ? 'Remove from Favorites' : 'Add to Favorites'}
+                    </span>
+                    <span className="block text-xs text-neutral-400">
+                      {favorites.has(contextMenuApp.packageName)
+                        ? 'Unpin this app from your top row'
+                        : 'Pin to top row for instant 1-click access'}
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Force Stop / App Info (Fire OS Settings) */}
+              <button
+                onClick={() => {
+                  const target = contextMenuApp;
+                  setContextMenuApp(null);
+                  setAppDetailsApp(target);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-between transition cursor-pointer text-left group"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center">
+                    <Settings className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-bold text-white">Force Stop & App Info</span>
+                    <span className="block text-xs text-neutral-400">
+                      Manage app storage, clear cache, or terminate background processes
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Launch App */}
+              <button
+                onClick={() => {
+                  const target = contextMenuApp;
+                  setContextMenuApp(null);
+                  launchApp(target);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-between transition cursor-pointer text-left group"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <PlayCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-bold text-white">Open Application</span>
+                    <span className="block text-xs text-neutral-400">Launch {contextMenuApp.label} directly</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fire OS Application Details Settings Window */}
+      {appDetailsApp && (
+        <div
+          className="absolute inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in"
+          onClick={() => setAppDetailsApp(null)}
+        >
+          <div
+            className="w-full max-w-lg bg-[#11141D] border-2 border-neutral-700/80 rounded-3xl p-6 shadow-2xl flex flex-col space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Title */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    FIRE OS SETTINGS
+                  </span>
+                  <span className="text-xs text-neutral-400">Application Management</span>
+                </div>
+                <h3 className="text-xl font-bold text-white mt-1">{appDetailsApp.label}</h3>
+                <p className="text-xs text-neutral-400 font-mono">{appDetailsApp.packageName}</p>
+              </div>
+              <button
+                onClick={() => setAppDetailsApp(null)}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-neutral-400 hover:text-white transition cursor-pointer"
+              >
+                <CloseIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Intent Details Box */}
+            <div className="p-3 rounded-xl bg-black/40 border border-neutral-800 font-mono text-xs text-neutral-300 space-y-1">
+              <div className="text-[10px] uppercase text-neutral-500 font-bold tracking-wider">Android System Intent</div>
+              <div className="text-amber-400">Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)</div>
+              <div className="text-emerald-400 truncate">data = Uri.parse(&quot;package:{appDetailsApp.packageName}&quot;)</div>
+            </div>
+
+            {/* Storage & Memory Stats */}
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                <span className="block text-[10px] text-neutral-400 uppercase">App Size</span>
+                <span className="font-bold text-white">48.2 MB</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                <span className="block text-[10px] text-neutral-400 uppercase">User Data</span>
+                <span className="font-bold text-white">12.4 MB</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                <span className="block text-[10px] text-neutral-400 uppercase">Cache (Capped)</span>
+                <span className="font-bold text-emerald-400">4.1 MB / 15MB</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                onClick={() => {
+                  showToast(`[Process Terminated] Force stopped ${appDetailsApp.label}. RAM released.`);
+                  setAppDetailsApp(null);
+                }}
+                className="px-4 py-3 rounded-2xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 font-bold text-sm flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95"
+              >
+                <StopCircle className="w-4 h-4" />
+                <span>Force Stop</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  showToast(`[Storage Reclaimed] Cleared cache for ${appDetailsApp.label} (0 B).`);
+                  setAppDetailsApp(null);
+                }}
+                className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-sm flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Clear Cache</span>
               </button>
             </div>
           </div>

@@ -1,6 +1,9 @@
 package com.example.firelauncher.ui
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.firelauncher.data.AppModel
@@ -285,5 +288,30 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
         }
         return repository.launchApp(app)
+    }
+
+    /**
+     * Opens Fire OS system settings directly to the target app's management window
+     * for Force Stop, Clear Cache, Clear Data, or permissions management.
+     */
+    fun openAppDetails(app: AppModel) {
+        if (app.isSystemShortcut) return
+        val context = getApplication<Application>()
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${app.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val fallbackIntent = Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(fallbackIntent)
+            } catch (_: Exception) {
+                // Ignore if device restricts direct settings access
+            }
+        }
     }
 }

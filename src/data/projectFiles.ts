@@ -423,6 +423,93 @@ dependencies {
 `
   },
   {
+    path: 'app/src/main/java/com/example/firelauncher/FireLauncherApp.kt',
+    name: 'FireLauncherApp.kt',
+    language: 'kotlin',
+    category: 'kotlin',
+    description: 'Application class with Coil ImageLoaderFactory enforcing 10% memory cache and 15MB disk cache limits',
+    content: `package com.example.firelauncher
+
+import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+
+/**
+ * Main Application class for FireLauncher.
+ * Configures strict memory and disk cache limits for low-end Fire TV hardware
+ * to prevent r/TVWallpapersSFW automatic downloads from bloating limited flash storage.
+ */
+class FireLauncherApp : Application(), ImageLoaderFactory {
+
+    override fun newImageLoader(): ImageLoader {
+        return ImageLoader.Builder(this)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    // Strict memory cache ceiling: exactly 10% of available application RAM
+                    .maxSizePercent(0.10)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    // Hard disk cache ceiling: capped at exactly 15MB
+                    .maxSizeBytes(15L * 1024 * 1024)
+                    .build()
+            }
+            .respectCacheHeaders(false) // Optimize for TV wallpaper rotation
+            .crossfade(true)
+            .build()
+    }
+}
+`
+  },
+  {
+    path: 'app/src/main/java/com/example/firelauncher/ui/components/AppContextMenuDialog.kt',
+    name: 'AppContextMenuDialog.kt',
+    language: 'kotlin',
+    category: 'kotlin',
+    description: 'Leanback context menu dialog for cards (Favorites toggle, Force Stop & App Info settings, Launch)',
+    content: `package com.example.firelauncher.ui.components
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarOutline
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Surface
+import androidx.tv.material3.Text
+import com.example.firelauncher.data.AppModel
+
+// Context menu dialog component (see app/src/main/java/.../AppContextMenuDialog.kt)
+`
+  },
+  {
     path: 'app/src/main/java/com/example/firelauncher/data/AppSortOrder.kt',
     name: 'AppSortOrder.kt',
     language: 'kotlin',
@@ -3658,6 +3745,77 @@ def main():
 
 if __name__ == "__main__":
     main()
+`
+  },
+  {
+    path: 'tools/clear_launcher_cache.sh',
+    name: 'clear_launcher_cache.sh',
+    language: 'bash',
+    category: 'scripts',
+    description: 'ADB shell utility to wipe launcher image cache and temporary application data (pm clear com.example.firelauncher)',
+    content: `#!/usr/bin/env bash
+# ==============================================================================
+# tools/clear_launcher_cache.sh
+# FireLauncher Memory & Cache Recovery Utility
+# ==============================================================================
+
+set -e
+
+PACKAGE_NAME="com.example.firelauncher"
+MAIN_ACTIVITY="com.example.firelauncher/.MainActivity"
+
+echo "=========================================================="
+echo "    🔥 FireLauncher Cache & Memory Wipe Utility 🔥        "
+echo "=========================================================="
+
+if ! command -v adb &> /dev/null; then
+    echo "[-] Error: 'adb' command not found. Please install Android Platform Tools and add to PATH."
+    exit 1
+fi
+
+TARGET_DEVICE="\$1"
+ADB_CMD="adb"
+
+if [ -n "\$TARGET_DEVICE" ]; then
+    echo "[+] Target device explicitly provided: \$TARGET_DEVICE"
+    ADB_CMD="adb -s \$TARGET_DEVICE"
+else
+    CONNECTED_DEVICES=\$(adb devices | grep -v "List of devices" | grep "device$" | awk '{print \$1}' || true)
+    DEVICE_COUNT=\$(echo "\$CONNECTED_DEVICES" | grep -v '^$' | wc -l || true)
+
+    if [ "\$DEVICE_COUNT" -eq 0 ]; then
+        echo "[-] Error: No ADB devices connected."
+        echo "    Connect your Fire TV first using: adb connect <firetv-ip>:5555"
+        exit 1
+    elif [ "\$DEVICE_COUNT" -eq 1 ]; then
+        TARGET_DEVICE=\$(echo "\$CONNECTED_DEVICES" | tr -d ' \\r\\n')
+        echo "[+] Detected connected device: \$TARGET_DEVICE"
+        ADB_CMD="adb -s \$TARGET_DEVICE"
+    else
+        echo "[!] Multiple ADB devices detected:"
+        echo "\$CONNECTED_DEVICES"
+        echo ""
+        echo "Usage: ./tools/clear_launcher_cache.sh <device-ip:port or serial>"
+        exit 1
+    fi
+fi
+
+echo "[+] Checking if \$PACKAGE_NAME is installed on target..."
+if ! \$ADB_CMD shell pm list packages | grep -q "\$PACKAGE_NAME"; then
+    echo "[-] Error: Package \$PACKAGE_NAME is not installed on \$TARGET_DEVICE."
+    exit 1
+fi
+
+echo "[+] Clearing runtime cache and data for \$PACKAGE_NAME..."
+CLEAR_RESULT=\$(${'\\$' + 'ADB_CMD'} shell pm clear "\$PACKAGE_NAME" 2>&1)
+echo "    Result: \$CLEAR_RESULT"
+
+echo "[+] Relaunching FireLauncher on target TV display..."
+\$ADB_CMD shell am start -n "\$MAIN_ACTIVITY" > /dev/null 2>&1 || true
+
+echo "=========================================================="
+echo "    ✓ FireLauncher is running fresh with clean cache!     "
+echo "=========================================================="
 `
   }
 ];

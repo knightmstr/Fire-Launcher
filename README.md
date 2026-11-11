@@ -241,6 +241,7 @@ FireLauncher/
 │               ├── LauncherRoot.kt        # State collector, 48dp overscan padding, wallpaper & ambient vignette
 │               ├── components/
 │               │   ├── AppCard.kt         # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
+│               │   ├── AppContextMenuDialog.kt # Long-press context menu (Favorites, Force Stop/App Info, Launch)
 │               │   ├── AppRow.kt          # TvLazyRow with category header
 │               │   ├── HeroSection.kt     # App title, category & hold-OK instructions
 │               │   └── TopBar.kt          # Live weather with city search modal, wallpaper cycle, clock & search
@@ -250,10 +251,28 @@ FireLauncher/
 ├── docs/
 │   └── firelauncher_screenshot.jpg    # 16:9 UI interface preview screenshot
 ├── tools/
-│   └── get_tv_ip.py                   # Fire TV IP discovery, IPv4 regex validator & SUCCESS token CLI
+│   ├── get_tv_ip.py                   # Fire TV IP discovery, IPv4 regex validator & SUCCESS token CLI
+│   └── clear_launcher_cache.sh        # ADB shell utility to wipe launcher cache & free device RAM
 ├── AI_STEPS.md                        # AI agent automation manifest (ADB connect, APK install, debloat, reboot)
 └── README.md
 ```
+
+---
+
+## ⚡ Performance Tuning & Low-End Fire TV Optimizations
+
+FireLauncher is engineered specifically for resource-constrained Fire TV Sticks (1GB–1.5GB RAM, 8GB flash storage):
+
+1. **Compact Storage & Cache Cap (`FireLauncherApp.kt`)**:
+   - Implements Coil `ImageLoaderFactory` with a strict memory cache ceiling capped at **10% of available application RAM**.
+   - Implements a hard disk cache ceiling capped at exactly **15MB** (`DiskCache.Builder().maxSizeBytes(15L * 1024 * 1024)`), preventing automated `r/TVWallpapersSFW` wallpaper downloads from exhausting device storage over time.
+2. **ProGuard & Code Shrinking (`app/build.gradle.kts`)**:
+   - Enabled `isMinifyEnabled = true` and `isShrinkResources = true` in `buildTypes.release` with `proguard-android-optimize.txt` to minimize compiled APK footprint.
+3. **"Force Stop / App Info" Context Menu (`AppContextMenuDialog.kt`)**:
+   - Extending the Long-Press D-pad OK gesture on any app card opens a leanback context menu.
+   - Provides direct 1-click access to the Fire OS system settings management window via `Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)` with `Uri.parse("package:${app.packageName}")` for immediate Force Stop and app cache clearing.
+4. **Memory Recovery Script (`tools/clear_launcher_cache.sh`)**:
+   - Lightweight shell utility to purge the launcher's temporary data and image cache over ADB (`adb shell pm clear com.example.firelauncher`) and cleanly relaunch the interface without rebooting.
 
 ---
 

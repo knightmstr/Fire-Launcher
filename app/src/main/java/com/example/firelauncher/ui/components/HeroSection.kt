@@ -104,8 +104,8 @@ fun HeroSection(
 
                     val hintText = when {
                         app.isSystemShortcut -> "Press OK to open settings"
-                        fav -> "Hold OK to remove from favorites"
-                        else -> "Hold OK to add to favorites"
+                        fav -> "Hold OK for options (Remove favorite, App info / Force stop)"
+                        else -> "Hold OK for options (Add to favorites, App info / Force stop)"
                     }
 
                     Text(
