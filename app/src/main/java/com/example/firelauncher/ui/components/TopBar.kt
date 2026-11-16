@@ -629,14 +629,13 @@ fun CitySelectionDialog(
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = Color(0xFF121622)
             ),
-            border = ClickableSurfaceDefaults.border(
-                border = Border(
-                    border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(24.dp)
+                border = ClickableSurfaceDefaults.border(
+                    border = Border(
+                        border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(24.dp)
+                    )
                 )
-            ),
-            modifier = Modifier.width(480.dp)
-        ) {
+            ) {
             Column(
                 modifier = Modifier.padding(20.dp)
             ) {
