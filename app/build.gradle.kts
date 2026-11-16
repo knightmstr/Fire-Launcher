@@ -1,8 +1,40 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_FILE")
+    ?: keystoreProperties.getProperty("storeFile")
+val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    ?: keystoreProperties.getProperty("storePassword")
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+    ?: keystoreProperties.getProperty("keyAlias")
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+    ?: keystoreProperties.getProperty("keyPassword")
+
+val hasReleaseKeystore = !releaseKeystorePath.isNullOrBlank() &&
+    rootProject.file(releaseKeystorePath).exists() &&
+    !releaseKeystorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
+
+val resolvedVersionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull()
+    ?: System.getenv("VERSION_CODE")?.toIntOrNull()
+    ?: 1
+
+val resolvedVersionName = (project.findProperty("versionName") as String?)?.takeIf { it.isNotBlank() }
+    ?: System.getenv("VERSION_NAME")?.takeIf { it.isNotBlank() }
+    ?: "1.0.0"
 
 android {
     namespace = "com.example.firelauncher"
@@ -12,11 +44,22 @@ android {
         applicationId = "com.example.firelauncher"
         minSdk = 25
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
 
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
@@ -28,7 +71,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             applicationIdSuffix = ""
@@ -51,6 +98,13 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    lint {
+        checkReleaseBuilds = true
+        abortOnError = true
+        warningsAsErrors = false
     }
 
     packaging {
@@ -64,6 +118,7 @@ dependencies {
     // AndroidX Core & Activity Compose
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.activity:activity-ktx:1.9.2")
 
     // Compose BOM & Foundations
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
@@ -92,6 +147,9 @@ dependencies {
 
     // Coil for Compose image loading (App icons / banners)
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // Unit Testing
+    testImplementation("junit:junit:4.13.2")
 
     // Debugging tools
     debugImplementation("androidx.compose.ui:ui-tooling")

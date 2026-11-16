@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,9 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -70,6 +71,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun LauncherRoot(
     viewModel: LauncherViewModel,
+    onRequestVoiceSearch: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var contextMenuApp by remember { mutableStateOf<AppModel?>(null) }
@@ -123,6 +125,7 @@ fun LauncherRoot(
         onSelectSort = { viewModel.setSortOrder(it) },
         onSearchQueryChange = { viewModel.setSearchQuery(it) },
         onToggleSearch = { viewModel.setSearchActive(it) },
+        onRequestVoiceSearch = onRequestVoiceSearch,
         onAppFocused = { viewModel.setFocusedApp(it) },
         onAppClicked = { viewModel.launchApp(it) },
         onAppLongClicked = { app ->
@@ -177,12 +180,13 @@ fun LauncherContent(
     onSelectSort: (AppSortOrder) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: (Boolean) -> Unit,
+    onRequestVoiceSearch: () -> Unit,
     onAppFocused: (AppModel) -> Unit,
     onAppClicked: (AppModel) -> Unit,
     onAppLongClicked: (AppModel) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val columnState = rememberTvLazyListState()
+    val columnState = rememberLazyListState()
     val firstItemFocusRequester = remember { FocusRequester() }
     var showRowSortDialog by remember { mutableStateOf(false) }
 
@@ -300,6 +304,7 @@ fun LauncherContent(
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
                 onToggleSearch = onToggleSearch,
+                onRequestVoiceSearch = onRequestVoiceSearch,
                 onNextWallpaper = onNextWallpaper,
                 wallpaperTitle = currentWallpaper?.title
             )
@@ -328,7 +333,7 @@ fun LauncherContent(
                             .background(Color(0x66181C28))
                             .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Rounded.Wallpaper,
                             contentDescription = "Wallpaper",
                             tint = FireAmber,
@@ -348,7 +353,7 @@ fun LauncherContent(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Scrollable rows of apps or filtered search results
-            TvLazyColumn(
+            LazyColumn(
                 state = columnState,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -378,11 +383,11 @@ fun LauncherContent(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                androidx.compose.material3.Icon(
+                                Icon(
                                     imageVector = Icons.Rounded.SearchOff,
                                     contentDescription = "No results",
                                     tint = TextSecondary,
-                                    modifier = Modifier.height(48.dp)
+                                    modifier = Modifier.size(48.dp)
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(

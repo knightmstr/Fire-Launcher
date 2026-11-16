@@ -77,7 +77,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val systemShortcuts: StateFlow<List<AppModel>> = MutableStateFlow(repository.getSystemShortcuts())
 
     // Combined favorites app list
-    val favoriteApps: StateFlow<List<AppModel>> = combine(_apps, favorites) { allApps, favSet ->
+    val favoriteApps: StateFlow<List<AppModel>> = combine(apps, favorites) { allApps, favSet ->
         allApps.filter { favSet.contains(it.packageName) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -87,6 +87,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // Incremented whenever Home is pressed while launcher is active
     private val _homeTick = MutableStateFlow(0L)
     val homeTick: StateFlow<Long> = _homeTick.asStateFlow()
+
+    // Incremented whenever UI requests speech recognition
+    private val _voiceSearchTrigger = MutableStateFlow(0L)
+    val voiceSearchTrigger: StateFlow<Long> = _voiceSearchTrigger.asStateFlow()
 
     // r/TVWallpapersSFW 30-minute auto-changing wallpaper
     val currentWallpaper: StateFlow<WallpaperModel?> = wallpaperRepository.currentWallpaper
@@ -119,7 +123,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val isSearchActive: StateFlow<Boolean> = _isSearchActive.asStateFlow()
 
     // Apps dynamically filtered by the global search query
-    val filteredApps: StateFlow<List<AppModel>> = combine(_apps, _searchQuery) { allApps, query ->
+    val filteredApps: StateFlow<List<AppModel>> = combine(apps, _searchQuery) { allApps, query ->
         if (query.isBlank()) {
             allApps
         } else {
@@ -270,6 +274,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun clearSearch() {
         _searchQuery.value = ""
+    }
+
+    fun requestVoiceSearch() {
+        _voiceSearchTrigger.value += 1L
+    }
+
+    fun onVoiceResult(query: String) {
+        _isSearchActive.value = true
+        _searchQuery.value = query
     }
 
     /**

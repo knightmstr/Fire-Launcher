@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Star
@@ -33,10 +32,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.firelauncher.data.AppModel
@@ -69,13 +71,17 @@ fun AppContextMenuDialog(
 ) {
     val accentColor = Color(app.accentColor)
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xDD07090F))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color(0xDD07090F))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
         Surface(
             onClick = {},
             modifier = Modifier
@@ -147,7 +153,7 @@ fun AppContextMenuDialog(
                             .clickable(onClick = onDismiss),
                         contentAlignment = Alignment.Center
                     ) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = "Close",
                             tint = TextSecondary,
@@ -199,6 +205,7 @@ fun AppContextMenuDialog(
                 )
             }
         }
+    }
     }
 }
 
@@ -252,7 +259,7 @@ private fun ContextMenuItem(
                     .background(iconTint.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = icon,
                     contentDescription = title,
                     tint = iconTint,

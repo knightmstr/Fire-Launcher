@@ -1,5 +1,6 @@
 package com.example.firelauncher
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -8,11 +9,15 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
-import android.app.Activity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.firelauncher.ui.LauncherRoot
 import com.example.firelauncher.ui.LauncherViewModel
 import com.example.firelauncher.ui.VoiceSearchHelper
@@ -43,21 +48,33 @@ class MainActivity : ComponentActivity() {
             val intent = VoiceSearchHelper.createSpeechIntent(this)
             speechRecognitionLauncher.launch(intent)
         } catch (_: Exception) {
-            android.widget.Toast.makeText(this, "Voice recognition service not available", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Voice recognition service not available", Toast.LENGTH_SHORT).show()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Fire OS home screen launchers must absorb unmatched back presses rather than exiting
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    // Deliberately absorbed on home launcher
+                }
+            }
+        )
+
         // Lock window to immersive TV fullscreen
         hideSystemUI()
 
         // Observe voice search requests from the launcher UI
         lifecycleScope.launch {
-            viewModel.voiceSearchTrigger.collect { count ->
-                if (count > 0L) {
-                    launchVoiceSearch()
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.voiceSearchTrigger.collect { count ->
+                    if (count > 0L) {
+                        launchVoiceSearch()
+                    }
                 }
             }
         }
@@ -92,20 +109,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Fire OS home screen launchers must ignore the back button,
-     * as there is no previous activity in the backstack.
-     */
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        // Deliberately ignored on home launcher
-    }
-
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // Absorb back press
-            return true
-        }
         if (keyCode == KeyEvent.KEYCODE_SEARCH || keyCode == 231 /* KEYCODE_VOICE_ASSIST */) {
             // Intercept Fire TV Alexa remote microphone button press
             launchVoiceSearch()

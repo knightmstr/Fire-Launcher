@@ -1,8 +1,32 @@
+# Node.js / Simulator
 node_modules/
-build/
 dist/
 coverage/
+
+# Android & Gradle
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Release Keystores & Signing Secrets
+keystore.properties
+*.jks
+*.keystore
+*.p12
+
+# IDE & OS
+.idea/
+*.iml
+.cxx/
 .DS_Store
+Thumbs.db
 *.log
 .env*
 !.env.example

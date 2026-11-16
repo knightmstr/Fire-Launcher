@@ -2,7 +2,6 @@ package com.example.firelauncher.ui.components
 
 import android.content.Context
 import android.text.format.DateFormat
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,20 +10,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sort
@@ -52,12 +54,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.items
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.firelauncher.data.AppSortOrder
@@ -98,6 +101,7 @@ fun TopBar(
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
     onToggleSearch: (Boolean) -> Unit = {},
+    onRequestVoiceSearch: () -> Unit = {},
     onNextWallpaper: () -> Unit = {},
     wallpaperTitle: String? = null,
     modifier: Modifier = Modifier
@@ -170,6 +174,7 @@ fun TopBar(
                 GlobalSearchBar(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange,
+                    onRequestVoiceSearch = onRequestVoiceSearch,
                     onClose = { onToggleSearch(false) },
                     modifier = Modifier.weight(1f, fill = false).padding(horizontal = 24.dp)
                 )
@@ -302,7 +307,7 @@ fun WallpaperTriggerButton(
             modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = Icons.Rounded.Wallpaper,
                 contentDescription = title,
                 tint = FireAmber,
@@ -354,7 +359,7 @@ fun SearchTriggerButton(
             modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = if (isActive) Icons.Rounded.Close else Icons.Rounded.Search,
                 contentDescription = if (isActive) "Close Search" else "Search Apps",
                 tint = if (isActive) FireOrange else TextPrimary,
@@ -372,6 +377,7 @@ fun SearchTriggerButton(
 fun GlobalSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    onRequestVoiceSearch: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -397,7 +403,7 @@ fun GlobalSearchBar(
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp)
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = Icons.Rounded.Search,
                 contentDescription = "Search",
                 tint = FireOrange,
@@ -431,9 +437,20 @@ fun GlobalSearchBar(
                 )
             }
 
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Icon(
+                imageVector = Icons.Rounded.Mic,
+                contentDescription = "Voice search",
+                tint = FireAmber,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clickable { onRequestVoiceSearch() }
+            )
+
             if (query.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(6.dp))
-                androidx.compose.material3.Icon(
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
                     imageVector = Icons.Rounded.Close,
                     contentDescription = "Clear search",
                     tint = TextSecondary,
@@ -507,7 +524,7 @@ fun WeatherWidget(
                 else -> Color(0xFFE0E0E0)
             }
 
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = weatherIcon,
                 contentDescription = weather.condition,
                 tint = iconTint,
@@ -547,7 +564,7 @@ fun WeatherWidget(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 1.dp)
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         imageVector = Icons.Rounded.LocationOn,
                         contentDescription = "Location",
                         tint = FireOrange,
@@ -592,15 +609,23 @@ fun CitySelectionDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 40.dp),
-        contentAlignment = Alignment.TopCenter
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
-            onClick = {},
-            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(24.dp)),
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xCC080B11))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                onClick = {},
+                modifier = Modifier
+                    .width(480.dp)
+                    .clickable(enabled = false) {},
+                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(24.dp)),
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = Color(0xFF121622)
             ),
@@ -680,7 +705,7 @@ fun CitySelectionDialog(
                         .background(DarkSurfaceVariant)
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = "Search",
                         tint = FireOrange,
@@ -715,7 +740,7 @@ fun CitySelectionDialog(
                         )
                     }
                     if (searchQuery.isNotEmpty()) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = "Clear",
                             tint = TextSecondary,
@@ -743,7 +768,7 @@ fun CitySelectionDialog(
                 // Results or Saved Cities list
                 val displayList = if (searchQuery.trim().length >= 2) searchResults else savedCities
 
-                TvLazyColumn(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(220.dp)
@@ -807,7 +832,7 @@ fun CitySelectionDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        androidx.compose.material3.Icon(
+                                        Icon(
                                             imageVector = Icons.Rounded.Public,
                                             contentDescription = "City",
                                             tint = if (isSelected) FireAmber else TextSecondary,
@@ -834,7 +859,7 @@ fun CitySelectionDialog(
 
                                     if (isSelected) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            androidx.compose.material3.Icon(
+                                            Icon(
                                                 imageVector = Icons.Rounded.Check,
                                                 contentDescription = "Selected",
                                                 tint = FireAmber,
@@ -862,6 +887,7 @@ fun CitySelectionDialog(
                 }
             }
         }
+    }
     }
 }
 
@@ -908,7 +934,7 @@ fun SortTriggerButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = Icons.Rounded.Sort,
                 contentDescription = "Sort library",
                 tint = FireAmber,
@@ -959,13 +985,17 @@ fun SortSelectionDialog(
         )
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xCC080B11))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xCC080B11))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
         Surface(
             onClick = {},
             modifier = Modifier
@@ -1002,7 +1032,7 @@ fun SortSelectionDialog(
                                 .background(FireOrange.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            androidx.compose.material3.Icon(
+                            Icon(
                                 imageVector = Icons.Rounded.Sort,
                                 contentDescription = null,
                                 tint = FireOrange,
@@ -1040,7 +1070,7 @@ fun SortSelectionDialog(
                         )
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            androidx.compose.material3.Icon(
+                            Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close",
                                 tint = TextSecondary,
@@ -1115,7 +1145,7 @@ fun SortSelectionDialog(
                                         .background(FireAmber),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    androidx.compose.material3.Icon(
+                                    Icon(
                                         imageVector = Icons.Rounded.Check,
                                         contentDescription = "Selected",
                                         tint = Color.Black,
@@ -1128,6 +1158,7 @@ fun SortSelectionDialog(
                 }
             }
         }
+    }
     }
 }
 

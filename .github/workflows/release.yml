@@ -1,0 +1,141 @@
+name: Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            RAW_TAG="${{ github.event.inputs.version }}"
+          else
+            RAW_TAG="${GITHUB_REF_NAME}"
+          fi
+
+          # Ensure tag starts with 'v'
+          if [[ "$RAW_TAG" != v* ]]; then
+            TAG_NAME="v${RAW_TAG}"
+          else
+            TAG_NAME="${RAW_TAG}"
+          fi
+
+          VERSION_NAME="${TAG_NAME#v}"
+
+          # Derive monotonic numeric versionCode from semver (MAJOR*10000 + MINOR*100 + PATCH)
+          if [[ "$VERSION_NAME" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+            VERSION_CODE=$(( 10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH ))
+            if [ "$VERSION_CODE" -lt 1 ]; then
+              VERSION_CODE="${{ github.run_number }}"
+            fi
+          else
+            VERSION_CODE="${{ github.run_number }}"
+          fi
+
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "Resolved release: tag=$TAG_NAME versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode Release Keystore (if configured)
+        id: keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > release.jks
+            echo "has_keystore=true" >> "$GITHUB_OUTPUT"
+            echo "Release keystore decoded successfully."
+          else
+            echo "has_keystore=false" >> "$GITHUB_OUTPUT"
+            echo "NOTICE: KEYSTORE_BASE64 secret is not set. Building release APK with fallback debug signing."
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run Unit Tests & Release Build
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ steps.keystore.outputs.has_keystore == 'true' && 'release.jks' || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew testDebugUnitTest lintVitalRelease assembleRelease assembleDebug \
+            -PversionName="${{ steps.meta.outputs.version_name }}" \
+            -PversionCode="${{ steps.meta.outputs.version_code }}" \
+            --no-daemon
+
+      - name: Package Release APKs & SHA-256 Checksums
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          VERSION_TAG="${{ steps.meta.outputs.tag_name }}"
+
+          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          DEBUG_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+
+          if [ -z "$RELEASE_APK" ]; then
+            echo "ERROR: Release APK not found!"
+            exit 1
+          fi
+
+          cp "$RELEASE_APK" "release-assets/FireLauncher-${VERSION_TAG}-release.apk"
+          if [ -n "$DEBUG_APK" ]; then
+            cp "$DEBUG_APK" "release-assets/FireLauncher-${VERSION_TAG}-debug.apk"
+          fi
+
+          (
+            cd release-assets
+            sha256sum *.apk > "FireLauncher-${VERSION_TAG}-checksums.sha256"
+          )
+          ls -lh release-assets/
+
+      - name: Cleanup Keystore
+        if: always()
+        run: rm -f release.jks
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: FireLauncher ${{ steps.meta.outputs.tag_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(steps.meta.outputs.tag_name, '-') }}
+          files: |
+            release-assets/*.apk
+            release-assets/*.sha256

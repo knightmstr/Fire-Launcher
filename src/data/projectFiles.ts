@@ -80,12 +80,44 @@ zipStorePath=wrapper/dists
     name: 'app/build.gradle.kts',
     language: 'kotlin',
     category: 'gradle',
-    description: 'App module build script: SDK 34, minSdk 25, tv-material 1.0.0, DataStore, Palette, Compose BOM',
-    content: `plugins {
+    description: 'App module build script: SDK 34, minSdk 25, tv-material 1.0.0, CI release signing & versioning, DataStore, Palette, Coil',
+    content: `import java.util.Properties
+
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_FILE")
+    ?: keystoreProperties.getProperty("storeFile")
+val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    ?: keystoreProperties.getProperty("storePassword")
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+    ?: keystoreProperties.getProperty("keyAlias")
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+    ?: keystoreProperties.getProperty("keyPassword")
+
+val hasReleaseKeystore = !releaseKeystorePath.isNullOrBlank() &&
+    rootProject.file(releaseKeystorePath).exists() &&
+    !releaseKeystorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
+
+val resolvedVersionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull()
+    ?: System.getenv("VERSION_CODE")?.toIntOrNull()
+    ?: 1
+
+val resolvedVersionName = (project.findProperty("versionName") as String?)?.takeIf { it.isNotBlank() }
+    ?: System.getenv("VERSION_NAME")?.takeIf { it.isNotBlank() }
+    ?: "1.0.0"
 
 android {
     namespace = "com.example.firelauncher"
@@ -95,11 +127,22 @@ android {
         applicationId = "com.example.firelauncher"
         minSdk = 25
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
 
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = rootProject.file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
@@ -111,7 +154,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             applicationIdSuffix = ""
@@ -134,6 +181,13 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    lint {
+        checkReleaseBuilds = true
+        abortOnError = true
+        warningsAsErrors = false
     }
 
     packaging {
@@ -144,11 +198,10 @@ android {
 }
 
 dependencies {
-    // AndroidX Core & Activity Compose
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.activity:activity-ktx:1.9.2")
 
-    // Compose BOM & Foundations
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
     implementation(composeBom)
     androidTestImplementation(composeBom)
@@ -159,24 +212,18 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material:material-icons-extended")
 
-    // TV Material 3 for Leanback / Fire TV
     implementation("androidx.tv:tv-material:1.0.0")
 
-    // Lifecycle Compose (ViewModel + StateFlow collection)
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.5")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.5")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.5")
 
-    // Preferences DataStore
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-
-    // AndroidX Palette for dynamic accent colors
     implementation("androidx.palette:palette-ktx:1.0.0")
-
-    // Coil for Compose image loading (App icons / banners)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // Debugging tools
+    testImplementation("junit:junit:4.13.2")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
@@ -187,10 +234,19 @@ dependencies {
     name: 'proguard-rules.pro',
     language: 'pro',
     category: 'gradle',
-    description: 'ProGuard keep rules for FireLauncher and TV Material',
-    content: `# ProGuard rules for FireLauncher
+    description: 'ProGuard / R8 keep rules for FireLauncher, Compose, Coil, and Coroutines',
+    content: `# ProGuard / R8 rules for FireLauncher
 -keep class com.example.firelauncher.** { *; }
 -dontwarn androidx.tv.**
+-dontwarn kotlinx.coroutines.**
+
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+-keepclassmembers class * {
+    @androidx.annotation.Keep <methods>;
+}
+
+-keep class coil.** { *; }
+-dontwarn coil.**
 `
   },
   {
@@ -1864,6 +1920,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -1899,12 +1957,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.firelauncher.data.CityLocationModel
@@ -2127,7 +2184,7 @@ fun WallpaperTriggerButton(
             modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = Icons.Rounded.Wallpaper,
                 contentDescription = title,
                 tint = FireAmber,
@@ -2176,7 +2233,7 @@ fun SearchTriggerButton(
             modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = if (isActive) Icons.Rounded.Close else Icons.Rounded.Search,
                 contentDescription = if (isActive) "Close Search" else "Search Apps",
                 tint = if (isActive) FireOrange else TextPrimary,
@@ -2216,7 +2273,7 @@ fun GlobalSearchBar(
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp)
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = Icons.Rounded.Search,
                 contentDescription = "Search",
                 tint = FireOrange,
@@ -2252,7 +2309,7 @@ fun GlobalSearchBar(
 
             if (query.isNotEmpty()) {
                 Spacer(modifier = Modifier.width(6.dp))
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = Icons.Rounded.Close,
                     contentDescription = "Clear search",
                     tint = TextSecondary,
@@ -2322,7 +2379,7 @@ fun WeatherWidget(
                 else -> Color(0xFFE0E0E0)
             }
 
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = weatherIcon,
                 contentDescription = weather.condition,
                 tint = iconTint,
@@ -2360,7 +2417,7 @@ fun WeatherWidget(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 1.dp)
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         imageVector = Icons.Rounded.LocationOn,
                         contentDescription = "Location",
                         tint = FireOrange,
@@ -2486,7 +2543,7 @@ fun CitySelectionDialog(
                         .background(DarkSurfaceVariant)
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = "Search",
                         tint = FireOrange,
@@ -2521,7 +2578,7 @@ fun CitySelectionDialog(
                         )
                     }
                     if (searchQuery.isNotEmpty()) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = "Clear",
                             tint = TextSecondary,
@@ -2547,7 +2604,7 @@ fun CitySelectionDialog(
 
                 val displayList = if (searchQuery.trim().length >= 2) searchResults else savedCities
 
-                TvLazyColumn(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(220.dp)
@@ -2611,7 +2668,7 @@ fun CitySelectionDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        androidx.compose.material3.Icon(
+                                        Icon(
                                             imageVector = Icons.Rounded.Public,
                                             contentDescription = "City",
                                             tint = if (isSelected) FireAmber else TextSecondary,
@@ -2638,7 +2695,7 @@ fun CitySelectionDialog(
 
                                     if (isSelected) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            androidx.compose.material3.Icon(
+                                            Icon(
                                                 imageVector = Icons.Rounded.Check,
                                                 contentDescription = "Selected",
                                                 tint = FireAmber,
@@ -2742,6 +2799,7 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.firelauncher.data.AppModel
@@ -2878,7 +2936,7 @@ private fun SystemShortcutContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(12.dp)
         ) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = iconVector,
                 contentDescription = app.label,
                 tint = accentColor,
@@ -3019,6 +3077,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -3042,9 +3102,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -3162,7 +3221,7 @@ fun LauncherContent(
     onAppLongClicked: (AppModel) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val columnState = rememberTvLazyListState()
+    val columnState = rememberLazyListState()
     val firstItemFocusRequester = remember { FocusRequester() }
     var showRowSortDialog by remember { mutableStateOf(false) }
 
@@ -3308,7 +3367,7 @@ fun LauncherContent(
                             .background(Color(0x66181C28))
                             .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Rounded.Wallpaper,
                             contentDescription = "Wallpaper",
                             tint = FireAmber,
@@ -3328,7 +3387,7 @@ fun LauncherContent(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Scrollable rows of apps or filtered search results
-            TvLazyColumn(
+            LazyColumn(
                 state = columnState,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3358,7 +3417,7 @@ fun LauncherContent(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                androidx.compose.material3.Icon(
+                                Icon(
                                     imageVector = Icons.Rounded.SearchOff,
                                     contentDescription = "No results",
                                     tint = TextSecondary,
@@ -3464,6 +3523,7 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import com.example.firelauncher.ui.LauncherRoot
@@ -3479,6 +3539,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    // Deliberately absorbed on home launcher
+                }
+            }
+        )
 
         // Lock window to immersive TV fullscreen
         hideSystemUI()
@@ -3508,15 +3577,6 @@ class MainActivity : ComponentActivity() {
         if (intent.action == Intent.ACTION_MAIN) {
             viewModel.onHomePressed()
         }
-    }
-
-    /**
-     * Fire OS home screen launchers must ignore the back button,
-     * as there is no previous activity in the backstack.
-     */
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        // Deliberately ignored on home launcher
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -3819,6 +3879,258 @@ echo "[+] Relaunching FireLauncher on target TV display..."
 echo "=========================================================="
 echo "    ✓ FireLauncher is running fresh with clean cache!     "
 echo "=========================================================="
+`
+  },
+  {
+    path: 'app/src/test/java/com/example/firelauncher/FireLauncherUnitTest.kt',
+    name: 'FireLauncherUnitTest.kt',
+    language: 'kotlin',
+    category: 'kotlin',
+    description: 'JUnit 4 unit tests for AppSortOrder, WeatherData formatting, and CleanTvManager scripts',
+    content: `package com.example.firelauncher
+
+import com.example.firelauncher.data.AppSortOrder
+import com.example.firelauncher.data.CleanTvManager
+import com.example.firelauncher.data.WeatherData
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class FireLauncherUnitTest {
+
+    @Test
+    fun \\\`AppSortOrder fromName resolves valid and fallback values\\\`() {
+        assertEquals(AppSortOrder.ALPHABETICAL, AppSortOrder.fromName(null))
+        assertEquals(AppSortOrder.ALPHABETICAL, AppSortOrder.fromName("unknown"))
+        assertEquals(AppSortOrder.MOST_RECENT, AppSortOrder.fromName("most_recent"))
+        assertEquals(AppSortOrder.MOST_FREQUENT, AppSortOrder.fromName("MOST_FREQUENT"))
+    }
+
+    @Test
+    fun \\\`WeatherData formats temperature units accurately\\\`() {
+        val fahrenheit = WeatherData.defaultSeattle(isCelsius = false)
+        assertEquals("64°F", fahrenheit.displayTemperature)
+        assertEquals("H:68° L:52°", fahrenheit.displayHighLow)
+
+        val celsius = WeatherData.defaultSeattle(isCelsius = true)
+        assertEquals("18°C", celsius.displayTemperature)
+        assertEquals("H:20° L:11°", celsius.displayHighLow)
+    }
+
+    @Test
+    fun \\\`CleanTvManager targets all 5 core Amazon bloatware packages reversibly\\\`() {
+        val expectedPackages = listOf(
+            "com.amazon.advertising.firetv",
+            "com.amazon.device.sale.service",
+            "com.amazon.client.metrics",
+            "com.amazon.device.crashmanager",
+            "com.amazon.ftv.screensaver"
+        )
+        val registered = CleanTvManager.SAFE_DEBLOAT_PACKAGES.map { it.packageName }
+        expectedPackages.forEach { pkg ->
+            assertTrue("Expected \$pkg to be in SAFE_DEBLOAT_PACKAGES", registered.contains(pkg))
+        }
+
+        val debloatScript = CleanTvManager.generateDebloatScript()
+        val restoreScript = CleanTvManager.generateRestoreScript()
+        assertTrue(debloatScript.contains("pm disable-user --user 0"))
+        assertTrue(restoreScript.contains("pm enable"))
+        assertFalse(debloatScript.contains("pm uninstall"))
+    }
+}
+`
+  },
+  {
+    path: '.github/workflows/android-ci.yml',
+    name: 'android-ci.yml',
+    language: 'yaml',
+    category: 'gradle',
+    description: 'GitHub Actions CI workflow: runs unit tests, Android Lint, and builds debug & release APKs',
+    content: `name: Android CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Test, Lint & Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Run Android Lint
+        run: ./gradlew lintDebug --no-daemon
+
+      - name: Build Debug & Release APKs
+        run: ./gradlew assembleDebug assembleRelease --no-daemon
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FireLauncher-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FireLauncher-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+`
+  },
+  {
+    path: '.github/workflows/release.yml',
+    name: 'release.yml',
+    language: 'yaml',
+    category: 'gradle',
+    description: 'GitHub Actions Release workflow: builds versioned APK + SHA-256 checksums and publishes GitHub Release on v* tag',
+    content: `name: Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "\\\${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            RAW_TAG="\\\${{ github.event.inputs.version }}"
+          else
+            RAW_TAG="\\\${GITHUB_REF_NAME}"
+          fi
+
+          if [[ "\\$RAW_TAG" != v* ]]; then
+            TAG_NAME="v\\\${RAW_TAG}"
+          else
+            TAG_NAME="\\\${RAW_TAG}"
+          fi
+
+          VERSION_NAME="\\\${TAG_NAME#v}"
+
+          if [[ "\\$VERSION_NAME" =~ ^([0-9]+)\\.([0-9]+)\\.([0-9]+) ]]; then
+            MAJOR="\\\${BASH_REMATCH[1]}"
+            MINOR="\\\${BASH_REMATCH[2]}"
+            PATCH="\\\${BASH_REMATCH[3]}"
+            VERSION_CODE=\\$(( 10#\\$MAJOR * 10000 + 10#\\$MINOR * 100 + 10#\\$PATCH ))
+            if [ "\\$VERSION_CODE" -lt 1 ]; then
+              VERSION_CODE="\\\${{ github.run_number }}"
+            fi
+          else
+            VERSION_CODE="\\\${{ github.run_number }}"
+          fi
+
+          echo "tag_name=\\$TAG_NAME" >> "\\$GITHUB_OUTPUT"
+          echo "version_name=\\$VERSION_NAME" >> "\\$GITHUB_OUTPUT"
+          echo "version_code=\\$VERSION_CODE" >> "\\$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode Release Keystore (if configured)
+        id: keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: \\\${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "\\$KEYSTORE_BASE64" ]; then
+            echo "\\$KEYSTORE_BASE64" | base64 --decode > release.jks
+            echo "has_keystore=true" >> "\\$GITHUB_OUTPUT"
+          else
+            echo "has_keystore=false" >> "\\$GITHUB_OUTPUT"
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run Unit Tests & Release Build
+        env:
+          ANDROID_KEYSTORE_FILE: \\\${{ steps.keystore.outputs.has_keystore == 'true' && 'release.jks' || '' }}
+          ANDROID_KEYSTORE_PASSWORD: \\\${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: \\\${{ secrets.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: \\\${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew testDebugUnitTest lintVitalRelease assembleRelease assembleDebug \\
+            -PversionName="\\\${{ steps.meta.outputs.version_name }}" \\
+            -PversionCode="\\\${{ steps.meta.outputs.version_code }}" \\
+            --no-daemon
+
+      - name: Package Release APKs & SHA-256 Checksums
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          VERSION_TAG="\\\${{ steps.meta.outputs.tag_name }}"
+          RELEASE_APK=\\$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          DEBUG_APK=\\$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          cp "\\$RELEASE_APK" "release-assets/FireLauncher-\\\${VERSION_TAG}-release.apk"
+          if [ -n "\\$DEBUG_APK" ]; then
+            cp "\\$DEBUG_APK" "release-assets/FireLauncher-\\\${VERSION_TAG}-debug.apk"
+          fi
+          (cd release-assets && sha256sum *.apk > "FireLauncher-\\\${VERSION_TAG}-checksums.sha256")
+
+      - name: Cleanup Keystore
+        if: always()
+        run: rm -f release.jks
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: \\\${{ steps.meta.outputs.tag_name }}
+          name: FireLauncher \\\${{ steps.meta.outputs.tag_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: \\\${{ contains(steps.meta.outputs.tag_name, '-') }}
+          files: |
+            release-assets/*.apk
+            release-assets/*.sha256
 `
   }
 ];

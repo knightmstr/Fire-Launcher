@@ -280,18 +280,26 @@ FireLauncher/
 │               ├── components/
 │               │   ├── AppCard.kt         # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
 │               │   ├── AppContextMenuDialog.kt # Long-press context menu (Favorites, Force Stop/App Info, Launch)
-│               │   ├── AppRow.kt          # TvLazyRow with category header
-│               │   ├── HeroSection.kt     # App title, category & hold-OK instructions
-│               │   └── TopBar.kt          # Live weather with city search modal, wallpaper cycle, clock & search
-│               └── theme/
-│                   ├── Color.kt         # Color palette constants
-│                   └── Theme.kt         # Material3 TV DarkColorScheme
+│   │   │   │   ├── AppRow.kt          # LazyRow with category header & Sort trigger
+│   │   │   │   ├── HeroSection.kt     # App title, category & hold-OK instructions
+│   │   │   │   └── TopBar.kt          # Live weather with city search modal, wallpaper cycle, clock & search
+│   │   │   └── theme/
+│   │   │       ├── Color.kt         # Color palette constants
+│   │   │       └── Theme.kt         # Material3 TV DarkColorScheme
+│   │   └── test/java/com/example/firelauncher/
+│   │       └── FireLauncherUnitTest.kt # JUnit 4 unit tests
+├── .github/workflows/
+│   ├── android-ci.yml                 # Automated PR/push test, lint & APK build
+│   └── release.yml                    # Tag-triggered GitHub Release APK builder
 ├── docs/
 │   └── firelauncher_screenshot.jpg    # 16:9 UI interface preview screenshot
+├── gradle/wrapper/                    # Official Gradle 8.9 wrapper & jar
 ├── tools/
 │   ├── get_tv_ip.py                   # Fire TV IP discovery, IPv4 regex validator & SUCCESS token CLI
 │   └── clear_launcher_cache.sh        # ADB shell utility to wipe launcher cache & free device RAM
 ├── AI_STEPS.md                        # AI agent automation manifest (ADB connect, APK install, debloat, reboot)
+├── gradlew                            # Gradle wrapper script (Linux/macOS)
+├── gradlew.bat                        # Gradle wrapper script (Windows)
 └── README.md
 ```
 
@@ -332,6 +340,42 @@ FireLauncher adheres to OWASP Mobile Application Security Verification Standards
    - Weather and geocoding search queries are bounded to a maximum length of 64 characters to mitigate denial of service and URL overflow issues.
 7. **Web Simulator Hardening**:
    - Configured with Content Security Policy (`CSP`), `strict-origin-when-cross-origin` referrer policy, and `rel="noopener noreferrer"` on external hyperlinks.
+
+---
+
+## 📦 GitHub Actions CI & Automated APK Releases
+
+This repository is configured with production-ready **GitHub Actions** workflows so GitHub automatically builds, tests, lints, and publishes downloadable `.apk` files.
+
+### 1. Continuous Integration (`.github/workflows/android-ci.yml`)
+- Runs automatically on every `push` or `pull_request` to `main` / `master`.
+- Executes `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`.
+- Uploads buildable `FireLauncher-debug-apk` and `FireLauncher-release-apk` workflow artifacts.
+
+### 2. Creating a Versioned GitHub Release with APK (`.github/workflows/release.yml`)
+Every time you push a version tag starting with `v` (or trigger **Actions → Release APK → Run workflow** in GitHub):
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+GitHub Actions automatically:
+1. Extracts `versionName` (`1.0.0`) and computes a monotonic `versionCode` (`10000`) from the tag.
+2. Runs unit tests (`testDebugUnitTest`), Android Lint (`lintVitalRelease`), and builds both `assembleRelease` (R8-shrunk) and `assembleDebug`.
+3. Publishes a **GitHub Release** with auto-generated release notes and attaches:
+   - `FireLauncher-v1.0.0-release.apk`
+   - `FireLauncher-v1.0.0-debug.apk`
+   - `FireLauncher-v1.0.0-checksums.sha256`
+
+### 3. Optional: Production Keystore Signing Secrets
+Without any secrets configured, the release workflow gracefully builds a valid, sideloadable APK using the debug signing key so your first release works immediately out of the box.
+
+To sign production releases with your own private release keystore, add these 4 **Repository Secrets** in **GitHub → Settings → Secrets and variables → Actions**:
+- `KEYSTORE_BASE64`: Base64-encoded `.jks`/`.keystore` file (`base64 -w 0 release.jks`)
+- `KEYSTORE_PASSWORD`: Keystore password
+- `KEY_ALIAS`: Signing key alias
+- `KEY_PASSWORD`: Signing key password
 
 ---
 
