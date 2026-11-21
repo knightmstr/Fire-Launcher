@@ -11,7 +11,9 @@ data class LauncherSettings(
     /** Minutes of inactivity before the clock screensaver appears. 0 = disabled. */
     val screensaverTimeoutMinutes: Int = DEFAULT_SCREENSAVER_TIMEOUT,
     /** Show a "Hidden Apps" row at the bottom so hidden apps can be restored. */
-    val showHiddenApps: Boolean = false
+    val showHiddenApps: Boolean = false,
+    /** Where wallpapers come from. Local photos are the default (no network, no rotation fetches). */
+    val wallpaperSource: WallpaperSource = WallpaperSource.MY_PHOTOS
 ) {
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
@@ -31,5 +33,16 @@ data class LauncherSettings(
             minutes % 60 == 0 -> "${minutes / 60} hr"
             else -> "$minutes min"
         }
+    }
+}
+
+enum class WallpaperSource(val title: String) {
+    /** Photos in Pictures/FireLauncher (or the app's own folder); falls back to Reddit if none. */
+    MY_PHOTOS("My photos"),
+    REDDIT("r/TVWallpapersSFW");
+
+    companion object {
+        fun fromName(name: String?): WallpaperSource =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: MY_PHOTOS
     }
 }

@@ -18,7 +18,9 @@ data class AppModel(
     val systemIntentAction: String? = null,
     val launchCount: Int = 0,
     val lastLaunchedTimeMs: Long = 0L,
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    /** Allowed while Kids mode is on. */
+    val isKidsAllowed: Boolean = false
 ) {
     val isRenamed: Boolean
         get() = label != originalLabel

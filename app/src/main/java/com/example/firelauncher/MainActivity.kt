@@ -18,6 +18,7 @@ import androidx.activity.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.example.firelauncher.data.LocalPhotoSource
 import com.example.firelauncher.ui.LauncherRoot
 import com.example.firelauncher.ui.LauncherViewModel
 import com.example.firelauncher.ui.VoiceSearchHelper
@@ -42,6 +43,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private val photoPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { viewModel.onPhotoPermissionResult() }
 
     private fun launchVoiceSearch() {
         try {
@@ -71,10 +76,15 @@ class MainActivity : ComponentActivity() {
         // Observe voice search requests from the launcher UI
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.voiceSearchTrigger.collect { count ->
-                    if (count > 0L) {
-                        launchVoiceSearch()
-                    }
+                viewModel.voiceSearchEvents.collect { launchVoiceSearch() }
+            }
+        }
+
+        // Ask for photo access when the user taps "Allow photo access" in Launcher Settings
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.photoPermissionRequests.collect {
+                    photoPermissionLauncher.launch(LocalPhotoSource.PHOTO_PERMISSION)
                 }
             }
         }

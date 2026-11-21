@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -18,13 +19,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Manages fetching wallpapers from r/TVWallpapersSFW and automatically
- * cycling through them on a user-configurable interval.
+ * Supplies wallpapers from the user's own photos (default) or r/TVWallpapersSFW,
+ * and cycles through them on a user-configurable interval.
  */
 class WallpaperRepository(
     private val scope: CoroutineScope,
     /** Minutes between automatic changes; 0 disables rotation. */
-    private val rotationIntervalMinutes: Flow<Int>
+    private val rotationIntervalMinutes: Flow<Int>,
+    private val source: Flow<WallpaperSource>,
+    private val localPhotos: LocalPhotoSource
 ) {
     companion object {
 
@@ -80,18 +83,32 @@ class WallpaperRepository(
         )
     }
 
-    private val _wallpapers = MutableStateFlow<List<WallpaperModel>>(FALLBACK_WALLPAPERS)
+    // Start empty so nothing is downloaded before we know whether local photos exist
+    private val _wallpapers = MutableStateFlow<List<WallpaperModel>>(emptyList())
     val wallpapers: StateFlow<List<WallpaperModel>> = _wallpapers.asStateFlow()
 
     private val _currentIndex = MutableStateFlow(0)
 
-    private val _currentWallpaper = MutableStateFlow<WallpaperModel?>(FALLBACK_WALLPAPERS.first())
+    private val _currentWallpaper = MutableStateFlow<WallpaperModel?>(null)
     val currentWallpaper: StateFlow<WallpaperModel?> = _currentWallpaper.asStateFlow()
 
+    /** Number of the user's own photos found on the last scan. */
+    private val _localPhotoCount = MutableStateFlow(0)
+    val localPhotoCount: StateFlow<Int> = _localPhotoCount.asStateFlow()
+
+    private var redditCache: List<WallpaperModel>? = null
+    private val reloadTick = MutableStateFlow(0)
+
     init {
-        // Start background fetch from Reddit
+        // Load from the chosen source; My photos falls back to Reddit only when no photos exist,
+        // so with local photos the launcher makes no wallpaper network requests at all.
         scope.launch {
-            fetchRedditWallpapers()
+            combine(source, reloadTick) { src, _ -> src }.collectLatest { src ->
+                val local = if (src == WallpaperSource.MY_PHOTOS) localPhotos.load() else emptyList()
+                _localPhotoCount.value = local.size
+                val list = local.ifEmpty { redditWallpapers() }
+                applyList(list)
+            }
         }
 
         // Auto-rotation timer; restarts whenever the interval setting changes
@@ -105,6 +122,21 @@ class WallpaperRepository(
             }
         }
     }
+
+    /** Re-scans local photos (e.g. after the photo permission is granted or on resume). */
+    fun reload() {
+        reloadTick.value += 1
+    }
+
+    private fun applyList(list: List<WallpaperModel>) {
+        if (list.isEmpty() || list.map { it.id } == _wallpapers.value.map { it.id }) return
+        _wallpapers.value = list
+        _currentIndex.value = 0
+        _currentWallpaper.value = list.first()
+    }
+
+    private suspend fun redditWallpapers(): List<WallpaperModel> =
+        redditCache ?: fetchRedditWallpapers().ifEmpty { FALLBACK_WALLPAPERS }.also { redditCache = it }
 
     /**
      * Advances to the next wallpaper in the list.
@@ -131,7 +163,8 @@ class WallpaperRepository(
     /**
      * Queries r/TVWallpapersSFW JSON endpoint and extracts 16:9 images.
      */
-    suspend fun fetchRedditWallpapers() = withContext(Dispatchers.IO) {
+    private suspend fun fetchRedditWallpapers(): List<WallpaperModel> = withContext(Dispatchers.IO) {
+        val parsedList = mutableListOf<WallpaperModel>()
         try {
             val url = URL("https://www.reddit.com/r/TVWallpapersSFW/hot.json?limit=40")
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -147,8 +180,6 @@ class WallpaperRepository(
                 val jsonString = reader.use { it.readText() }
                 val root = JSONObject(jsonString)
                 val children = root.getJSONObject("data").getJSONArray("children")
-
-                val parsedList = mutableListOf<WallpaperModel>()
 
                 for (i in 0 until children.length()) {
                     val childData = children.getJSONObject(i).getJSONObject("data")
@@ -202,13 +233,10 @@ class WallpaperRepository(
                     }
                 }
 
-                if (parsedList.isNotEmpty()) {
-                    _wallpapers.value = parsedList
-                    _currentWallpaper.value = parsedList.first()
-                }
             }
         } catch (_: Exception) {
-            // Keep fallback wallpapers if offline or restricted
+            // Offline or restricted: caller uses the curated fallbacks
         }
+        parsedList
     }
 }

@@ -14,6 +14,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 import java.util.Locale
@@ -30,8 +31,8 @@ data class SelectedLocation(
 
 /**
  * Single DataStore-backed store for every persisted launcher preference:
- * favourites (ordered), hidden apps, custom labels, sort order, usage stats,
- * weather location/units and [LauncherSettings].
+ * favourites (ordered), hidden apps, custom labels, custom app order, quick buttons,
+ * Kids mode, sort order, usage stats, weather location/units and [LauncherSettings].
  */
 class LauncherPrefsStore(private val context: Context) {
 
@@ -55,6 +56,16 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_WALLPAPER_INTERVAL = intPreferencesKey("settings_wallpaper_interval_min")
         private val KEY_SCREENSAVER_TIMEOUT = intPreferencesKey("settings_screensaver_timeout_min")
         private val KEY_SHOW_HIDDEN = booleanPreferencesKey("settings_show_hidden_apps")
+        private val KEY_WALLPAPER_SOURCE = stringPreferencesKey("settings_wallpaper_source")
+
+        private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
+        private val KEY_QUICK_BUTTONS = stringPreferencesKey("quick_buttons_order")
+
+        private val KEY_KIDS_ENABLED = booleanPreferencesKey("kids_mode_enabled")
+        private val KEY_KIDS_APPS = stringSetPreferencesKey("kids_allowed_packages")
+        private val KEY_KIDS_PIN_HASH = stringPreferencesKey("kids_pin_hash")
+
+        const val MAX_QUICK_BUTTONS = 5
 
         val DEFAULT_CITIES = setOf(
             "Seattle|WA, USA|47.6062|-122.3321",
@@ -131,7 +142,8 @@ class LauncherPrefsStore(private val context: Context) {
         LauncherSettings(
             wallpaperIntervalMinutes = p[KEY_WALLPAPER_INTERVAL] ?: LauncherSettings.DEFAULT_WALLPAPER_INTERVAL,
             screensaverTimeoutMinutes = p[KEY_SCREENSAVER_TIMEOUT] ?: LauncherSettings.DEFAULT_SCREENSAVER_TIMEOUT,
-            showHiddenApps = p[KEY_SHOW_HIDDEN] ?: false
+            showHiddenApps = p[KEY_SHOW_HIDDEN] ?: false,
+            wallpaperSource = WallpaperSource.fromName(p[KEY_WALLPAPER_SOURCE])
         )
     }
 
@@ -140,8 +152,60 @@ class LauncherPrefsStore(private val context: Context) {
             p[KEY_WALLPAPER_INTERVAL] = settings.wallpaperIntervalMinutes.coerceAtLeast(0)
             p[KEY_SCREENSAVER_TIMEOUT] = settings.screensaverTimeoutMinutes.coerceAtLeast(0)
             p[KEY_SHOW_HIDDEN] = settings.showHiddenApps
+            p[KEY_WALLPAPER_SOURCE] = settings.wallpaperSource.name
         }
     }
+
+    // ---------------------------------------------------------------- Custom app order
+
+    val customAppOrderFlow: Flow<List<String>> = pref { PrefsCodec.decodeList(it[KEY_CUSTOM_APP_ORDER]) }
+
+    suspend fun setCustomAppOrder(order: List<String>) {
+        context.dataStore.edit { it[KEY_CUSTOM_APP_ORDER] = PrefsCodec.encodeList(order) }
+    }
+
+    // ---------------------------------------------------------------- Quick buttons
+
+    val quickButtonsFlow: Flow<List<String>> = pref { PrefsCodec.decodeList(it[KEY_QUICK_BUTTONS]) }
+
+    /** Adds or removes a quick button. Returns false if the bar is already full. */
+    suspend fun toggleQuickButton(packageName: String): Boolean {
+        var added = true
+        context.dataStore.edit { p ->
+            val current = PrefsCodec.decodeList(p[KEY_QUICK_BUTTONS])
+            if (packageName !in current && current.size >= MAX_QUICK_BUTTONS) {
+                added = false
+            } else {
+                p[KEY_QUICK_BUTTONS] = PrefsCodec.encodeList(PrefsCodec.toggle(current, packageName))
+            }
+        }
+        return added
+    }
+
+    // ---------------------------------------------------------------- Kids mode
+
+    val kidsModeEnabledFlow: Flow<Boolean> = pref { it[KEY_KIDS_ENABLED] ?: false }
+    val kidsAppsFlow: Flow<Set<String>> = pref { it[KEY_KIDS_APPS].orEmpty() }
+    val hasKidsPinFlow: Flow<Boolean> = pref { !it[KEY_KIDS_PIN_HASH].isNullOrBlank() }
+
+    suspend fun setKidsModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_KIDS_ENABLED] = enabled }
+    }
+
+    suspend fun setKidsAllowed(packageName: String, allowed: Boolean) {
+        context.dataStore.edit { p ->
+            val current = p[KEY_KIDS_APPS].orEmpty()
+            p[KEY_KIDS_APPS] = if (allowed) current + packageName else current - packageName
+        }
+    }
+
+    suspend fun setKidsPin(pin: String) {
+        require(PinHasher.isValidPin(pin))
+        context.dataStore.edit { it[KEY_KIDS_PIN_HASH] = PinHasher.hash(pin) }
+    }
+
+    suspend fun verifyKidsPin(pin: String): Boolean =
+        PinHasher.verify(pin, prefs.first()[KEY_KIDS_PIN_HASH])
 
     // ---------------------------------------------------------------- Weather
 

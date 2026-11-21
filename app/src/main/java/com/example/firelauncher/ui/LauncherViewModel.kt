@@ -13,6 +13,11 @@ import com.example.firelauncher.data.AppUsageStat
 import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.LauncherPrefsStore
 import com.example.firelauncher.data.LauncherSettings
+import com.example.firelauncher.data.LocalPhotoSource
+import com.example.firelauncher.data.PinHasher
+import com.example.firelauncher.data.WallpaperSource
+import com.example.firelauncher.media.NowPlaying
+import com.example.firelauncher.media.NowPlayingRepository
 import com.example.firelauncher.data.PrefsCodec
 import com.example.firelauncher.data.WallpaperModel
 import com.example.firelauncher.data.WallpaperRepository
@@ -20,9 +25,12 @@ import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.data.WeatherRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -46,10 +54,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val settings: StateFlow<LauncherSettings> = prefs.settingsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, LauncherSettings())
 
+    private val localPhotos = LocalPhotoSource(application)
+
     private val wallpaperRepository = WallpaperRepository(
         scope = viewModelScope,
-        rotationIntervalMinutes = settings.map { it.wallpaperIntervalMinutes }.distinctUntilChanged()
+        rotationIntervalMinutes = settings.map { it.wallpaperIntervalMinutes }.distinctUntilChanged(),
+        source = settings.map { it.wallpaperSource }.distinctUntilChanged(),
+        localPhotos = localPhotos
     )
+
+    private val nowPlayingRepository = NowPlayingRepository(application)
 
     private val _isSettingsOpen = MutableStateFlow(false)
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
@@ -75,25 +89,39 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val customLabels: StateFlow<Map<String, String>> = prefs.customLabelsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    private val customAppOrder: StateFlow<List<String>> = prefs.customAppOrderFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val kidsModeEnabled: StateFlow<Boolean> = prefs.kidsModeEnabledFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val kidsPackages: StateFlow<Set<String>> = prefs.kidsAppsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
     private val _rawApps = MutableStateFlow<List<AppModel>>(emptyList())
 
-    /** Every installed app with usage stats, custom labels and hidden state applied (unsorted). */
+    /** Every installed app with usage stats, labels, hidden and kids flags applied (unsorted). */
     private val decoratedApps: StateFlow<List<AppModel>> =
-        combine(_rawApps, appUsageStats, hiddenPackages, customLabels) { raw, stats, hidden, labels ->
+        combine(_rawApps, appUsageStats, hiddenPackages, customLabels, kidsPackages) { raw, stats, hidden, labels, kids ->
             raw.map { app ->
                 val stat = stats[app.packageName]
                 app.copy(
                     label = labels[app.packageName] ?: app.originalLabel,
                     launchCount = stat?.launchCount ?: 0,
                     lastLaunchedTimeMs = stat?.lastLaunchedTimeMs ?: 0L,
-                    isHidden = app.packageName in hidden
+                    isHidden = app.packageName in hidden,
+                    isKidsAllowed = app.packageName in kids
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** Visible apps sorted by the selected order (A–Z, Most Recent, Most Frequent). */
-    val apps: StateFlow<List<AppModel>> = combine(decoratedApps, sortOrder) { list, order ->
-        val visible = list.filterNot { it.isHidden }
+    /** Apps that may appear in rows: not hidden, and kid-approved while Kids mode is on. */
+    private val visibleApps: StateFlow<List<AppModel>> = combine(decoratedApps, kidsModeEnabled) { list, kids ->
+        list.filter { !it.isHidden && (!kids || it.isKidsAllowed) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Visible apps sorted by the selected order (A–Z, Recent, Frequent or the user's own). */
+    val apps: StateFlow<List<AppModel>> = combine(visibleApps, sortOrder, customAppOrder) { visible, order, custom ->
         when (order) {
             AppSortOrder.ALPHABETICAL -> visible.sortedBy { it.label.lowercase() }
             AppSortOrder.MOST_RECENT -> visible.sortedWith(
@@ -102,14 +130,41 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             AppSortOrder.MOST_FREQUENT -> visible.sortedWith(
                 compareByDescending<AppModel> { it.launchCount }.thenBy { it.label.lowercase() }
             )
+            AppSortOrder.CUSTOM -> PrefsCodec.applyOrderWithRemainder(
+                visible, custom, key = { it.packageName }, fallbackSort = { it.label.lowercase() }
+            )
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val hiddenApps: StateFlow<List<AppModel>> = decoratedApps
-        .map { list -> list.filter { it.isHidden }.sortedBy { it.label.lowercase() } }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /**
+     * Moves an app within All Apps. The first move switches the sort to "My Order",
+     * starting from whatever order is on screen now.
+     */
+    fun moveInAllApps(app: AppModel, delta: Int) {
+        val current = apps.value.map { it.packageName }
+        viewModelScope.launch {
+            if (sortOrder.value != AppSortOrder.CUSTOM) prefs.setSortOrder(AppSortOrder.CUSTOM)
+            prefs.setCustomAppOrder(PrefsCodec.move(current, app.packageName, delta))
+        }
+    }
 
-    val systemShortcuts: StateFlow<List<AppModel>> = MutableStateFlow(repository.getSystemShortcuts())
+    val hiddenApps: StateFlow<List<AppModel>> = combine(decoratedApps, kidsModeEnabled) { list, kids ->
+        if (kids) emptyList() else list.filter { it.isHidden }.sortedBy { it.label.lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Total hidden apps, for the Settings summary (independent of Kids mode). */
+    val hiddenAppCount: StateFlow<Int> = hiddenPackages.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    private val allSystemShortcuts = repository.getSystemShortcuts()
+
+    /** In Kids mode only the (PIN-protected) settings tile remains, relabelled "Exit Kids Mode". */
+    val systemShortcuts: StateFlow<List<AppModel>> = kidsModeEnabled.map { kids ->
+        if (!kids) allSystemShortcuts
+        else allSystemShortcuts
+            .filter { it.packageName == AppRepository.LAUNCHER_SETTINGS_KEY }
+            .map { it.copy(label = "Exit Kids Mode", originalLabel = "Exit Kids Mode") }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, allSystemShortcuts)
 
     // ------------------------------------------------------------------ Favourites
 
@@ -120,10 +175,164 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         .map { it.toSet() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    /** Favourite apps in the user's chosen order (hidden apps are left out). */
-    val favoriteApps: StateFlow<List<AppModel>> = combine(decoratedApps, favoriteOrder) { all, order ->
-        PrefsCodec.applyOrder(all.filterNot { it.isHidden }, order) { it.packageName }
+    /** Favourite apps in the user's chosen order (hidden / non-kids apps are left out). */
+    val favoriteApps: StateFlow<List<AppModel>> = combine(visibleApps, favoriteOrder) { visible, order ->
+        PrefsCodec.applyOrder(visible, order) { it.packageName }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // ------------------------------------------------------------------ Quick buttons
+
+    private val quickButtonOrder: StateFlow<List<String>> = prefs.quickButtonsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val quickButtonKeys: StateFlow<Set<String>> = quickButtonOrder.map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /** One-press shortcuts shown in the header, max [LauncherPrefsStore.MAX_QUICK_BUTTONS]. */
+    val quickButtonApps: StateFlow<List<AppModel>> = combine(visibleApps, quickButtonOrder) { visible, order ->
+        PrefsCodec.applyOrder(visible, order) { it.packageName }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun toggleQuickButton(app: AppModel) {
+        if (app.isSystemShortcut) return
+        viewModelScope.launch { prefs.toggleQuickButton(app.packageName) }
+    }
+
+    // ------------------------------------------------------------------ Kids mode
+
+    val hasKidsPin: StateFlow<Boolean> = prefs.hasKidsPinFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val kidsAppCount: StateFlow<Int> = kidsPackages.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    private val _pinDialog = MutableStateFlow<PinDialogState?>(null)
+    val pinDialog: StateFlow<PinDialogState?> = _pinDialog.asStateFlow()
+
+    private var failedPinAttempts = 0
+    private var pinLockedUntilMs = 0L
+    private var enableKidsAfterPinCreated = false
+
+    fun setKidsAllowed(app: AppModel, allowed: Boolean) {
+        if (app.isSystemShortcut) return
+        viewModelScope.launch { prefs.setKidsAllowed(app.packageName, allowed) }
+    }
+
+    /** From Settings (parent side). Turning on asks for a new PIN the first time. */
+    fun setKidsModeEnabled(enabled: Boolean) {
+        if (enabled && !hasKidsPin.value) {
+            enableKidsAfterPinCreated = true
+            _pinDialog.value = PinDialogState(PinPurpose.CREATE)
+            return
+        }
+        viewModelScope.launch {
+            prefs.setKidsModeEnabled(enabled)
+            if (enabled) {
+                closeSettings()
+                _homeTick.value += 1L
+            }
+        }
+    }
+
+    fun changeKidsPin() {
+        enableKidsAfterPinCreated = false
+        _pinDialog.value = PinDialogState(PinPurpose.CREATE)
+    }
+
+    fun onPinCreated(pin: String) {
+        if (!PinHasher.isValidPin(pin)) return
+        val enable = enableKidsAfterPinCreated
+        enableKidsAfterPinCreated = false
+        _pinDialog.value = null
+        viewModelScope.launch {
+            prefs.setKidsPin(pin)
+            if (enable) setKidsModeEnabled(true)
+        }
+    }
+
+    /** Checks the PIN to leave Kids mode; locks for 30 s after 5 wrong tries. */
+    fun submitExitPin(pin: String) {
+        val now = System.currentTimeMillis()
+        if (now < pinLockedUntilMs) {
+            _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE, error = lockoutMessage(now))
+            return
+        }
+        viewModelScope.launch {
+            if (prefs.verifyKidsPin(pin)) {
+                failedPinAttempts = 0
+                _pinDialog.value = null
+                prefs.setKidsModeEnabled(false)
+                openSettings()
+            } else {
+                failedPinAttempts++
+                if (failedPinAttempts >= 5) {
+                    failedPinAttempts = 0
+                    pinLockedUntilMs = System.currentTimeMillis() + 30_000L
+                }
+                val t = System.currentTimeMillis()
+                _pinDialog.value = PinDialogState(
+                    PinPurpose.EXIT_KIDS_MODE,
+                    error = if (t < pinLockedUntilMs) lockoutMessage(t) else "Wrong PIN, try again"
+                )
+            }
+        }
+    }
+
+    private fun lockoutMessage(now: Long) =
+        "Too many tries. Wait ${((pinLockedUntilMs - now) / 1000L).coerceAtLeast(1)} s"
+
+    fun closePinDialog() {
+        enableKidsAfterPinCreated = false
+        _pinDialog.value = null
+    }
+
+    // ------------------------------------------------------------------ Photos & now playing
+
+    val localPhotoCount: StateFlow<Int> = wallpaperRepository.localPhotoCount
+
+    private val _hasPhotoPermission = MutableStateFlow(localPhotos.hasPhotoPermission())
+    val hasPhotoPermission: StateFlow<Boolean> = _hasPhotoPermission.asStateFlow()
+
+    val photoFolderPath: String? get() = localPhotos.appFolderPath
+
+    private val _photoPermissionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val photoPermissionRequests: SharedFlow<Unit> = _photoPermissionRequests.asSharedFlow()
+
+    fun requestPhotoPermission() { _photoPermissionRequests.tryEmit(Unit) }
+
+    fun onPhotoPermissionResult() {
+        _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
+        wallpaperRepository.reload()
+    }
+
+    val nowPlaying: StateFlow<NowPlaying?> = nowPlayingRepository.nowPlaying
+    val hasNowPlayingAccess: StateFlow<Boolean> = nowPlayingRepository.hasAccess
+
+    private val _showNowPlayingHelp = MutableStateFlow(false)
+    val showNowPlayingHelp: StateFlow<Boolean> = _showNowPlayingHelp.asStateFlow()
+
+    fun openNowPlayingHelp() { _showNowPlayingHelp.value = true }
+    fun closeNowPlayingHelp() { _showNowPlayingHelp.value = false }
+
+    /** Returns false when this Fire OS build has no notification-access screen. */
+    fun openNotificationAccessSettings(): Boolean {
+        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { getApplication<Application>().startActivity(intent) }.isSuccess
+    }
+
+    fun mediaPlayPause() = nowPlayingRepository.playPause()
+    fun mediaNext() = nowPlayingRepository.skipNext()
+    fun mediaPrevious() = nowPlayingRepository.skipPrevious()
+
+    /** Opens the app that owns the current media session. */
+    fun openNowPlayingApp() {
+        val pkg = nowPlaying.value?.packageName ?: return
+        val context = getApplication<Application>()
+        context.packageManager.getLaunchIntentForPackage(pkg)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ?.let { runCatching { context.startActivity(it) } }
+    }
 
     fun toggleFavorite(app: AppModel) {
         if (app.isSystemShortcut) return
@@ -166,7 +375,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val contextMenuApp: StateFlow<AppModel?> = resolve(_contextMenuKey)
 
     fun openContextMenu(app: AppModel?) {
-        if (app == null || app.isSystemShortcut) return
+        if (app == null || app.isSystemShortcut || kidsModeEnabled.value) return
         _contextMenuKey.value = app.uniqueKey
     }
 
@@ -186,18 +395,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _homeTick = MutableStateFlow(0L)
     val homeTick: StateFlow<Long> = _homeTick.asStateFlow()
 
-    private val _voiceSearchTrigger = MutableStateFlow(0L)
-    val voiceSearchTrigger: StateFlow<Long> = _voiceSearchTrigger.asStateFlow()
+    // One-shot events (SharedFlow, not StateFlow, so they don't replay when the Activity restarts)
+    private val _voiceSearchEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val voiceSearchEvents: SharedFlow<Unit> = _voiceSearchEvents.asSharedFlow()
 
     fun onHomePressed() {
         _homeTick.value += 1L
         closeContextMenu()
         closeRename()
         closeSettings()
+        closeNowPlayingHelp()
         onUserInteraction()
     }
 
-    fun requestVoiceSearch() { _voiceSearchTrigger.value += 1L }
+    fun requestVoiceSearch() { _voiceSearchEvents.tryEmit(Unit) }
 
     fun onVoiceResult(query: String) {
         _isSearchActive.value = true
@@ -319,7 +530,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun onForegroundChanged(foreground: Boolean) {
         isForeground = foreground
         _screensaverVisible.value = false
-        if (foreground) scheduleIdle() else idleJob?.cancel()
+        if (foreground) {
+            scheduleIdle()
+            nowPlayingRepository.start()
+            _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
+            // Pick up photos added while the launcher was in the background
+            if (settings.value.wallpaperSource == WallpaperSource.MY_PHOTOS) wallpaperRepository.reload()
+        } else {
+            idleJob?.cancel()
+            nowPlayingRepository.stop()
+        }
     }
 
     /** Compose dialogs receive keys in their own window, so the timer is paused while one is open. */
@@ -365,6 +585,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    override fun onCleared() {
+        nowPlayingRepository.stop()
+        super.onCleared()
+    }
+
     /** Re-scans installed apps from PackageManager. */
     fun refreshApps() {
         viewModelScope.launch {
@@ -378,7 +603,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun launchApp(app: AppModel): Boolean {
         if (app.packageName == AppRepository.LAUNCHER_SETTINGS_KEY) {
-            openSettings()
+            if (kidsModeEnabled.value) _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE)
+            else openSettings()
             return true
         }
         if (!app.isSystemShortcut) {
@@ -400,3 +626,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             .recoverCatching { context.startActivity(fallback) }
     }
 }
+
+enum class PinPurpose { CREATE, EXIT_KIDS_MODE }
+
+data class PinDialogState(val purpose: PinPurpose, val error: String? = null)

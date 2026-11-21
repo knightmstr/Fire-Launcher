@@ -944,6 +944,7 @@ fun SortTriggerButton(
                     AppSortOrder.ALPHABETICAL -> "Sort: A–Z"
                     AppSortOrder.MOST_RECENT -> "Sort: Recent"
                     AppSortOrder.MOST_FREQUENT -> "Sort: Frequent"
+                    AppSortOrder.CUSTOM -> "Sort: My Order"
                 },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -981,6 +982,11 @@ fun SortSelectionDialog(
             AppSortOrder.MOST_FREQUENT,
             "Most Frequently Used",
             "Applications you launch most often appear first"
+        ),
+        Triple(
+            AppSortOrder.CUSTOM,
+            AppSortOrder.CUSTOM.title,
+            AppSortOrder.CUSTOM.subtitle
         )
     )
 

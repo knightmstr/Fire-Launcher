@@ -15,6 +15,10 @@ enum class AppSortOrder(val title: String, val subtitle: String) {
     MOST_FREQUENT(
         title = "Most Frequently Used",
         subtitle = "Applications you launch most often appear first"
+    ),
+    CUSTOM(
+        title = "My Order",
+        subtitle = "Arrange apps yourself: hold OK on an app → Move"
     );
 
     companion object {

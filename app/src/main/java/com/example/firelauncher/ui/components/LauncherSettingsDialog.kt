@@ -2,6 +2,10 @@ package com.example.firelauncher.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.ChildCare
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Thermostat
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.Wallpaper
@@ -9,37 +13,87 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.example.firelauncher.data.LauncherSettings
+import com.example.firelauncher.data.LocalPhotoSource
+import com.example.firelauncher.data.WallpaperSource
 import com.example.firelauncher.ui.theme.FireAmber
 import com.example.firelauncher.ui.theme.FireOrange
 import com.example.firelauncher.ui.theme.TextSecondary
 
+/** Read-only facts the settings screen displays next to each option. */
+data class SettingsStatus(
+    val isCelsius: Boolean,
+    val hiddenAppCount: Int,
+    val localPhotoCount: Int,
+    val hasPhotoPermission: Boolean,
+    val hasKidsPin: Boolean,
+    val kidsAppCount: Int,
+    val hasNowPlayingAccess: Boolean
+)
+
 /**
- * In-launcher settings. Every row cycles through its options with OK, so nothing needs a keyboard.
+ * In-launcher settings. Every row cycles or toggles with OK, so nothing needs a keyboard.
+ * Only reachable outside Kids mode (or after entering the PIN).
  */
 @Composable
 fun LauncherSettingsDialog(
     settings: LauncherSettings,
-    isCelsius: Boolean,
-    hiddenAppCount: Int,
+    status: SettingsStatus,
     onUpdate: ((LauncherSettings) -> LauncherSettings) -> Unit,
     onToggleUnit: () -> Unit,
+    onRequestPhotoPermission: () -> Unit,
+    onEnableKidsMode: () -> Unit,
+    onChangeKidsPin: () -> Unit,
+    onOpenNowPlayingHelp: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val firstItem = rememberInitialFocus()
+    val usingPhotos = settings.wallpaperSource == WallpaperSource.MY_PHOTOS
 
     TvDialogFrame(
         title = "Launcher Settings",
         subtitle = "Press OK to change a value • Back to close",
         accentColor = Color(0xFF10B981),
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        width = 540.dp
     ) {
+        TvMenuItem(
+            title = "Wallpapers from",
+            subtitle = when {
+                !usingPhotos -> "Downloads new wallpapers from Reddit"
+                status.localPhotoCount > 0 -> "${status.localPhotoCount} photos found"
+                else -> "None found: add a \"${LocalPhotoSource.ALBUM_NAME}\" album (using Reddit)"
+            },
+            icon = Icons.Rounded.PhotoLibrary,
+            iconTint = Color(0xFF34D399),
+            trailing = settings.wallpaperSource.title,
+            modifier = Modifier.focusRequester(firstItem),
+            onClick = {
+                onUpdate {
+                    it.copy(
+                        wallpaperSource = if (it.wallpaperSource == WallpaperSource.MY_PHOTOS) WallpaperSource.REDDIT
+                        else WallpaperSource.MY_PHOTOS
+                    )
+                }
+            }
+        )
+
+        if (usingPhotos && !status.hasPhotoPermission) {
+            TvMenuItem(
+                title = "Allow photo access",
+                subtitle = "Needed to read the \"${LocalPhotoSource.ALBUM_NAME}\" album",
+                icon = Icons.Rounded.Lock,
+                iconTint = Color(0xFF34D399),
+                onClick = onRequestPhotoPermission
+            )
+        }
+
         TvMenuItem(
             title = "Change wallpaper every",
             icon = Icons.Rounded.Wallpaper,
             iconTint = FireAmber,
             trailing = LauncherSettings.describeMinutes(settings.wallpaperIntervalMinutes, zeroLabel = "Never"),
-            modifier = Modifier.focusRequester(firstItem),
             onClick = {
                 onUpdate {
                     it.copy(
@@ -69,19 +123,52 @@ fun LauncherSettingsDialog(
         )
 
         TvMenuItem(
+            title = "Now playing controls",
+            subtitle = if (status.hasNowPlayingAccess) "Shows what's playing with pause / skip"
+            else "Needs a one-time permission",
+            icon = Icons.Rounded.MusicNote,
+            iconTint = FireAmber,
+            trailing = if (status.hasNowPlayingAccess) "On" else "Set up",
+            onClick = onOpenNowPlayingHelp
+        )
+
+        TvMenuItem(
+            title = "Kids mode",
+            subtitle = when (status.kidsAppCount) {
+                0 -> "Pick apps first: hold OK on an app → Allow in Kids mode"
+                1 -> "1 app allowed • PIN needed to leave"
+                else -> "${status.kidsAppCount} apps allowed • PIN needed to leave"
+            },
+            icon = Icons.Rounded.ChildCare,
+            iconTint = Color(0xFFF472B6),
+            trailing = "Turn on",
+            enabled = status.kidsAppCount > 0,
+            onClick = onEnableKidsMode
+        )
+
+        if (status.hasKidsPin) {
+            TvMenuItem(
+                title = "Change Kids mode PIN",
+                icon = Icons.Rounded.Lock,
+                iconTint = Color(0xFFF472B6),
+                onClick = onChangeKidsPin
+            )
+        }
+
+        TvMenuItem(
             title = "Temperature unit",
             icon = Icons.Rounded.Thermostat,
             iconTint = FireOrange,
-            trailing = if (isCelsius) "°C" else "°F",
+            trailing = if (status.isCelsius) "°C" else "°F",
             onClick = onToggleUnit
         )
 
         TvMenuItem(
             title = "Show hidden apps row",
-            subtitle = when (hiddenAppCount) {
+            subtitle = when (status.hiddenAppCount) {
                 0 -> "No apps hidden"
                 1 -> "1 app hidden"
-                else -> "$hiddenAppCount apps hidden"
+                else -> "${status.hiddenAppCount} apps hidden"
             },
             icon = Icons.Rounded.Visibility,
             iconTint = TextSecondary,
