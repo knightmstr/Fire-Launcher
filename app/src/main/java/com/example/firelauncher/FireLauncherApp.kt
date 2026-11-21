@@ -5,6 +5,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.example.firelauncher.update.UpdateRepository
 
 /**
  * Main Application class for FireLauncher.
@@ -12,6 +13,9 @@ import coil.memory.MemoryCache
  * to prevent r/TVWallpapersSFW automatic downloads from bloating limited flash storage.
  */
 class FireLauncherApp : Application(), ImageLoaderFactory {
+
+    /** App-wide so [com.example.firelauncher.update.InstallResultReceiver] can report results. */
+    val updateRepository: UpdateRepository by lazy { UpdateRepository(this) }
 
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)

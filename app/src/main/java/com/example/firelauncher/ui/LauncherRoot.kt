@@ -62,6 +62,9 @@ import com.example.firelauncher.ui.components.NowPlayingHelpDialog
 import com.example.firelauncher.ui.components.PinEntryDialog
 import com.example.firelauncher.ui.components.QuickButtonsBar
 import com.example.firelauncher.ui.components.SettingsStatus
+import com.example.firelauncher.ui.components.UpdateChip
+import com.example.firelauncher.ui.components.UpdateDialog
+import com.example.firelauncher.update.UpdateState
 import com.example.firelauncher.ui.components.LauncherSettingsDialog
 import com.example.firelauncher.ui.components.RenameAppDialog
 import com.example.firelauncher.ui.components.Screensaver
@@ -121,10 +124,12 @@ fun LauncherRoot(
     val hasKidsPin by viewModel.hasKidsPin.collectAsStateWithLifecycle()
     val kidsAppCount by viewModel.kidsAppCount.collectAsStateWithLifecycle()
     val hasNowPlayingAccess by viewModel.hasNowPlayingAccess.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val isUpdateDialogOpen by viewModel.isUpdateDialogOpen.collectAsStateWithLifecycle()
 
     // Pause the screensaver timer while any dialog has the keys
     val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen ||
-        pinDialog != null || showNowPlayingHelp
+        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen
     LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
 
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
@@ -150,6 +155,8 @@ fun LauncherRoot(
         quickButtonApps = quickButtonApps,
         nowPlaying = nowPlaying,
         kidsMode = kidsMode,
+        updateState = if (kidsMode) UpdateState.Idle else updateState,
+        onOpenUpdates = viewModel::openUpdateDialog,
         onMediaPlayPause = viewModel::mediaPlayPause,
         onMediaNext = viewModel::mediaNext,
         onMediaPrevious = viewModel::mediaPrevious,
@@ -210,7 +217,15 @@ fun LauncherRoot(
                 hasPhotoPermission = hasPhotoPermission,
                 hasKidsPin = hasKidsPin,
                 kidsAppCount = kidsAppCount,
-                hasNowPlayingAccess = hasNowPlayingAccess
+                hasNowPlayingAccess = hasNowPlayingAccess,
+                installedVersion = viewModel.installedVersion,
+                updateSummary = when (val u = updateState) {
+                    is UpdateState.Available -> "Version ${u.release.versionName} is available"
+                    is UpdateState.Downloading -> "Downloading update…"
+                    is UpdateState.UpToDate -> "Up to date"
+                    is UpdateState.Failed -> "Last check failed"
+                    else -> "Check GitHub for a new version"
+                }
             ),
             onUpdate = viewModel::updateSettings,
             onToggleUnit = viewModel::toggleTemperatureUnit,
@@ -218,7 +233,19 @@ fun LauncherRoot(
             onEnableKidsMode = { viewModel.setKidsModeEnabled(true) },
             onChangeKidsPin = viewModel::changeKidsPin,
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
+            onOpenUpdates = viewModel::openUpdateDialog,
             onDismiss = viewModel::closeSettings
+        )
+    }
+
+    if (isUpdateDialogOpen) {
+        UpdateDialog(
+            state = updateState,
+            installedVersion = viewModel.installedVersion,
+            onCheck = { viewModel.checkForUpdates(quiet = false) },
+            onUpdate = viewModel::startUpdate,
+            onOpenInstallPermission = viewModel::openInstallPermissionSettings,
+            onDismiss = viewModel::closeUpdateDialog
         )
     }
 
@@ -283,6 +310,8 @@ fun LauncherContent(
     quickButtonApps: List<AppModel>,
     nowPlaying: NowPlaying?,
     kidsMode: Boolean,
+    updateState: UpdateState,
+    onOpenUpdates: () -> Unit,
     onMediaPlayPause: () -> Unit,
     onMediaNext: () -> Unit,
     onMediaPrevious: () -> Unit,
@@ -448,6 +477,13 @@ fun LauncherContent(
                         onPrevious = onMediaPrevious,
                         onOpenApp = onOpenNowPlayingApp
                     )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+
+                UpdateChip(state = updateState, onClick = onOpenUpdates)
+                if (updateState is UpdateState.Available || updateState is UpdateState.Downloading ||
+                    updateState is UpdateState.NeedsInstallPermission
+                ) {
                     Spacer(modifier = Modifier.width(12.dp))
                 }
 

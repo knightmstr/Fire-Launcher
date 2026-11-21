@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.firelauncher.FireLauncherApp
 import com.example.firelauncher.data.AppModel
 import com.example.firelauncher.data.AppRepository
 import com.example.firelauncher.data.AppSortOrder
@@ -18,6 +19,8 @@ import com.example.firelauncher.data.PinHasher
 import com.example.firelauncher.data.WallpaperSource
 import com.example.firelauncher.media.NowPlaying
 import com.example.firelauncher.media.NowPlayingRepository
+import com.example.firelauncher.update.UpdateInstaller
+import com.example.firelauncher.update.UpdateState
 import com.example.firelauncher.data.PrefsCodec
 import com.example.firelauncher.data.WallpaperModel
 import com.example.firelauncher.data.WallpaperRepository
@@ -64,6 +67,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     )
 
     private val nowPlayingRepository = NowPlayingRepository(application)
+    private val updates = (application as FireLauncherApp).updateRepository
 
     private val _isSettingsOpen = MutableStateFlow(false)
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
@@ -286,6 +290,48 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _pinDialog.value = null
     }
 
+    // ------------------------------------------------------------------ App updates
+
+    val updateState: StateFlow<UpdateState> = updates.state
+    val installedVersion: String = updates.installedVersionName
+
+    private val _isUpdateDialogOpen = MutableStateFlow(false)
+    val isUpdateDialogOpen: StateFlow<Boolean> = _isUpdateDialogOpen.asStateFlow()
+
+    private var updateJob: Job? = null
+
+    /** Opens the update dialog, checking GitHub first unless an update is already known. */
+    fun openUpdateDialog() {
+        _isUpdateDialogOpen.value = true
+        val s = updates.state.value
+        if (s !is UpdateState.Available && s !is UpdateState.Downloading && s !is UpdateState.Installing) {
+            checkForUpdates(quiet = false)
+        }
+    }
+
+    fun closeUpdateDialog() {
+        _isUpdateDialogOpen.value = false
+        updates.dismissError()
+    }
+
+    fun checkForUpdates(quiet: Boolean) {
+        viewModelScope.launch { updates.check(quiet) }
+    }
+
+    fun startUpdate() {
+        val release = when (val s = updates.state.value) {
+            is UpdateState.Available -> s.release
+            is UpdateState.NeedsInstallPermission -> s.release
+            is UpdateState.Failed -> s.release
+            else -> null
+        } ?: return
+        if (updateJob?.isActive == true) return
+        updateJob = viewModelScope.launch { updates.downloadAndInstall(release) }
+    }
+
+    fun openInstallPermissionSettings(): Boolean =
+        UpdateInstaller.openInstallPermissionSettings(getApplication())
+
     // ------------------------------------------------------------------ Photos & now playing
 
     val localPhotoCount: StateFlow<Int> = wallpaperRepository.localPhotoCount
@@ -405,6 +451,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         closeRename()
         closeSettings()
         closeNowPlayingHelp()
+        if (updates.state.value !is UpdateState.Downloading) closeUpdateDialog()
         onUserInteraction()
     }
 
@@ -533,6 +580,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (foreground) {
             scheduleIdle()
             nowPlayingRepository.start()
+            updates.onInstallPermissionMaybeGranted()
             _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
             // Pick up photos added while the launcher was in the background
             if (settings.value.wallpaperSource == WallpaperSource.MY_PHOTOS) wallpaperRepository.reload()
@@ -576,6 +624,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 delay(15 * 60 * 1000L)
                 val cur = _weather.value
                 refreshWeather(cur.latitude, cur.longitude, cur.city, cur.country, cur.isCelsius)
+            }
+        }
+
+        // Quiet update check shortly after start, then twice a day (well within GitHub's limits)
+        viewModelScope.launch {
+            delay(20_000L)
+            while (isActive) {
+                updates.check(quiet = true)
+                delay(12 * 60 * 60 * 1000L)
             }
         }
 

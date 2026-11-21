@@ -14,5 +14,8 @@
         <domain includeSubdomains="true">imgur.com</domain>
         <domain includeSubdomains="true">unsplash.com</domain>
         <domain includeSubdomains="true">open-meteo.com</domain>
+        <!-- In-app updates: release info and APK downloads -->
+        <domain includeSubdomains="true">github.com</domain>
+        <domain includeSubdomains="true">githubusercontent.com</domain>
     </domain-config>
 </network-security-config>
