@@ -35,10 +35,6 @@ class LocalPhotoSource(private val context: Context) {
     fun hasPhotoPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, PHOTO_PERMISSION) == PackageManager.PERMISSION_GRANTED
 
-    /** Absolute path of the no-permission folder, for showing in Settings. */
-    val appFolderPath: String?
-        get() = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)?.absolutePath
-
     suspend fun load(): List<WallpaperModel> = withContext(Dispatchers.IO) {
         (fromMediaStore() + fromAppFolder()).distinctBy { it.url }.take(MAX_PHOTOS)
     }

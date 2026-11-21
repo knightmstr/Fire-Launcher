@@ -303,7 +303,6 @@ FireLauncher/
 │           │   ├── AppModel.kt            # App entity (label, original label, hidden flag, launch stats)
 │           │   ├── AppRepository.kt       # Dual scanner (Leanback + Launcher), system shortcuts & explicit launcher
 │           │   ├── AppSortOrder.kt        # AppSortOrder enum (A-Z, Recent, Frequent) & AppUsageStat
-│           │   ├── CleanTvManager.kt      # Debloat / restore ADB script generator
 │           │   ├── LauncherPrefsStore.kt  # DataStore: favorites order, hidden apps, labels, settings, weather, usage
 │           │   ├── LauncherSettings.kt    # Wallpaper interval & source, screensaver timeout, hidden-row toggle
 │           │   ├── LocalPhotoSource.kt    # Own photos from the FireLauncher album / app folder
@@ -345,7 +344,7 @@ FireLauncher/
 │                   ├── Color.kt           # Color palette constants
 │                   └── Theme.kt           # Material3 TV DarkColorScheme
 ├── app/src/test/java/com/knightmstr/firelauncher/
-│   ├── FireLauncherUnitTest.kt        # Sort order, weather formatting, debloat scripts
+│   ├── FireLauncherUnitTest.kt        # Sort order, weather formatting
 │   ├── KidsAndOrderTest.kt            # PIN hashing, custom app order, enum fallbacks
 │   ├── UpdateVersionsTest.kt          # Tag → versionCode, checksum parsing
 │   └── PrefsCodecTest.kt              # Favorites reorder, label sanitising, settings cycling

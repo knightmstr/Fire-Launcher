@@ -32,9 +32,6 @@ data class WeatherData(
             "H:$highF° L:$lowF°"
         }
 
-    val displayLocation: String
-        get() = if (country.isNotBlank()) "$city, $country" else city
-
     companion object {
         fun defaultSeattle(isCelsius: Boolean = false): WeatherData {
             return WeatherData(
@@ -65,7 +62,4 @@ data class CityLocationModel(
     val countryCode: String? = null,
     val latitude: Double,
     val longitude: Double
-) {
-    val displayName: String
-        get() = if (!admin1.isNullOrBlank()) "$name, $admin1, $country" else "$name, $country"
-}
+)
