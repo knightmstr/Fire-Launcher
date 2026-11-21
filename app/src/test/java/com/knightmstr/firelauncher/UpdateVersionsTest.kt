@@ -47,6 +47,25 @@ class UpdateVersionsTest {
         assertNull(UpdateVersions.checksumFor("nothex  x.apk", "x.apk"))
     }
 
+    @Test
+    fun `github release notes become plain lines`() {
+        val body = """
+            ## What's Changed
+            * Fix long-press, smaller cards, All Apps grid by @knightmstr in https://github.com/knightmstr/Fire-Launcher/pull/5
+            * **Weather** picker works with the [remote](https://example.com)
+
+            ## New Contributors
+            * @someone made their first contribution in https://github.com/x/y/pull/1
+
+            **Full Changelog**: https://github.com/knightmstr/Fire-Launcher/compare/v1.2.0...v1.2.1
+        """.trimIndent()
+        assertEquals(
+            "• Fix long-press, smaller cards, All Apps grid\n• Weather picker works with the remote",
+            UpdateVersions.cleanNotes(body)
+        )
+        assertEquals("", UpdateVersions.cleanNotes("**Full Changelog**: https://x"))
+    }
+
     private fun release(versionCode: Int) = ReleaseInfo(
         tag = "v1.2.0", versionName = "1.2.0", versionCode = versionCode, notes = "",
         apkName = "FireLauncher-v1.2.0-release.apk", apkUrl = "https://example.com/a.apk",

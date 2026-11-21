@@ -83,30 +83,14 @@ fun HeroSection(
                                     color = FavoriteYellow
                                 )
                             }
-                        } else if (app.isSystemShortcut) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 12.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color.White.copy(alpha = 0.1f))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "SYSTEM",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextSecondary
-                                )
-                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
                     val hintText = when {
-                        kidsMode && app.isSystemShortcut -> "Press OK and enter the PIN to leave Kids mode"
+                        app.isSystemShortcut -> "Press OK to see all your apps"
                         kidsMode -> "Kids mode is on"
-                        app.isSystemShortcut -> "Press OK to open settings"
                         fav -> "Hold OK or press ☰ for options (reorder, rename, hide, app info)"
                         else -> "Hold OK or press ☰ for options (favorite, rename, hide, app info)"
                     }

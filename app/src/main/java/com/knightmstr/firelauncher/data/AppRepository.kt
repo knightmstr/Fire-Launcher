@@ -9,7 +9,6 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.provider.Settings
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -20,10 +19,16 @@ import kotlinx.coroutines.withContext
 class AppRepository(private val context: Context) {
 
     companion object {
-        /** Key of the in-launcher Settings tile; handled by the ViewModel, never sent as an Intent. */
-        const val LAUNCHER_SETTINGS_KEY = "system.launcher_settings"
         /** Key of the home-screen tile that opens the All Apps grid; handled by the ViewModel. */
         const val ALL_APPS_KEY = "system.all_apps"
+
+        // Fire OS's own settings screens, opened by name. The standard Settings action goes through
+        // Amazon's home screen first on Fire OS, so you'd see Amazon's home instead of just Settings.
+        // Approach from couch-tv (github.com/Seagey/couch-tv, MIT).
+        private val FIRE_SETTINGS =
+            ComponentName("com.amazon.tv.launcher", "com.amazon.tv.launcher.ui.MainSettingsActivity")
+        private val FIRE_NETWORK =
+            ComponentName("com.amazon.tv.settings.v2", "com.amazon.tv.settings.v2.tv.network.NetworkActivity")
     }
 
     private val packageManager: PackageManager = context.packageManager
@@ -115,9 +120,6 @@ class AppRepository(private val context: Context) {
         appList
     }
 
-    /**
-     * Builds system shortcuts: Wi-Fi, Display, Sound, Bluetooth, All Settings and Launcher Settings.
-     */
     /** Tile at the start of the home row that opens the full All Apps grid. */
     fun getAllAppsTile(): AppModel = AppModel(
         packageName = ALL_APPS_KEY,
@@ -129,90 +131,41 @@ class AppRepository(private val context: Context) {
         systemIntentAction = ALL_APPS_KEY
     )
 
-    fun getSystemShortcuts(): List<AppModel> {
-        val dummyDrawable: Drawable = ColorDrawable(Color.TRANSPARENT)
+    /** Fire TV Settings main menu on its own (not Amazon's home), else Android's Settings. */
+    fun openFireTvSettings(): Boolean =
+        openFirstAvailable(Intent().setComponent(FIRE_SETTINGS), Intent(Settings.ACTION_SETTINGS))
 
-        return listOf(
-            AppModel(
-                packageName = "system.wifi",
-                activityName = "Settings.Wifi",
-                label = "Wi-Fi",
-                icon = dummyDrawable,
-                accentColor = 0xFF00B4D8.toInt(), // Sky cyan
-                isSystemShortcut = true,
-                systemIntentAction = Settings.ACTION_WIFI_SETTINGS
-            ),
-            AppModel(
-                packageName = "system.display",
-                activityName = "Settings.Display",
-                label = "Display",
-                icon = dummyDrawable,
-                accentColor = 0xFF7209B7.toInt(), // Deep violet
-                isSystemShortcut = true,
-                systemIntentAction = Settings.ACTION_DISPLAY_SETTINGS
-            ),
-            AppModel(
-                packageName = "system.sound",
-                activityName = "Settings.Sound",
-                label = "Sound",
-                icon = dummyDrawable,
-                accentColor = 0xFF06D6A0.toInt(), // Emerald
-                isSystemShortcut = true,
-                systemIntentAction = Settings.ACTION_SOUND_SETTINGS
-            ),
-            AppModel(
-                packageName = "system.bluetooth",
-                activityName = "Settings.Bluetooth",
-                label = "Bluetooth",
-                icon = dummyDrawable,
-                accentColor = 0xFF4361EE.toInt(), // Electric blue
-                isSystemShortcut = true,
-                systemIntentAction = Settings.ACTION_BLUETOOTH_SETTINGS
-            ),
-            AppModel(
-                packageName = "system.settings",
-                activityName = "Settings.Main",
-                label = "All Settings",
-                icon = dummyDrawable,
-                accentColor = 0xFFFF9F1C.toInt(), // Warm amber
-                isSystemShortcut = true,
-                systemIntentAction = Settings.ACTION_SETTINGS
-            ),
-            AppModel(
-                packageName = LAUNCHER_SETTINGS_KEY,
-                activityName = "FireLauncher.Settings",
-                label = "Launcher Settings",
-                icon = dummyDrawable,
-                accentColor = 0xFF10B981.toInt(), // Vibrant Emerald
-                isSystemShortcut = true,
-                systemIntentAction = LAUNCHER_SETTINGS_KEY
-            )
-        )
+    /** Fire TV Network (Wi-Fi) screen, else Android's Wi-Fi settings. */
+    fun openNetworkSettings(): Boolean =
+        openFirstAvailable(Intent().setComponent(FIRE_NETWORK), Intent(Settings.ACTION_WIFI_SETTINGS))
+
+    /**
+     * Starts the first intent this TV can open. Screens named by component must be exported (public).
+     * CLEAR_TASK makes Settings open on the requested page, not whichever page was left open last.
+     */
+    private fun openFirstAvailable(vararg candidates: Intent): Boolean {
+        for (candidate in candidates) {
+            val info = packageManager.resolveActivity(candidate, 0)?.activityInfo ?: continue
+            if (candidate.component != null && !info.exported) continue
+            val intent = Intent(candidate).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            if (runCatching { context.startActivity(intent) }.isSuccess) return true
+        }
+        return false
     }
 
     /**
-     * Launches an app using an explicit ComponentName and FLAG_ACTIVITY_NEW_TASK,
-     * or dispatches a system shortcut intent.
+     * Launches an app using an explicit ComponentName and FLAG_ACTIVITY_NEW_TASK.
      */
     fun launchApp(app: AppModel): Boolean {
+        if (app.isSystemShortcut) return false // in-launcher tiles are handled by the ViewModel
         return try {
-            if (app.isSystemShortcut && app.systemIntentAction != null) {
-                val intent = Intent(app.systemIntentAction).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (intent.resolveActivity(packageManager) != null) {
-                    context.startActivity(intent)
-                    true
-                } else {
-                    false
-                }
-            } else {
-                val intent = Intent(Intent.ACTION_MAIN).apply {
-                    component = ComponentName(app.packageName, app.activityName)
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-                }
-                context.startActivity(intent)
-                true
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                component = ComponentName(app.packageName, app.activityName)
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             }
+            context.startActivity(intent)
+            true
         } catch (_: Exception) {
             // Fallback to leanback launcher if standard component launch fails
             try {

@@ -87,7 +87,7 @@ class UpdateRepository(private val context: Context) {
             tag = tag,
             versionName = tag.removePrefix("v"),
             versionCode = versionCode,
-            notes = json.optString("body").trim().take(MAX_NOTES_CHARS),
+            notes = UpdateVersions.cleanNotes(json.optString("body")).take(MAX_NOTES_CHARS),
             apkName = apkAsset.optString("name"),
             apkUrl = apkAsset.optString("browser_download_url"),
             apkSizeBytes = apkAsset.optLong("size"),

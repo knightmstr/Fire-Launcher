@@ -59,6 +59,8 @@ import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AllAppsScreen
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
 import com.knightmstr.firelauncher.ui.components.LocalCardWidth
+import com.knightmstr.firelauncher.ui.components.LocalScreenEdge
+import com.knightmstr.firelauncher.ui.components.rememberScreenEdge
 import com.knightmstr.firelauncher.ui.components.CreatePinDialog
 import com.knightmstr.firelauncher.ui.components.NowPlayingCard
 import com.knightmstr.firelauncher.ui.components.NowPlayingHelpDialog
@@ -84,7 +86,7 @@ import kotlinx.coroutines.delay
 
 /**
  * Main stateless container collecting ViewModel state, managing D-pad focus,
- * animating dynamic background accent gradients, handling TV overscan padding,
+ * animating dynamic background accent gradients, adaptive screen-edge margins,
  * auto-changing r/TVWallpapersSFW 30-minute wallpapers, and intercepting Back/Home events.
  */
 @Composable
@@ -97,7 +99,6 @@ fun LauncherRoot(
     val hiddenApps by viewModel.hiddenApps.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val favoriteApps by viewModel.favoriteApps.collectAsStateWithLifecycle()
-    val systemShortcuts by viewModel.systemShortcuts.collectAsStateWithLifecycle()
     val focusedApp by viewModel.focusedApp.collectAsStateWithLifecycle()
     val homeTick by viewModel.homeTick.collectAsStateWithLifecycle()
     val weather by viewModel.weather.collectAsStateWithLifecycle()
@@ -139,7 +140,10 @@ fun LauncherRoot(
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
     BackHandler(enabled = isSearchActive) { viewModel.setSearchActive(false) }
 
-    CompositionLocalProvider(LocalCardWidth provides settings.cardSize.widthDp.dp) {
+    CompositionLocalProvider(
+        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalScreenEdge provides rememberScreenEdge()
+    ) {
         LauncherContent(
             apps = apps,
             hiddenApps = if (settings.showHiddenApps) hiddenApps else emptyList(),
@@ -147,7 +151,9 @@ fun LauncherRoot(
             favoriteApps = favoriteApps,
             allAppsTile = viewModel.allAppsTile,
             showAllAppsRow = settings.showAllAppsRow,
-            systemShortcuts = systemShortcuts,
+            onOpenWifi = { viewModel.openWifiSettings() },
+            onOpenSystemSettings = { viewModel.openSystemSettings() },
+            onOpenLauncherSettings = viewModel::onLauncherSettingsPressed,
             focusedApp = focusedApp,
             homeTick = homeTick,
             weather = weather,
@@ -247,7 +253,10 @@ fun LauncherRoot(
     }
 
     if (isAllAppsOpen) {
-        CompositionLocalProvider(LocalCardWidth provides settings.cardSize.widthDp.dp) {
+        CompositionLocalProvider(
+        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalScreenEdge provides rememberScreenEdge()
+    ) {
             AllAppsScreen(
                 apps = apps,
                 favorites = favorites,
@@ -320,7 +329,9 @@ fun LauncherContent(
     favoriteApps: List<AppModel>,
     allAppsTile: AppModel,
     showAllAppsRow: Boolean,
-    systemShortcuts: List<AppModel>,
+    onOpenWifi: () -> Unit,
+    onOpenSystemSettings: () -> Unit,
+    onOpenLauncherSettings: () -> Unit,
     focusedApp: AppModel?,
     homeTick: Long,
     weather: WeatherData,
@@ -450,11 +461,12 @@ fun LauncherContent(
                 )
         )
 
-        // Layer 4: Main Content with 48dp Overscan Safe Margins
+        // Layer 4: Main content. Full width so the app rows run edge to edge; the top bar, header
+        // and the start of each row use an adaptive side margin (LocalScreenEdge, ~3.5% of width).
+        val edge = LocalScreenEdge.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 48.dp) // 48dp TV overscan safe padding
                 .padding(top = 26.dp, bottom = 20.dp)
         ) {
             // Top bar: App name, Live Open-Meteo Weather with Search, Sort by Menu, Next Wallpaper & live clock/date
@@ -467,22 +479,27 @@ fun LauncherContent(
                 onClearCitySearch = onClearCitySearch,
                 onSelectCity = onSelectCity,
                 onToggleUnit = onToggleUnit,
-                sortOrder = sortOrder,
-                onSelectSort = onSelectSort,
                 searchQuery = searchQuery,
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
                 onToggleSearch = onToggleSearch,
                 onRequestVoiceSearch = onRequestVoiceSearch,
                 onNextWallpaper = onNextWallpaper,
-                wallpaperTitle = currentWallpaper?.title
+                wallpaperInfo = currentWallpaper?.let { wp ->
+                    if (wp.isLocal) "Your photo • ${wp.title}" else "${wp.title} • r/TVWallpapersSFW"
+                },
+                kidsMode = kidsMode,
+                onOpenWifi = onOpenWifi,
+                onOpenSystemSettings = onOpenSystemSettings,
+                onOpenLauncherSettings = onOpenLauncherSettings,
+                modifier = Modifier.padding(horizontal = edge)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Hero section: Focused app title, dynamic hints, and active wallpaper badge
+            // Hero section: focused app title and hints, now playing, quick buttons
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = edge),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -517,33 +534,6 @@ fun LauncherContent(
                     onClick = onAppClicked,
                     onLongClick = onAppLongClicked
                 )
-
-                // Discreet wallpaper attribution chip (hidden while media controls take the space)
-                currentWallpaper?.takeIf { nowPlaying == null && quickButtonApps.size < 4 }?.let { wp ->
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x66181C28))
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Wallpaper,
-                            contentDescription = "Wallpaper",
-                            tint = FireAmber,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (wp.isLocal) "Your photo • ${wp.title.take(24)}"
-                            else "${wp.title.take(28)}… • r/TVWallpapersSFW",
-                            fontSize = 10.sp,
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -575,7 +565,7 @@ fun LauncherContent(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 40.dp),
+                                    .padding(horizontal = edge, vertical = 40.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
@@ -633,19 +623,7 @@ fun LauncherContent(
                         }
                     }
 
-                    // Row 3: System Shortcuts
-                    item(key = "row_system") {
-                        AppRow(
-                            title = "System",
-                            apps = systemShortcuts,
-                            favorites = favorites,
-                            onAppFocused = onAppFocused,
-                            onAppClicked = onAppClicked,
-                            onAppLongClicked = onAppLongClicked
-                        )
-                    }
-
-                    // Row 4: Hidden apps (only when enabled in Launcher Settings)
+                    // Row 3: Hidden apps (only when enabled in Launcher Settings)
                     if (hiddenApps.isNotEmpty()) {
                         item(key = "row_hidden") {
                             AppRow(

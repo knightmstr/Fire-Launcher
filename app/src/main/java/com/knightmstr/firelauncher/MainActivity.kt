@@ -73,13 +73,6 @@ class MainActivity : ComponentActivity() {
         // Lock window to immersive TV fullscreen
         hideSystemUI()
 
-        // Observe voice search requests from the launcher UI
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.voiceSearchEvents.collect { launchVoiceSearch() }
-            }
-        }
-
         // Ask for photo access when the user taps "Allow photo access" in Launcher Settings
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

@@ -27,7 +27,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
    - Focus defaults to the first card on application launch.
 4. **Clean Home Screen & All Apps Grid**:
-   - Home shows an **All Apps** tile, your Favorites and the System row, so everything fits on one screen.
+   - Home shows an **All Apps** tile followed by your Favorites, so everything fits on one screen.
    - The tile opens a full-screen grid of every app that wraps to the screen width (Back closes it, Sort button cycles the order). Prefer the old row? *Launcher Settings → Show All Apps row on home*.
    - **App card size** (Small / Medium / Large) in Launcher Settings; Small is the default.
 4b. **App Options Menu (hold OK, or press ☰ on the remote)**:
@@ -39,11 +39,12 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - **Allow in Kids mode** picks which apps kids can see.
    - **Force Stop & App Info** opens the Fire OS app settings page.
    - Favorited cards show a yellow dot; everything is saved in Preferences DataStore.
-5. **System Shortcuts Row & Launcher Settings**:
-   - 1-click access to **Wi-Fi**, **Display**, **Sound**, **Bluetooth** and **All Settings**.
-   - **Launcher Settings** tile: wallpaper rotation interval (15 min – 3 hr or never), screensaver timeout (5–30 min or off), °C/°F, and the hidden-apps row. Every option cycles with OK — no keyboard needed.
+5. **Top-Bar Buttons & Launcher Settings**:
+   - Icon-only buttons at the top right, before the clock: next wallpaper, search, **Wi-Fi**, **Fire TV settings** and **Launcher Settings** (Wi-Fi and Fire TV settings are hidden in Kids mode).
+   - The current wallpaper (your photo, or its r/TVWallpapersSFW title) is shown under the FireLauncher name, top left.
+   - **Launcher Settings**: wallpaper rotation interval (15 min – 3 hr or never), screensaver timeout (5–30 min or off), °C/°F, and the hidden-apps row. Every option cycles with OK — no keyboard needed.
 6. **Kids Mode**:
-   - Turn on in Launcher Settings once you've allowed some apps. Only those apps appear; hidden apps, system shortcuts and the options menu are locked away.
+   - Turn on in Launcher Settings once you've allowed some apps. Only those apps appear; hidden apps, the Wi-Fi / Fire TV settings buttons and the options menu are locked away; the Launcher Settings button asks for the PIN.
    - Leaving Kids mode needs a 4-digit PIN entered on an on-screen keypad (salted SHA-256, never stored in plain text; 30 s lockout after 5 wrong tries).
    - This locks the launcher only. For device-wide limits also use Fire OS **Settings → Preferences → Parental Controls**.
 7. **Your Own Photos as Wallpapers (default)**:
@@ -76,7 +77,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - Top bar "Next Wallpaper" button allows manual instant cycling.
    - Built-in curated 4K fallback wallpapers ensure seamless operation even offline or in network-restricted environments.
 12. **Library 'Sort By' Menu (A–Z, Most Recent, Most Frequent)**:
-   - Dynamic sorting modal dialog accessible from the Top Bar ("Sort" button / `S` key) and directly on the "All Apps" row header (`Sorted by: ... ▾`).
+   - Change it with the **Sort** button in the All Apps grid (or on the optional All Apps row).
    - Three automatic sort orders, plus **My Order** (arranged by you via *Move in All Apps*):
      - **Alphabetical (A–Z)**: Classic alphabetical ordering by application title.
      - **Most Recently Used (MRU)**: Orders apps by latest launch timestamp, showing friendly relative time badges (e.g. *"5m ago"*, *"2h ago"*).
@@ -284,9 +285,11 @@ FireLauncher/
 │       ├── AndroidManifest.xml        # Leanback & Home intent filters + package queries
 │       ├── res/
 │       │   ├── drawable/
-│       │   │   ├── banner.xml         # 320x180 vector Leanback banner
+│       │   │   ├── ic_logo_mark.xml   # Ember logo (top bar + icon)
 │       │   │   ├── ic_launcher_background.xml
 │       │   │   └── ic_launcher_foreground.xml
+│       │   ├── drawable-xhdpi/
+│       │   │   └── banner.png         # 320x180dp Fire TV banner
 │       │   ├── mipmap-anydpi-v26/
 │       │   │   ├── ic_launcher.xml    # Adaptive launcher icon
 │       │   │   └── ic_launcher_round.xml
@@ -303,7 +306,6 @@ FireLauncher/
 │           │   ├── AppModel.kt            # App entity (label, original label, hidden flag, launch stats)
 │           │   ├── AppRepository.kt       # Dual scanner (Leanback + Launcher), system shortcuts & explicit launcher
 │           │   ├── AppSortOrder.kt        # AppSortOrder enum (A-Z, Recent, Frequent) & AppUsageStat
-│           │   ├── CleanTvManager.kt      # Debloat / restore ADB script generator
 │           │   ├── LauncherPrefsStore.kt  # DataStore: favorites order, hidden apps, labels, settings, weather, usage
 │           │   ├── LauncherSettings.kt    # Wallpaper interval & source, screensaver timeout, hidden-row toggle
 │           │   ├── LocalPhotoSource.kt    # Own photos from the FireLauncher album / app folder
@@ -345,7 +347,7 @@ FireLauncher/
 │                   ├── Color.kt           # Color palette constants
 │                   └── Theme.kt           # Material3 TV DarkColorScheme
 ├── app/src/test/java/com/knightmstr/firelauncher/
-│   ├── FireLauncherUnitTest.kt        # Sort order, weather formatting, debloat scripts
+│   ├── FireLauncherUnitTest.kt        # Sort order, weather formatting
 │   ├── KidsAndOrderTest.kt            # PIN hashing, custom app order, enum fallbacks
 │   ├── UpdateVersionsTest.kt          # Tag → versionCode, checksum parsing
 │   └── PrefsCodecTest.kt              # Favorites reorder, label sanitising, settings cycling
@@ -396,7 +398,7 @@ FireLauncher adheres to OWASP Mobile Application Security Verification Standards
 4. **Remote URL Scheme & Host Validation**:
    - Remote wallpapers fetched from Reddit are strictly validated for `https://` protocol and restricted to verified CDN hosts (`i.redd.it`, `preview.redd.it`, `i.imgur.com`, `images.unsplash.com`).
 5. **Intent Hijacking Mitigation**:
-   - System shortcut intents are validated with `resolveActivity()` before launching, and the Launcher Settings tile is handled in-process rather than broadcast as an Intent.
+   - System shortcut intents are validated with `resolveActivity()` before launching, and in-launcher tiles (All Apps) are handled in-process rather than sent as Intents.
    - Custom app names are stripped of storage delimiters and capped at 40 characters.
 6. **Input Length Bounds**:
    - Weather and geocoding search queries are bounded to a maximum length of 64 characters to mitigate denial of service and URL overflow issues.

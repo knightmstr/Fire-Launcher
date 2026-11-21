@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SystemUpdate
@@ -55,6 +57,8 @@ fun UpdateDialog(
 ) {
     val first = rememberInitialFocus()
     var permissionScreenMissing by remember { mutableStateOf(false) }
+    // Release notes stay hidden until the user presses the ⓘ button
+    var showNotes by remember { mutableStateOf(false) }
 
     TvDialogFrame(
         title = "FireLauncher updates",
@@ -87,7 +91,8 @@ fun UpdateDialog(
             }
 
             is UpdateState.Available -> {
-                ReleaseHeader(state.release)
+                ReleaseHeader(state.release, showNotes = showNotes, onToggleNotes = { showNotes = !showNotes })
+                if (showNotes) ReleaseNotes(state.release)
                 TvMenuItem(
                     title = "Download & install v${state.release.versionName}",
                     subtitle = "${state.release.apkSizeBytes / (1024 * 1024)} MB • Android will ask you to confirm",
@@ -96,7 +101,6 @@ fun UpdateDialog(
                     modifier = Modifier.focusRequester(first),
                     onClick = onUpdate
                 )
-                ReleaseNotes(state.release)
             }
 
             is UpdateState.Downloading -> {
@@ -162,14 +166,51 @@ fun UpdateDialog(
     }
 }
 
+/**
+ * "Version x is available", plus an ⓘ button (when [onToggleNotes] is given and the release
+ * has notes) that shows or hides what's new.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun ReleaseHeader(release: ReleaseInfo) {
-    Text(
-        text = "Version ${release.versionName} is available",
-        fontSize = 16.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = TextPrimary
-    )
+private fun ReleaseHeader(
+    release: ReleaseInfo,
+    showNotes: Boolean = false,
+    onToggleNotes: (() -> Unit)? = null
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Version ${release.versionName} is available",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        if (onToggleNotes != null && release.notes.isNotBlank()) {
+            Surface(
+                onClick = onToggleNotes,
+                modifier = Modifier.size(32.dp),
+                shape = ClickableSurfaceDefaults.shape(CircleShape),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
+                border = ClickableSurfaceDefaults.border(
+                    border = Border(BorderStroke(1.dp, UpdateBlue.copy(alpha = 0.6f)), shape = CircleShape),
+                    focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = CircleShape)
+                ),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (showNotes) UpdateBlue.copy(alpha = 0.25f) else DarkSurface,
+                    focusedContainerColor = DarkSurfaceVariant
+                )
+            ) {
+                Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = if (showNotes) "Hide what's new" else "What's new",
+                        tint = UpdateBlue,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

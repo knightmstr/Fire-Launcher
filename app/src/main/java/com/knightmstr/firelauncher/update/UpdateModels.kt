@@ -47,6 +47,39 @@ object UpdateVersions {
     fun isNewer(release: ReleaseInfo, installedVersionCode: Int): Boolean =
         release.versionCode > installedVersionCode
 
+    private val MD_LINK = Regex("""\[([^\]]+)]\([^)]+\)""")
+    private val BY_AUTHOR = Regex("""\s+by @\S+(\s+in\s+\S+)?\s*$""")
+    private val URL = Regex("""https?://\S+""")
+
+    /**
+     * Turns GitHub's generated release notes into short plain lines for a TV screen:
+     * drops "What's Changed" / "Full Changelog" / "New Contributors", "by @user in <url>"
+     * suffixes, links and markdown symbols. Returns "" if nothing useful is left.
+     */
+    fun cleanNotes(markdown: String): String {
+        val out = mutableListOf<String>()
+        var skipSection = false
+        for (raw in markdown.lineSequence()) {
+            val line = raw.trim()
+            if (line.startsWith("#")) {
+                val heading = line.trimStart('#').trim().lowercase()
+                skipSection = heading.startsWith("new contributors")
+                if (skipSection || heading.startsWith("what's changed")) continue
+            }
+            if (skipSection || line.isEmpty() || line.contains("Full Changelog", ignoreCase = true)) continue
+            val text = line
+                .replace(MD_LINK, "$1")
+                .replace(BY_AUTHOR, "")
+                .replace(URL, "")
+                .replace("**", "")
+                .replace("`", "")
+                .trimStart('#', '*', '-', ' ')
+                .trim()
+            if (text.isNotEmpty()) out += "• $text"
+        }
+        return out.joinToString("\n")
+    }
+
     /** Finds the hash for [fileName] in `sha256sum` output ("<hash>  <name>" per line). */
     fun checksumFor(sha256sumOutput: String, fileName: String): String? =
         sha256sumOutput.lineSequence()

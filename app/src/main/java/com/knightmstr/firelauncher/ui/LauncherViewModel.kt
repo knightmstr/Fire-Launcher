@@ -160,8 +160,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val hiddenAppCount: StateFlow<Int> = hiddenPackages.map { it.size }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    private val allSystemShortcuts = repository.getSystemShortcuts()
-
     /** "All Apps" tile shown first in the home row. */
     val allAppsTile: AppModel = repository.getAllAppsTile()
 
@@ -176,13 +174,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         setSortOrder(next)
     }
 
-    /** In Kids mode only the (PIN-protected) settings tile remains, relabelled "Exit Kids Mode". */
-    val systemShortcuts: StateFlow<List<AppModel>> = kidsModeEnabled.map { kids ->
-        if (!kids) allSystemShortcuts
-        else allSystemShortcuts
-            .filter { it.packageName == AppRepository.LAUNCHER_SETTINGS_KEY }
-            .map { it.copy(label = "Exit Kids Mode", originalLabel = "Exit Kids Mode") }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, allSystemShortcuts)
+    // ------------------------------------------------------------------ Top-bar buttons
+
+    /** Wi-Fi button: Fire OS's Network screen. */
+    fun openWifiSettings(): Boolean = repository.openNetworkSettings()
+
+    /** Fire TV settings button: Fire OS's Settings menu on its own, not via Amazon's home. */
+    fun openSystemSettings(): Boolean = repository.openFireTvSettings()
+
+    /** Launcher Settings button; in Kids mode it asks for the PIN to leave Kids mode instead. */
+    fun onLauncherSettingsPressed() {
+        if (kidsModeEnabled.value) _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE)
+        else openSettings()
+    }
 
     // ------------------------------------------------------------------ Favourites
 
@@ -353,8 +357,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _hasPhotoPermission = MutableStateFlow(localPhotos.hasPhotoPermission())
     val hasPhotoPermission: StateFlow<Boolean> = _hasPhotoPermission.asStateFlow()
 
-    val photoFolderPath: String? get() = localPhotos.appFolderPath
-
+    // One-shot event (SharedFlow, not StateFlow, so it doesn't replay when the Activity restarts)
     private val _photoPermissionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val photoPermissionRequests: SharedFlow<Unit> = _photoPermissionRequests.asSharedFlow()
 
@@ -419,7 +422,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ------------------------------------------------------------------ Focus, menus & dialogs
 
-    private val allKnownApps = combine(decoratedApps, systemShortcuts) { a, b -> a + b + allAppsTile }
+    private val allKnownApps = decoratedApps.map { it + allAppsTile }
 
     private fun resolve(keyFlow: StateFlow<String?>): StateFlow<AppModel?> =
         combine(keyFlow, allKnownApps) { key, list -> key?.let { k -> list.firstOrNull { it.uniqueKey == k } } }
@@ -455,9 +458,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _homeTick = MutableStateFlow(0L)
     val homeTick: StateFlow<Long> = _homeTick.asStateFlow()
 
-    // One-shot events (SharedFlow, not StateFlow, so they don't replay when the Activity restarts)
-    private val _voiceSearchEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val voiceSearchEvents: SharedFlow<Unit> = _voiceSearchEvents.asSharedFlow()
 
     fun onHomePressed() {
         _homeTick.value += 1L
@@ -470,8 +470,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         onUserInteraction()
     }
 
-    fun requestVoiceSearch() { _voiceSearchEvents.tryEmit(Unit) }
-
     fun onVoiceResult(query: String) {
         _isSearchActive.value = true
         _searchQuery.value = query
@@ -480,7 +478,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // ------------------------------------------------------------------ Wallpapers
 
     val currentWallpaper: StateFlow<WallpaperModel?> = wallpaperRepository.currentWallpaper
-    val allWallpapers: StateFlow<List<WallpaperModel>> = wallpaperRepository.wallpapers
 
     fun nextWallpaper() = wallpaperRepository.nextWallpaper()
     fun setWallpaper(wallpaper: WallpaperModel) = wallpaperRepository.setWallpaper(wallpaper)
@@ -676,11 +673,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun launchApp(app: AppModel): Boolean {
         if (app.packageName == AppRepository.ALL_APPS_KEY) {
             openAllApps()
-            return true
-        }
-        if (app.packageName == AppRepository.LAUNCHER_SETTINGS_KEY) {
-            if (kidsModeEnabled.value) _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE)
-            else openSettings()
             return true
         }
         if (!app.isSystemShortcut) {
