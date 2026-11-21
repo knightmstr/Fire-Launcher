@@ -59,6 +59,8 @@ import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AllAppsScreen
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
 import com.knightmstr.firelauncher.ui.components.LocalCardWidth
+import com.knightmstr.firelauncher.ui.components.LocalScreenEdge
+import com.knightmstr.firelauncher.ui.components.rememberScreenEdge
 import com.knightmstr.firelauncher.ui.components.CreatePinDialog
 import com.knightmstr.firelauncher.ui.components.NowPlayingCard
 import com.knightmstr.firelauncher.ui.components.NowPlayingHelpDialog
@@ -84,7 +86,7 @@ import kotlinx.coroutines.delay
 
 /**
  * Main stateless container collecting ViewModel state, managing D-pad focus,
- * animating dynamic background accent gradients, handling TV overscan padding,
+ * animating dynamic background accent gradients, adaptive screen-edge margins,
  * auto-changing r/TVWallpapersSFW 30-minute wallpapers, and intercepting Back/Home events.
  */
 @Composable
@@ -138,7 +140,10 @@ fun LauncherRoot(
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
     BackHandler(enabled = isSearchActive) { viewModel.setSearchActive(false) }
 
-    CompositionLocalProvider(LocalCardWidth provides settings.cardSize.widthDp.dp) {
+    CompositionLocalProvider(
+        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalScreenEdge provides rememberScreenEdge()
+    ) {
         LauncherContent(
             apps = apps,
             hiddenApps = if (settings.showHiddenApps) hiddenApps else emptyList(),
@@ -248,7 +253,10 @@ fun LauncherRoot(
     }
 
     if (isAllAppsOpen) {
-        CompositionLocalProvider(LocalCardWidth provides settings.cardSize.widthDp.dp) {
+        CompositionLocalProvider(
+        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalScreenEdge provides rememberScreenEdge()
+    ) {
             AllAppsScreen(
                 apps = apps,
                 favorites = favorites,
@@ -453,11 +461,12 @@ fun LauncherContent(
                 )
         )
 
-        // Layer 4: Main Content with 48dp Overscan Safe Margins
+        // Layer 4: Main content. Full width so the app rows run edge to edge; the top bar, header
+        // and the start of each row use an adaptive side margin (LocalScreenEdge, ~3.5% of width).
+        val edge = LocalScreenEdge.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 48.dp) // 48dp TV overscan safe padding
                 .padding(top = 26.dp, bottom = 20.dp)
         ) {
             // Top bar: App name, Live Open-Meteo Weather with Search, Sort by Menu, Next Wallpaper & live clock/date
@@ -482,14 +491,15 @@ fun LauncherContent(
                 kidsMode = kidsMode,
                 onOpenWifi = onOpenWifi,
                 onOpenSystemSettings = onOpenSystemSettings,
-                onOpenLauncherSettings = onOpenLauncherSettings
+                onOpenLauncherSettings = onOpenLauncherSettings,
+                modifier = Modifier.padding(horizontal = edge)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
             // Hero section: focused app title and hints, now playing, quick buttons
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = edge),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -555,7 +565,7 @@ fun LauncherContent(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 40.dp),
+                                    .padding(horizontal = edge, vertical = 40.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {

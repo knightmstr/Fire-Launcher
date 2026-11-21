@@ -67,6 +67,7 @@ fun AllAppsScreen(
 ) {
     val firstItem = remember { FocusRequester() }
     val cardWidth = LocalCardWidth.current
+    val edge = LocalScreenEdge.current
 
     LaunchedEffect(apps.isNotEmpty()) {
         if (apps.isNotEmpty()) {
@@ -83,9 +84,10 @@ fun AllAppsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xF207090F))
-                .padding(horizontal = 48.dp, vertical = 28.dp) // TV overscan-safe margins
+                .padding(vertical = 28.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Header uses the adaptive side margin; the grid below runs edge to edge
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = edge)) {
                 Icon(Icons.Rounded.Apps, contentDescription = null, tint = FireAmber, modifier = Modifier.size(26.dp))
                 Spacer(modifier = Modifier.width(10.dp))
                 Text("All Apps", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -98,14 +100,14 @@ fun AllAppsScreen(
                 text = "Hold OK or press ☰ on an app to favorite, rename, hide or move it",
                 fontSize = 12.sp,
                 color = TextSecondary,
-                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                modifier = Modifier.padding(start = edge, end = edge, top = 4.dp, bottom = 8.dp)
             )
 
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = cardWidth),
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 // Room for the focused card's 1.1x zoom and glow
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
+                contentPadding = PaddingValues(horizontal = edge, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {

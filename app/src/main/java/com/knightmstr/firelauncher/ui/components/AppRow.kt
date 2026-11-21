@@ -58,6 +58,7 @@ fun AppRow(
     onAppLongClicked: (AppModel) -> Unit
 ) {
     if (apps.isEmpty()) return
+    val edge = LocalScreenEdge.current
 
     Column(
         modifier = modifier
@@ -67,7 +68,7 @@ fun AppRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .padding(start = edge, end = edge, bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -132,30 +133,33 @@ fun AppRow(
             }
         }
 
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 12.dp),
-            // Gap scales with card size so small cards don't look sparse
-            horizontalArrangement = Arrangement.spacedBy((LocalCardWidth.current.value / 10f).coerceAtLeast(12f).dp)
-        ) {
-            itemsIndexed(
-                items = apps,
-                key = { _, app -> "${title}_${app.uniqueKey}" }
-            ) { index, app ->
-                val cardModifier = if (index == 0 && firstItemFocusRequester != null) {
-                    Modifier.focusRequester(firstItemFocusRequester)
-                } else {
-                    Modifier
-                }
+        // Edge to edge: cards scroll to the very sides of the TV, but start at the margin
+        KeepFocusInsideEdges {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = edge, vertical = 12.dp),
+                // Gap scales with card size so small cards don't look sparse
+                horizontalArrangement = Arrangement.spacedBy((LocalCardWidth.current.value / 10f).coerceAtLeast(12f).dp)
+            ) {
+                itemsIndexed(
+                    items = apps,
+                    key = { _, app -> "${title}_${app.uniqueKey}" }
+                ) { index, app ->
+                    val cardModifier = if (index == 0 && firstItemFocusRequester != null) {
+                        Modifier.focusRequester(firstItemFocusRequester)
+                    } else {
+                        Modifier
+                    }
 
-                AppCard(
-                    app = app,
-                    isFavorite = favorites.contains(app.packageName),
-                    modifier = cardModifier,
-                    onFocus = { onAppFocused(app) },
-                    onClick = { onAppClicked(app) },
-                    onLongClick = { onAppLongClicked(app) }
-                )
+                    AppCard(
+                        app = app,
+                        isFavorite = favorites.contains(app.packageName),
+                        modifier = cardModifier,
+                        onFocus = { onAppFocused(app) },
+                        onClick = { onAppClicked(app) },
+                        onLongClick = { onAppLongClicked(app) }
+                    )
+                }
             }
         }
     }
