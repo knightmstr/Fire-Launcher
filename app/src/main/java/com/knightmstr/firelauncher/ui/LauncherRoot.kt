@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,7 @@ import com.knightmstr.firelauncher.data.WeatherData
 import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
+import com.knightmstr.firelauncher.ui.components.LocalCardWidth
 import com.knightmstr.firelauncher.ui.components.CreatePinDialog
 import com.knightmstr.firelauncher.ui.components.NowPlayingCard
 import com.knightmstr.firelauncher.ui.components.NowPlayingHelpDialog
@@ -135,46 +137,48 @@ fun LauncherRoot(
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
     BackHandler(enabled = isSearchActive) { viewModel.setSearchActive(false) }
 
-    LauncherContent(
-        apps = apps,
-        hiddenApps = if (settings.showHiddenApps) hiddenApps else emptyList(),
-        favorites = favorites,
-        favoriteApps = favoriteApps,
-        systemShortcuts = systemShortcuts,
-        focusedApp = focusedApp,
-        homeTick = homeTick,
-        weather = weather,
-        savedCities = savedCities,
-        searchResults = searchResults,
-        isSearchingCities = isSearchingCities,
-        currentWallpaper = currentWallpaper,
-        sortOrder = sortOrder,
-        searchQuery = searchQuery,
-        isSearchActive = isSearchActive,
-        filteredApps = filteredApps,
-        quickButtonApps = quickButtonApps,
-        nowPlaying = nowPlaying,
-        kidsMode = kidsMode,
-        updateState = if (kidsMode) UpdateState.Idle else updateState,
-        onOpenUpdates = viewModel::openUpdateDialog,
-        onMediaPlayPause = viewModel::mediaPlayPause,
-        onMediaNext = viewModel::mediaNext,
-        onMediaPrevious = viewModel::mediaPrevious,
-        onOpenNowPlayingApp = viewModel::openNowPlayingApp,
-        onSearchCities = viewModel::searchCities,
-        onClearCitySearch = viewModel::clearCitySearch,
-        onSelectCity = viewModel::selectCity,
-        onToggleUnit = viewModel::toggleTemperatureUnit,
-        onNextWallpaper = viewModel::nextWallpaper,
-        onSelectSort = viewModel::setSortOrder,
-        onSearchQueryChange = viewModel::setSearchQuery,
-        onToggleSearch = viewModel::setSearchActive,
-        onRequestVoiceSearch = onRequestVoiceSearch,
-        onAppFocused = viewModel::setFocusedApp,
-        onAppClicked = { viewModel.launchApp(it) },
-        onAppLongClicked = viewModel::openContextMenu,
-        modifier = modifier
-    )
+    CompositionLocalProvider(LocalCardWidth provides settings.cardSize.widthDp.dp) {
+        LauncherContent(
+            apps = apps,
+            hiddenApps = if (settings.showHiddenApps) hiddenApps else emptyList(),
+            favorites = favorites,
+            favoriteApps = favoriteApps,
+            systemShortcuts = systemShortcuts,
+            focusedApp = focusedApp,
+            homeTick = homeTick,
+            weather = weather,
+            savedCities = savedCities,
+            searchResults = searchResults,
+            isSearchingCities = isSearchingCities,
+            currentWallpaper = currentWallpaper,
+            sortOrder = sortOrder,
+            searchQuery = searchQuery,
+            isSearchActive = isSearchActive,
+            filteredApps = filteredApps,
+            quickButtonApps = quickButtonApps,
+            nowPlaying = nowPlaying,
+            kidsMode = kidsMode,
+            updateState = if (kidsMode) UpdateState.Idle else updateState,
+            onOpenUpdates = viewModel::openUpdateDialog,
+            onMediaPlayPause = viewModel::mediaPlayPause,
+            onMediaNext = viewModel::mediaNext,
+            onMediaPrevious = viewModel::mediaPrevious,
+            onOpenNowPlayingApp = viewModel::openNowPlayingApp,
+            onSearchCities = viewModel::searchCities,
+            onClearCitySearch = viewModel::clearCitySearch,
+            onSelectCity = viewModel::selectCity,
+            onToggleUnit = viewModel::toggleTemperatureUnit,
+            onNextWallpaper = viewModel::nextWallpaper,
+            onSelectSort = viewModel::setSortOrder,
+            onSearchQueryChange = viewModel::setSearchQuery,
+            onToggleSearch = viewModel::setSearchActive,
+            onRequestVoiceSearch = onRequestVoiceSearch,
+            onAppFocused = viewModel::setFocusedApp,
+            onAppClicked = { viewModel.launchApp(it) },
+            onAppLongClicked = viewModel::openContextMenu,
+            modifier = modifier
+        )
+    }
 
     contextMenuApp?.let { app ->
         AppContextMenuDialog(

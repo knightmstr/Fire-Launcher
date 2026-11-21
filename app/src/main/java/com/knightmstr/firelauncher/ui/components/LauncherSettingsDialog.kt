@@ -1,6 +1,7 @@
 package com.knightmstr.firelauncher.ui.components
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Lock
@@ -92,6 +93,15 @@ fun LauncherSettingsDialog(
                 onClick = onRequestPhotoPermission
             )
         }
+
+        TvMenuItem(
+            title = "App card size",
+            subtitle = "Smaller cards fit more apps on screen",
+            icon = Icons.Rounded.AspectRatio,
+            iconTint = Color(0xFF60A5FA),
+            trailing = settings.cardSize.title,
+            onClick = { onUpdate { it.copy(cardSize = it.cardSize.next()) } }
+        )
 
         TvMenuItem(
             title = "Change wallpaper every",
