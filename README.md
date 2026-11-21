@@ -54,7 +54,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
      ```
    - Photos load from local storage — no wallpaper downloads at all. If none are found it falls back to Reddit; you can also pick Reddit explicitly in Settings.
 8. **Now Playing Controls**:
-   - Shows what's playing (Spotify, YouTube, Plex…) with previous / play-pause / next in the header. Hold play-pause to jump back into the app.
+   - A small window under the clock: the playing app's icon and name, what's playing, then previous / play-pause / next. Select the left part to jump back into the app.
    - Needs one-time notification access (FireLauncher never reads notifications; Android requires it to see media sessions). Many Fire OS builds hide that screen, so grant it over ADB:
      ```bash
      adb shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
@@ -65,7 +65,10 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - **Download & install** fetches the `-release.apk`, verifies its SHA-256 against the release's checksum file, checks it's FireLauncher and newer, then hands it to Android's installer. You always confirm on Android's own screen.
    - One-time setup: allow FireLauncher under **Install unknown apps** (the dialog links there; on Fire OS it's *Settings → My Fire TV → Developer options → Install unknown apps*).
    - Updates only install if signed with the same key, which is why releases need the `KEYSTORE_*` secrets. Forks: change `UPDATE_REPO` in `app/build.gradle.kts`.
-10. **Idle Screensaver**:
+10. **Idle Screensaver (and replacing Amazon's)**:
+   - **Use FireLauncher's screensaver** (Launcher settings) makes it the Fire TV's own screensaver, so it shows inside other apps too: same wallpaper, clock and weather as the home, with a new wallpaper every 5 minutes. On Fire OS 8 it also switches off Amazon's Ambient Experience; restart the Fire TV once.
+   - **Keep Fire TV awake** turns off Fire OS's sleep timer, so the screensaver keeps showing instead of the TV going to sleep.
+   - Both use the same one-time adb grant as the Home button watcher, and turning them off puts Amazon's settings back. When the screensaver starts inside other apps is Fire TV's own *Settings → Display & Sounds → Screensaver → Start Time*.
    - After the chosen idle time, shows a dimmed wallpaper slideshow with a large clock, date and temperature.
    - The clock drifts to a new position every minute to avoid screen burn-in. Any remote button wakes it without triggering an action.
    - The launcher no longer holds `FLAG_KEEP_SCREEN_ON`, so Fire OS's own sleep timer still works.
@@ -314,6 +317,9 @@ FireLauncher/
 │           ├── home/
 │           │   ├── HomeWatch.kt           # Switches the Home button watcher on/off, keeps it on
 │           │   └── HomeWatchService.kt    # Accessibility service: Amazon home → FireLauncher
+│           ├── screensaver/
+│           │   ├── FireDream.kt           # FireLauncher's screensaver as a system screensaver
+│           │   └── ScreensaverTakeover.kt # Replace Amazon's screensaver, keep awake (restorable)
 │           ├── media/
 │           │   ├── MediaListenerService.kt # Empty listener holding the media-session permission
 │           │   └── NowPlayingRepository.kt # Active media session tracking & transport controls
@@ -335,7 +341,7 @@ FireLauncher/
 │               │   ├── NowPlayingHelpDialog.kt # How to grant Now playing access
 │               │   ├── HomeClock.kt           # Date, weather and big clock mid-screen
 │               │   ├── HomeDock.kt            # Bottom dock: favourites + All Apps
-│               │   ├── HomeWatchHelpDialog.kt # Setup for the Home button watcher
+│               │   ├── GrantSetupDialog.kt    # One-time adb setup for Fire TV system options
 │               │   ├── LauncherSettingsDialog.kt # In-launcher settings
 │               │   ├── PinDialog.kt           # D-pad PIN keypad (enter / create)
 │               │   ├── RenameAppDialog.kt     # Custom app name entry
