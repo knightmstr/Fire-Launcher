@@ -13,7 +13,11 @@ data class LauncherSettings(
     /** Show a "Hidden Apps" row at the bottom so hidden apps can be restored. */
     val showHiddenApps: Boolean = false,
     /** Where wallpapers come from. Local photos are the default (no network, no rotation fetches). */
-    val wallpaperSource: WallpaperSource = WallpaperSource.MY_PHOTOS
+    val wallpaperSource: WallpaperSource = WallpaperSource.MY_PHOTOS,
+    /** App card size; Small fits about 6 cards per row on a 1080p TV. */
+    val cardSize: CardSize = CardSize.SMALL,
+    /** Show every app as a row on the home screen (off: use the All Apps tile instead). */
+    val showAllAppsRow: Boolean = false
 ) {
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
@@ -33,6 +37,19 @@ data class LauncherSettings(
             minutes % 60 == 0 -> "${minutes / 60} hr"
             else -> "$minutes min"
         }
+    }
+}
+
+enum class CardSize(val title: String, val widthDp: Int) {
+    SMALL("Small", 140),
+    MEDIUM("Medium", 165),
+    LARGE("Large", 200);
+
+    fun next(): CardSize = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun fromName(name: String?): CardSize =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: SMALL
     }
 }
 

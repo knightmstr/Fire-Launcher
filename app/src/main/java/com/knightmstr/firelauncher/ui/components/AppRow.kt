@@ -135,7 +135,8 @@ fun AppRow(
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp)
+            // Gap scales with card size so small cards don't look sparse
+            horizontalArrangement = Arrangement.spacedBy((LocalCardWidth.current.value / 10f).coerceAtLeast(12f).dp)
         ) {
             itemsIndexed(
                 items = apps,

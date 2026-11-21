@@ -19,11 +19,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.DisplaySettings
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +44,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
@@ -67,6 +72,23 @@ import com.knightmstr.firelauncher.ui.theme.TextPrimary
  * - Shows small yellow dot if favorited
  * - Handles OK click to launch, and Long-press OK to toggle favorite
  */
+/** Card width chosen in Launcher Settings; provided by LauncherRoot. */
+val LocalCardWidth = compositionLocalOf { 140.dp }
+
+/** Inner sizes were designed for a 200dp card; everything scales from there. */
+private const val DESIGN_WIDTH = 200f
+
+/** [designDp] scaled to the current card width. */
+@Composable
+@ReadOnlyComposable
+private fun s(designDp: Int): Dp = (designDp * LocalCardWidth.current.value / DESIGN_WIDTH).dp
+
+/** [designSp] scaled to the current card width (never below 10sp for legibility). */
+@Composable
+@ReadOnlyComposable
+private fun ss(designSp: Int): TextUnit =
+    (designSp * LocalCardWidth.current.value / DESIGN_WIDTH).coerceAtLeast(10f).sp
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun AppCard(
@@ -78,14 +100,15 @@ fun AppCard(
     onLongClick: () -> Unit = {}
 ) {
     val accentColor = Color(app.accentColor)
-    val cardShape = RoundedCornerShape(12.dp)
+    val cardWidth = LocalCardWidth.current
+    val cardShape = RoundedCornerShape(12.dp * (cardWidth.value / DESIGN_WIDTH))
     var isFocused by remember { mutableStateOf(false) }
 
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
-            .width(200.dp)
+            .width(cardWidth)
             .aspectRatio(16f / 9f)
             .onFocusChanged { focusState ->
                 isFocused = focusState.isFocused
@@ -146,8 +169,8 @@ fun AppCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(10.dp)
-                        .size(10.dp)
+                        .padding(s(10))
+                        .size(s(10))
                         .clip(CircleShape)
                         .background(FavoriteYellow)
                 )
@@ -167,6 +190,7 @@ private fun SystemShortcutContent(
         "system.sound" -> Icons.AutoMirrored.Rounded.VolumeUp
         "system.bluetooth" -> Icons.Rounded.Bluetooth
         AppRepository.LAUNCHER_SETTINGS_KEY -> Icons.Rounded.Tune
+        AppRepository.ALL_APPS_KEY -> Icons.Rounded.Apps
         else -> Icons.Rounded.Settings
     }
 
@@ -185,18 +209,18 @@ private fun SystemShortcutContent(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(s(12))
         ) {
             Icon(
                 imageVector = iconVector,
                 contentDescription = app.label,
                 tint = accentColor,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(s(36))
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(s(8)))
             Text(
                 text = app.label,
-                fontSize = 13.sp,
+                fontSize = ss(13),
                 fontWeight = FontWeight.SemiBold,
                 color = TextPrimary,
                 maxLines = 1,
@@ -235,7 +259,7 @@ private fun BannerContent(
         ) {
             Text(
                 text = label,
-                fontSize = 14.sp,
+                fontSize = ss(14),
                 fontWeight = FontWeight.Medium,
                 color = TextPrimary
             )
@@ -272,7 +296,7 @@ private fun IconFallbackContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(s(12)),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -285,14 +309,14 @@ private fun IconFallbackContent(
                     Image(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = label,
-                        modifier = Modifier.size(46.dp)
+                        modifier = Modifier.size(s(46))
                     )
                 }
             }
 
             Text(
                 text = label,
-                fontSize = 13.sp,
+                fontSize = ss(13),
                 fontWeight = FontWeight.Medium,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,

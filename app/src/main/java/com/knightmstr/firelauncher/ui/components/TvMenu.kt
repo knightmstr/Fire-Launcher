@@ -21,12 +21,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +71,12 @@ fun TvDialogFrame(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val panelShape = RoundedCornerShape(20.dp)
+
+    // Opening a dialog with a long-press of OK leaves the key physically held down. Its release
+    // would then "click" whatever the dialog focused first (e.g. Open). So ignore OK/Enter key-ups
+    // until this dialog has seen a fresh key-down of its own.
+    val confirmArmed = remember { mutableStateOf(false) }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -70,7 +84,8 @@ fun TvDialogFrame(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xDD07090F)),
+                .background(Color(0xDD07090F))
+                .onPreviewKeyEvent { event -> swallowCarriedOverConfirm(event, confirmArmed) },
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -116,6 +131,22 @@ fun TvDialogFrame(
                 content()
             }
         }
+    }
+}
+
+private val CONFIRM_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.ButtonA)
+
+/** Returns true (consume) for a confirm-key release whose press happened before the dialog opened. */
+private fun swallowCarriedOverConfirm(event: KeyEvent, armed: MutableState<Boolean>): Boolean {
+    if (event.key !in CONFIRM_KEYS) return false
+    return when (event.type) {
+        KeyEventType.KeyDown -> {
+            // Auto-repeat downs from the original long-press don't count as a new press
+            if (event.nativeKeyEvent.repeatCount == 0) armed.value = true
+            !armed.value
+        }
+        KeyEventType.KeyUp -> !armed.value
+        else -> false
     }
 }
 

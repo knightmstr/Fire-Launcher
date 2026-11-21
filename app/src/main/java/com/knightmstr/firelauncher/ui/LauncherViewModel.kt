@@ -162,6 +162,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private val allSystemShortcuts = repository.getSystemShortcuts()
 
+    /** "All Apps" tile shown first in the home row. */
+    val allAppsTile: AppModel = repository.getAllAppsTile()
+
+    private val _isAllAppsOpen = MutableStateFlow(false)
+    val isAllAppsOpen: StateFlow<Boolean> = _isAllAppsOpen.asStateFlow()
+
+    fun openAllApps() { _isAllAppsOpen.value = true }
+    fun closeAllApps() { _isAllAppsOpen.value = false }
+
+    fun cycleSortOrder() {
+        val next = AppSortOrder.entries[(sortOrder.value.ordinal + 1) % AppSortOrder.entries.size]
+        setSortOrder(next)
+    }
+
     /** In Kids mode only the (PIN-protected) settings tile remains, relabelled "Exit Kids Mode". */
     val systemShortcuts: StateFlow<List<AppModel>> = kidsModeEnabled.map { kids ->
         if (!kids) allSystemShortcuts
@@ -405,7 +419,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ------------------------------------------------------------------ Focus, menus & dialogs
 
-    private val allKnownApps = combine(decoratedApps, systemShortcuts) { a, b -> a + b }
+    private val allKnownApps = combine(decoratedApps, systemShortcuts) { a, b -> a + b + allAppsTile }
 
     private fun resolve(keyFlow: StateFlow<String?>): StateFlow<AppModel?> =
         combine(keyFlow, allKnownApps) { key, list -> key?.let { k -> list.firstOrNull { it.uniqueKey == k } } }
@@ -451,6 +465,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         closeRename()
         closeSettings()
         closeNowPlayingHelp()
+        closeAllApps()
         if (updates.state.value !is UpdateState.Downloading) closeUpdateDialog()
         onUserInteraction()
     }
@@ -659,6 +674,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun launchApp(app: AppModel): Boolean {
+        if (app.packageName == AppRepository.ALL_APPS_KEY) {
+            openAllApps()
+            return true
+        }
         if (app.packageName == AppRepository.LAUNCHER_SETTINGS_KEY) {
             if (kidsModeEnabled.value) _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE)
             else openSettings()
