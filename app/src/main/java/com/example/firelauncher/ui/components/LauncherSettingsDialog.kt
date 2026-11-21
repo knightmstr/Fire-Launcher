@@ -6,6 +6,7 @@ import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Thermostat
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.Wallpaper
@@ -29,7 +30,9 @@ data class SettingsStatus(
     val hasPhotoPermission: Boolean,
     val hasKidsPin: Boolean,
     val kidsAppCount: Int,
-    val hasNowPlayingAccess: Boolean
+    val hasNowPlayingAccess: Boolean,
+    val installedVersion: String,
+    val updateSummary: String
 )
 
 /**
@@ -46,6 +49,7 @@ fun LauncherSettingsDialog(
     onEnableKidsMode: () -> Unit,
     onChangeKidsPin: () -> Unit,
     onOpenNowPlayingHelp: () -> Unit,
+    onOpenUpdates: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val firstItem = rememberInitialFocus()
@@ -154,6 +158,15 @@ fun LauncherSettingsDialog(
                 onClick = onChangeKidsPin
             )
         }
+
+        TvMenuItem(
+            title = "App updates",
+            subtitle = status.updateSummary,
+            icon = Icons.Rounded.SystemUpdate,
+            iconTint = Color(0xFF38BDF8),
+            trailing = "v${status.installedVersion}",
+            onClick = onOpenUpdates
+        )
 
         TvMenuItem(
             title = "Temperature unit",

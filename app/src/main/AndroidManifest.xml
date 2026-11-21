@@ -11,6 +11,9 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <!-- In-app updates from GitHub Releases (user still confirms every install) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Leanback TV & Touchscreen flags -->
     <uses-feature
         android:name="android.software.leanback"
@@ -64,6 +67,18 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- In-app update: installer result callback, and relaunch after self-update -->
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".update.PackageReplacedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Holds the one-time permission to read other apps' media sessions (Now playing) -->
         <service
