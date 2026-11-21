@@ -21,7 +21,7 @@ import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.DisplaySettings
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -164,7 +164,7 @@ private fun SystemShortcutContent(
     val iconVector: ImageVector = when (app.packageName) {
         "system.wifi" -> Icons.Rounded.Wifi
         "system.display" -> Icons.Rounded.DisplaySettings
-        "system.sound" -> Icons.Rounded.VolumeUp
+        "system.sound" -> Icons.AutoMirrored.Rounded.VolumeUp
         "system.bluetooth" -> Icons.Rounded.Bluetooth
         AppRepository.LAUNCHER_SETTINGS_KEY -> Icons.Rounded.Tune
         else -> Icons.Rounded.Settings

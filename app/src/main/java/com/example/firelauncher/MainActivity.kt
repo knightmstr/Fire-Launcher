@@ -1,5 +1,6 @@
 package com.example.firelauncher
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
@@ -104,7 +105,11 @@ class MainActivity : ComponentActivity() {
     /**
      * Every key press resets the idle timer. While the screensaver is showing, the key
      * that wakes it is swallowed so it doesn't also launch or move focus.
+     *
+     * RestrictedApi is a lint false positive: androidx.core's ComponentActivity also declares
+     * dispatchKeyEvent, but this overrides the public android.app.Activity method.
      */
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (viewModel.screensaverVisible.value) {
             if (event.action == KeyEvent.ACTION_UP) viewModel.onUserInteraction()
