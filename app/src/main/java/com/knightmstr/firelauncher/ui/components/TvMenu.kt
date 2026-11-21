@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -244,6 +249,95 @@ fun TvMenuItem(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = iconTint
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A settings row with a slider: focus it, then press Left / Right on the remote to change the
+ * value in [step]s. Changes apply straight away so the result can be seen behind the dialog.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvSliderItem(
+    title: String,
+    icon: ImageVector,
+    iconTint: Color,
+    value: Int,
+    range: IntRange,
+    step: Int,
+    valueLabel: String,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null
+) {
+    val shape = RoundedCornerShape(12.dp)
+    var focused by remember { mutableStateOf(false) }
+    val fraction = ((value - range.first).toFloat() / (range.last - range.first)).coerceIn(0f, 1f)
+
+    Surface(
+        onClick = {},
+        modifier = modifier
+            .fillMaxWidth()
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> { onValueChange((value - step).coerceAtLeast(range.first)); true }
+                    Key.DirectionRight -> { onValueChange((value + step).coerceAtMost(range.last)); true }
+                    else -> false
+                }
+            },
+        shape = ClickableSurfaceDefaults.shape(shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+        border = ClickableSurfaceDefaults.border(
+            border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), shape = shape),
+            focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = shape)
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = DarkSurface,
+            focusedContainerColor = DarkSurfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(iconTint.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Text(
+                        text = if (focused) "◀ ▶ to adjust" else subtitle.orEmpty(),
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        maxLines = 1
+                    )
+                }
+                Text(valueLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = iconTint)
+            }
+            // Track
+            Box(
+                modifier = Modifier
+                    .padding(start = 48.dp, top = 10.dp)
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction)
+                        .fillMaxHeight()
+                        .background(iconTint)
                 )
             }
         }

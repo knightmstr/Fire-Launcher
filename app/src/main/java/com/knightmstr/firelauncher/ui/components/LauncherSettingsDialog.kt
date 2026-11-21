@@ -126,13 +126,20 @@ fun LauncherSettingsDialog(
             onClick = { onUpdate { it.copy(showAllAppsRow = !it.showAllAppsRow) } }
         )
 
-        TvMenuItem(
+        TvSliderItem(
             title = "App tile size",
             subtitle = "Smaller tiles fit more apps on screen",
             icon = Icons.Rounded.AspectRatio,
             iconTint = Color(0xFF60A5FA),
-            trailing = settings.cardSize.title,
-            onClick = { onUpdate { it.copy(cardSize = it.cardSize.next()) } }
+            value = settings.tileWidthDp,
+            range = LauncherSettings.TILE_WIDTH_RANGE,
+            step = LauncherSettings.TILE_WIDTH_STEP,
+            // Shown as a step number, e.g. "6 / 9"
+            valueLabel = LauncherSettings.TILE_WIDTH_RANGE.let { r ->
+                "${(settings.tileWidthDp - r.first) / LauncherSettings.TILE_WIDTH_STEP + 1} / " +
+                    "${(r.last - r.first) / LauncherSettings.TILE_WIDTH_STEP + 1}"
+            },
+            onValueChange = { w -> onUpdate { it.copy(tileWidthDp = w) } }
         )
 
         TvMenuItem(

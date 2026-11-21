@@ -51,6 +51,8 @@ import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AllAppsScreen
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextOverflow
 import com.knightmstr.firelauncher.ui.components.CitySelectionDialog
 import com.knightmstr.firelauncher.ui.components.HomeDock
 import com.knightmstr.firelauncher.ui.components.HomeClock
@@ -140,7 +142,7 @@ fun LauncherRoot(
     BackHandler(enabled = isSearchActive) { viewModel.setSearchActive(false) }
 
     CompositionLocalProvider(
-        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalCardWidth provides settings.tileWidthDp.dp,
         LocalCardShape provides settings.cardShape,
         LocalScreenEdge provides rememberScreenEdge()
     ) {
@@ -256,7 +258,7 @@ fun LauncherRoot(
 
     if (isAllAppsOpen) {
         CompositionLocalProvider(
-        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalCardWidth provides settings.tileWidthDp.dp,
         LocalCardShape provides settings.cardShape,
         LocalScreenEdge provides rememberScreenEdge()
     ) {
@@ -484,9 +486,6 @@ fun LauncherContent(
                 onToggleSearch = onToggleSearch,
                 onRequestVoiceSearch = onRequestVoiceSearch,
                 onNextWallpaper = onNextWallpaper,
-                wallpaperInfo = currentWallpaper?.let { wp ->
-                    if (wp.isLocal) "Your photo • ${wp.title}" else "${wp.title} • r/TVWallpapersSFW"
-                },
                 kidsMode = kidsMode,
                 onOpenWifi = onOpenWifi,
                 onOpenSystemSettings = onOpenSystemSettings,
@@ -553,8 +552,7 @@ fun LauncherContent(
                     ) {
                         HomeClock(
                             weather = weather,
-                            onWeatherClick = { showCityDialog = true },
-                            onToggleUnit = onToggleUnit
+                            onWeatherClick = { showCityDialog = true }
                         )
                         nowPlaying?.let { np ->
                             Spacer(modifier = Modifier.height(10.dp))
@@ -593,9 +591,10 @@ fun LauncherContent(
                     )
                 }
 
-                // Bottom: the dock (favourites, then All Apps at the right end)
+                // Bottom: the dock (favourites, then a round All Apps button at the right end)
                 HomeDock(
-                    apps = favoriteApps + allAppsTile,
+                    apps = favoriteApps,
+                    allAppsTile = allAppsTile,
                     favorites = favorites,
                     focusedApp = focusedApp,
                     hint = when {
@@ -610,6 +609,21 @@ fun LauncherContent(
                     onAppLongClicked = onAppLongClicked
                 )
             }
+        }
+
+        // Wallpaper credit: small and quiet in the bottom-right corner
+        currentWallpaper?.let { wp ->
+            Text(
+                text = if (wp.isLocal) "Your photo · ${wp.title}" else "${wp.title} · r/TVWallpapersSFW",
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.55f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LocalScreenEdge.current, bottom = 12.dp)
+                    .widthIn(max = 320.dp)
+            )
         }
 
         if (showCityDialog) {

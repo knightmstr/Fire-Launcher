@@ -14,8 +14,8 @@ data class LauncherSettings(
     val showHiddenApps: Boolean = false,
     /** Where wallpapers come from. Local photos are the default (no network, no rotation fetches). */
     val wallpaperSource: WallpaperSource = WallpaperSource.MY_PHOTOS,
-    /** App card size; Small fits about 6 cards per row on a 1080p TV. */
-    val cardSize: CardSize = CardSize.SMALL,
+    /** App tile width in dp, set with the size slider ([TILE_WIDTH_RANGE]). */
+    val tileWidthDp: Int = DEFAULT_TILE_WIDTH,
     /** Corner style of app tiles. */
     val cardShape: CardShape = CardShape.ROUNDED,
     /** Show every app as a row on the home screen (off: use the All Apps tile instead). */
@@ -24,6 +24,20 @@ data class LauncherSettings(
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
         const val DEFAULT_SCREENSAVER_TIMEOUT = 10
+
+        /** Tile size slider: 90dp (tiny) to 170dp, in 10dp steps; 140dp is the old "Small". */
+        val TILE_WIDTH_RANGE = 90..170
+        const val TILE_WIDTH_STEP = 10
+        const val DEFAULT_TILE_WIDTH = 140
+
+        fun clampTileWidth(dp: Int): Int = dp.coerceIn(TILE_WIDTH_RANGE.first, TILE_WIDTH_RANGE.last)
+
+        /** Width saved by older versions as a size name (Small, Medium…), capped to the slider's range. */
+        fun tileWidthFromLegacySize(name: String?): Int = when (name?.uppercase()) {
+            null, "SMALL" -> DEFAULT_TILE_WIDTH
+            "EXTRA_SMALL" -> 115
+            else -> TILE_WIDTH_RANGE.last // Medium / Large / Extra large: the biggest the slider allows
+        }
 
         val WALLPAPER_INTERVAL_OPTIONS = listOf(15, 30, 60, 180, 0)
         val SCREENSAVER_TIMEOUT_OPTIONS = listOf(5, 10, 15, 30, 0)
@@ -39,21 +53,6 @@ data class LauncherSettings(
             minutes % 60 == 0 -> "${minutes / 60} hr"
             else -> "$minutes min"
         }
-    }
-}
-
-enum class CardSize(val title: String, val widthDp: Int) {
-    EXTRA_SMALL("Extra small", 115),
-    SMALL("Small", 140),
-    MEDIUM("Medium", 165),
-    LARGE("Large", 200),
-    EXTRA_LARGE("Extra large", 240);
-
-    fun next(): CardSize = entries[(ordinal + 1) % entries.size]
-
-    companion object {
-        fun fromName(name: String?): CardSize =
-            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: SMALL
     }
 }
 

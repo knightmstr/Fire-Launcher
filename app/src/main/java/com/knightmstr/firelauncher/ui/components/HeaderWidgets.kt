@@ -42,6 +42,7 @@ import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.theme.DarkSurface
 import com.knightmstr.firelauncher.ui.theme.DarkSurfaceVariant
 import com.knightmstr.firelauncher.ui.theme.FireAmber
+import com.knightmstr.firelauncher.ui.theme.FireOrange
 import com.knightmstr.firelauncher.ui.theme.TextPrimary
 import com.knightmstr.firelauncher.ui.theme.TextSecondary
 
@@ -63,7 +64,8 @@ fun QuickButtonsBar(
             Surface(
                 onClick = { onClick(app) },
                 onLongClick = { onLongClick(app) },
-                modifier = Modifier.size(44.dp),
+                // Same size and style as the round icon buttons next to it (TopIconButton)
+                modifier = Modifier.size(40.dp),
                 shape = ClickableSurfaceDefaults.shape(CircleShape),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
                 border = ClickableSurfaceDefaults.border(
@@ -71,16 +73,16 @@ fun QuickButtonsBar(
                     focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = CircleShape)
                 ),
                 glow = ClickableSurfaceDefaults.glow(
-                    focusedGlow = Glow(elevationColor = Color(app.accentColor).copy(alpha = 0.7f), elevation = 12.dp)
+                    focusedGlow = Glow(elevationColor = FireOrange.copy(alpha = 0.7f), elevation = 14.dp)
                 ),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = DarkSurface.copy(alpha = 0.85f),
                     focusedContainerColor = DarkSurfaceVariant
                 )
             ) {
-                Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                     if (bitmap != null) {
-                        Image(bitmap = bitmap, contentDescription = app.label, modifier = Modifier.size(28.dp))
+                        Image(bitmap = bitmap, contentDescription = app.label, modifier = Modifier.size(22.dp))
                     } else {
                         Text(app.label.take(1), color = TextPrimary, fontWeight = FontWeight.Bold)
                     }
