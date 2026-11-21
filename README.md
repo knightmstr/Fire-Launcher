@@ -26,38 +26,44 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - 16:9 rounded cards built on `androidx.tv.material3.Surface`.
    - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
    - Focus defaults to the first card on application launch.
-4. **Favorites Management via DataStore**:
-   - Long-press OK (D-pad center) on any card to toggle favorite status.
-   - Saved persistently in AndroidX Preferences DataStore.
-   - Favorited cards display a distinctive yellow dot in the upper corner.
-   - Dedicated "Favorites" row dynamically appears whenever non-empty.
-5. **System Shortcuts Row**:
-   - Instant 1-click access to TV system settings: **Wi-Fi**, **Display**, **Sound**, **Bluetooth**, and **All Settings**.
-6. **Dynamic r/TVWallpapersSFW Homepage Wallpapers & Vivid Glass Scrim**:
+4. **App Options Menu (hold OK, or press ☰ on the remote)**:
+   - **Favorites**: add/remove, and **Move left / Move right** to reorder the Favorites row (the menu stays open so you can nudge several places).
+   - **Rename** any app (e.g. "Prime Video" → "Prime"); restore the original name at any time. Search still matches the original name.
+   - **Hide** apps you never use from All Apps and Favorites. Turn on *Show hidden apps row* in Launcher Settings to see and unhide them.
+   - **Force Stop & App Info** opens the Fire OS app settings page.
+   - Favorited cards show a yellow dot; everything is saved in Preferences DataStore.
+5. **System Shortcuts Row & Launcher Settings**:
+   - 1-click access to **Wi-Fi**, **Display**, **Sound**, **Bluetooth** and **All Settings**.
+   - **Launcher Settings** tile: wallpaper rotation interval (15 min – 3 hr or never), screensaver timeout (5–30 min or off), °C/°F, and the hidden-apps row. Every option cycles with OK — no keyboard needed.
+6. **Idle Screensaver**:
+   - After the chosen idle time, shows a dimmed wallpaper slideshow with a large clock, date and temperature.
+   - The clock drifts to a new position every minute to avoid screen burn-in. Any remote button wakes it without triggering an action.
+   - The launcher no longer holds `FLAG_KEEP_SCREEN_ON`, so Fire OS's own sleep timer still works.
+7. **Dynamic r/TVWallpapersSFW Homepage Wallpapers & Vivid Glass Scrim**:
    - Fetches authentic 16:9 high-resolution landscape TV wallpapers directly from `r/TVWallpapersSFW`.
-   - Rotates automatically every **30 minutes** with smooth Coil image crossfading.
+   - Rotates automatically (every **30 minutes** by default, configurable in Launcher Settings) with smooth Coil image crossfading.
    - **Enhanced Wallpaper Visibility**: Replaced heavy opaque masks with an ultra-clear, translucent glass scrim (12%–52% gradient). Wallpapers are now bright, vivid, and cinematic across the entire screen while maintaining 100% text/card legibility with subtle drop shadows.
    - Includes a discreet top-right attribution chip showing the wallpaper title and source subreddit.
-   - Top bar "Next Wallpaper" button (or `W` key in simulator) allows manual instant cycling.
+   - Top bar "Next Wallpaper" button allows manual instant cycling.
    - Built-in curated 4K fallback wallpapers ensure seamless operation even offline or in network-restricted environments.
-7. **Library 'Sort By' Menu (A–Z, Most Recent, Most Frequent)**:
+8. **Library 'Sort By' Menu (A–Z, Most Recent, Most Frequent)**:
    - Dynamic sorting modal dialog accessible from the Top Bar ("Sort" button / `S` key) and directly on the "All Apps" row header (`Sorted by: ... ▾`).
    - Three distinct sort orders:
      - **Alphabetical (A–Z)**: Classic alphabetical ordering by application title.
      - **Most Recently Used (MRU)**: Orders apps by latest launch timestamp, showing friendly relative time badges (e.g. *"5m ago"*, *"2h ago"*).
      - **Most Frequently Used (MFU)**: Orders apps by total launch frequency, showing play count badges (e.g. *"24×"*).
    - Tracks app launches and saves sorting preferences persistently in Preferences DataStore (`KEY_APP_SORT_ORDER` and `KEY_APP_USAGE_STATS`).
-8. **Accurate Live Weather with Global City Search (Open-Meteo API)**:
+9. **Accurate Live Weather with Global City Search (Open-Meteo API)**:
    - Replaces mock weather with real-time meteorological forecasts powered by **Open-Meteo** (free, no API key required, WMO weather standards).
    - Shows live temperature, weather condition icon/summary, high/low, humidity %, and wind speed.
    - **Global City Search Modal**: Users can search for any city in the world using Open-Meteo Geocoding, view region/country, and add it with one click.
    - Custom cities are saved persistently in AndroidX Preferences DataStore.
-   - Quick toggle between **Fahrenheit (°F)** and **Celsius (°C)**.
-9. **Top Bar, Global App Search & Live Clock**:
+   - Quick toggle between **Fahrenheit (°F)** and **Celsius (°C)**; defaults to °C everywhere except the US.
+10. **Top Bar, Global App Search & Live Clock**:
    - Dedicated **Global Search** button with real-time app filtering by name and package identifier, expandable search bar, and empty search state.
    - Live clock honoring 12-hour / 24-hour system preferences, plus formatted date.
    - Hero header showing the currently focused app's title, category, and contextual action hint (*"Hold OK to add to favorites"* / *"Hold OK to remove from favorites"*).
-10. **TV Overscan & Remote Navigation Safeguards**:
+11. **TV Overscan & Remote Navigation Safeguards**:
     - 48dp horizontal margins for TV overscan-safe rendering on any HDMI display.
     - Hardware Back button is deliberately absorbed and ignored to prevent accidental launcher exit, but gracefully dismisses active search or modal dialogs first.
     - Pressing the Home key while the launcher is open delivers an intent to `singleTask`'s `onNewIntent`, automatically scrolling to the top and refocusing the primary card.
@@ -80,7 +86,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
 - **DataStore**: `androidx.datastore:datastore-preferences:1.1.1`
 - **Palette**: `androidx.palette:palette-ktx:1.0.0`
 - **Coil**: `io.coil-kt:coil-compose:2.7.0`
-- **Offline**: 100% offline, requires no network access and no API keys.
+- **Network**: needs internet for wallpapers (Reddit) and weather (Open-Meteo); no API keys. Works offline with built-in fallback wallpapers.
 
 ---
 
@@ -265,29 +271,38 @@ FireLauncher/
 │           ├── FireLauncherApp.kt     # Application class
 │           ├── MainActivity.kt        # SingleTask TV activity + Home & Back interceptors
 │           ├── data/
-│           │   ├── AppModel.kt            # App data entity with launch stats
-│           │   ├── AppRepository.kt       # Dual scanner (Leanback + Launcher) & Explicit launcher
+│           │   ├── AppModel.kt            # App entity (label, original label, hidden flag, launch stats)
+│           │   ├── AppRepository.kt       # Dual scanner (Leanback + Launcher), system shortcuts & explicit launcher
 │           │   ├── AppSortOrder.kt        # AppSortOrder enum (A-Z, Recent, Frequent) & AppUsageStat
-│           │   ├── FavoritesStore.kt      # Preferences DataStore store for favorites, sort order & usage stats
+│           │   ├── CleanTvManager.kt      # Debloat / restore ADB script generator
+│           │   ├── LauncherPrefsStore.kt  # DataStore: favorites order, hidden apps, labels, settings, weather, usage
+│           │   ├── LauncherSettings.kt    # Wallpaper interval, screensaver timeout, hidden-row toggle
+│           │   ├── PrefsCodec.kt          # Pure encode/decode & reorder helpers (unit tested)
 │           │   ├── PaletteHelper.kt       # Palette extractor with HSV saturation/brightness clamping
 │           │   ├── WallpaperModel.kt      # r/TVWallpapersSFW data entity
-│           │   ├── WallpaperRepository.kt # Subreddit fetcher, 30-min auto-rotation & curated fallbacks
+│           │   ├── WallpaperRepository.kt # Subreddit fetcher, configurable auto-rotation & curated fallbacks
 │           │   ├── WeatherData.kt         # Open-Meteo live weather & city location models
 │           │   └── WeatherRepository.kt   # Open-Meteo live forecast & global geocoding city search
 │           └── ui/
-│               ├── LauncherViewModel.kt   # MVVM StateFlow coordinator (apps, search, weather, wallpaper)
-│               ├── LauncherRoot.kt        # State collector, 48dp overscan padding, wallpaper & ambient vignette
+│               ├── LauncherViewModel.kt   # MVVM StateFlow coordinator (apps, favorites, dialogs, screensaver)
+│               ├── LauncherRoot.kt        # State collector, rows, dialogs & screensaver overlay
+│               ├── VoiceSearchHelper.kt   # Remote mic speech-recognition intent
 │               ├── components/
-│               │   ├── AppCard.kt         # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
-│               │   ├── AppContextMenuDialog.kt # Long-press context menu (Favorites, Force Stop/App Info, Launch)
-│   │   │   │   ├── AppRow.kt          # LazyRow with category header & Sort trigger
-│   │   │   │   ├── HeroSection.kt     # App title, category & hold-OK instructions
-│   │   │   │   └── TopBar.kt          # Live weather with city search modal, wallpaper cycle, clock & search
-│   │   │   └── theme/
-│   │   │       ├── Color.kt         # Color palette constants
-│   │   │       └── Theme.kt         # Material3 TV DarkColorScheme
-│   │   └── test/java/com/example/firelauncher/
-│   │       └── FireLauncherUnitTest.kt # JUnit 4 unit tests
+│               │   ├── AppCard.kt             # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
+│               │   ├── AppContextMenuDialog.kt # Options: favorite, reorder, rename, hide, app info
+│               │   ├── AppRow.kt              # LazyRow with category header & Sort trigger
+│               │   ├── HeroSection.kt         # Focused app title, category & hints
+│               │   ├── LauncherSettingsDialog.kt # In-launcher settings
+│               │   ├── RenameAppDialog.kt     # Custom app name entry
+│               │   ├── Screensaver.kt         # Idle clock + wallpaper slideshow
+│               │   ├── TopBar.kt              # Weather & city search, wallpaper cycle, sort, clock & search
+│               │   └── TvMenu.kt              # Shared dialog frame & D-pad menu row
+│               └── theme/
+│                   ├── Color.kt           # Color palette constants
+│                   └── Theme.kt           # Material3 TV DarkColorScheme
+├── app/src/test/java/com/example/firelauncher/
+│   ├── FireLauncherUnitTest.kt        # Sort order, weather formatting, debloat scripts
+│   └── PrefsCodecTest.kt              # Favorites reorder, label sanitising, settings cycling
 ├── .github/workflows/
 │   ├── android-ci.yml                 # Automated PR/push test, lint & APK build
 │   └── release.yml                    # Tag-triggered GitHub Release APK builder
@@ -335,11 +350,10 @@ FireLauncher adheres to OWASP Mobile Application Security Verification Standards
 4. **Remote URL Scheme & Host Validation**:
    - Remote wallpapers fetched from Reddit are strictly validated for `https://` protocol and restricted to verified CDN hosts (`i.redd.it`, `preview.redd.it`, `i.imgur.com`, `images.unsplash.com`).
 5. **Intent Hijacking Mitigation**:
-   - Internal system shortcuts are explicitly scoped to `context.packageName` (`intent.setPackage(context.packageName)`) and validated with `resolveActivity()` before launching.
+   - System shortcut intents are validated with `resolveActivity()` before launching, and the Launcher Settings tile is handled in-process rather than broadcast as an Intent.
+   - Custom app names are stripped of storage delimiters and capped at 40 characters.
 6. **Input Length Bounds**:
    - Weather and geocoding search queries are bounded to a maximum length of 64 characters to mitigate denial of service and URL overflow issues.
-7. **Web Simulator Hardening**:
-   - Configured with Content Security Policy (`CSP`), `strict-origin-when-cross-origin` referrer policy, and `rel="noopener noreferrer"` on external hyperlinks.
 
 ---
 

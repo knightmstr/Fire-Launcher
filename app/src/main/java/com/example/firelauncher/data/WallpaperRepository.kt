@@ -1,10 +1,11 @@
 package com.example.firelauncher.data
 
-import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -18,14 +19,14 @@ import java.net.URL
 
 /**
  * Manages fetching wallpapers from r/TVWallpapersSFW and automatically
- * cycling through them every 30 minutes.
+ * cycling through them on a user-configurable interval.
  */
 class WallpaperRepository(
-    private val context: Context,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /** Minutes between automatic changes; 0 disables rotation. */
+    private val rotationIntervalMinutes: Flow<Int>
 ) {
     companion object {
-        const val ROTATION_INTERVAL_MS = 30 * 60 * 1000L // 30 minutes
 
         val FALLBACK_WALLPAPERS = listOf(
             WallpaperModel(
@@ -93,11 +94,14 @@ class WallpaperRepository(
             fetchRedditWallpapers()
         }
 
-        // Start 30-minute auto-rotation timer
+        // Auto-rotation timer; restarts whenever the interval setting changes
         scope.launch {
-            while (isActive) {
-                delay(ROTATION_INTERVAL_MS)
-                nextWallpaper()
+            rotationIntervalMinutes.collectLatest { minutes ->
+                if (minutes <= 0) return@collectLatest
+                while (isActive) {
+                    delay(minutes * 60_000L)
+                    nextWallpaper()
+                }
             }
         }
     }
