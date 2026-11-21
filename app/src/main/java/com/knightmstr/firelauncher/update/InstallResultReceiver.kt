@@ -8,6 +8,7 @@ import android.os.Build
 import com.knightmstr.firelauncher.FireLauncherApp
 import com.knightmstr.firelauncher.MainActivity
 import com.knightmstr.firelauncher.home.HomeWatch
+import com.knightmstr.firelauncher.screensaver.ScreensaverTakeover
 
 /** Receives PackageInstaller results, and relaunches FireLauncher after it updates itself. */
 class InstallResultReceiver : BroadcastReceiver() {
@@ -45,6 +46,7 @@ class PackageReplacedReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         // Android can drop accessibility services on update: put the Home button watcher back
         runCatching { HomeWatch.ensure(context) }
+        runCatching { ScreensaverTakeover.ensure(context) }
         // Best effort: newer Android versions may block background launches; the user can still open it.
         runCatching {
             context.startActivity(

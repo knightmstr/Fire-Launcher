@@ -56,7 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.knightmstr.firelauncher.ui.components.CitySelectionDialog
 import com.knightmstr.firelauncher.ui.components.HomeDock
 import com.knightmstr.firelauncher.ui.components.HomeClock
-import com.knightmstr.firelauncher.ui.components.HomeWatchHelpDialog
+import com.knightmstr.firelauncher.ui.components.GrantSetupDialog
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
 import com.knightmstr.firelauncher.ui.components.LocalCardShape
 import com.knightmstr.firelauncher.ui.components.LocalCardWidth
@@ -131,11 +131,14 @@ fun LauncherRoot(
     val isUpdateDialogOpen by viewModel.isUpdateDialogOpen.collectAsStateWithLifecycle()
     val isAllAppsOpen by viewModel.isAllAppsOpen.collectAsStateWithLifecycle()
     val homeWatchStatus by viewModel.homeWatchStatus.collectAsStateWithLifecycle()
-    val showHomeWatchHelp by viewModel.showHomeWatchHelp.collectAsStateWithLifecycle()
+    val grantSetupFor by viewModel.grantSetupFor.collectAsStateWithLifecycle()
+    val screensaverTakeover by viewModel.screensaverTakeover.collectAsStateWithLifecycle()
+    val keepAwake by viewModel.keepAwake.collectAsStateWithLifecycle()
+    val needsRestart by viewModel.needsRestart.collectAsStateWithLifecycle()
 
     // Pause the screensaver timer while any dialog has the keys
     val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen ||
-        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen || showHomeWatchHelp
+        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen || grantSetupFor != null
     LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
 
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
@@ -242,7 +245,10 @@ fun LauncherRoot(
                     is UpdateState.Failed -> "Last check failed"
                     else -> "Check GitHub for a new version"
                 },
-                homeWatch = homeWatchStatus
+                homeWatch = homeWatchStatus,
+                screensaverTakeover = screensaverTakeover,
+                keepAwake = keepAwake,
+                needsRestart = needsRestart
             ),
             onUpdate = viewModel::updateSettings,
             onToggleUnit = viewModel::toggleTemperatureUnit,
@@ -252,6 +258,8 @@ fun LauncherRoot(
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
             onOpenUpdates = viewModel::openUpdateDialog,
             onHomeWatch = viewModel::onHomeWatchPressed,
+            onScreensaverTakeover = viewModel::onScreensaverTakeoverPressed,
+            onKeepAwake = viewModel::onKeepAwakePressed,
             onDismiss = viewModel::closeSettings
         )
     }
@@ -275,10 +283,11 @@ fun LauncherRoot(
         }
     }
 
-    if (showHomeWatchHelp) {
-        HomeWatchHelpDialog(
-            onEnable = viewModel::enableHomeWatch,
-            onDismiss = viewModel::closeHomeWatchHelp
+    grantSetupFor?.let { feature ->
+        GrantSetupDialog(
+            title = feature.title,
+            onEnable = viewModel::enableGrantedFeature,
+            onDismiss = viewModel::closeGrantSetup
         )
     }
 

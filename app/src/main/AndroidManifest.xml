@@ -96,6 +96,18 @@
             </intent-filter>
         </receiver>
 
+        <!-- FireLauncher's screensaver as a system screensaver (ScreensaverTakeover makes it Fire TV's) -->
+        <service
+            android:name=".screensaver.FireDream"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
         <!-- Home button watcher: brings FireLauncher back when Home opens Amazon's home -->
         <service
             android:name=".home.HomeWatchService"

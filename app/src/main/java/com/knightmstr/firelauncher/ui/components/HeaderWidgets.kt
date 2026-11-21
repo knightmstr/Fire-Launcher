@@ -1,6 +1,9 @@
 package com.knightmstr.firelauncher.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -92,7 +95,11 @@ fun QuickButtonsBar(
     }
 }
 
-/** Compact "now playing" chip with previous / play-pause / next controls. */
+/**
+ * Small "now playing" window: the playing app's icon and name, then what's playing, then
+ * previous / play-pause / next. Selecting the left part opens the app.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun NowPlayingCard(
     nowPlaying: NowPlaying,
@@ -102,37 +109,82 @@ fun NowPlayingCard(
     onOpenApp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val appIcon = remember(nowPlaying.packageName) {
+        runCatching {
+            context.packageManager.getApplicationIcon(nowPlaying.packageName).toBitmap(96, 96).asImageBitmap()
+        }.getOrNull()
+    }
+    val windowShape = RoundedCornerShape(18.dp)
+    val infoShape = RoundedCornerShape(12.dp)
+
     Row(
         modifier = modifier
-            .background(Color(0xAA141824), RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .background(Color(0x66090C14), windowShape)
+            .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(Icons.Rounded.MusicNote, contentDescription = null, tint = FireAmber, modifier = Modifier.size(16.dp))
-        Column(modifier = Modifier.width(170.dp).padding(horizontal = 4.dp)) {
-            Text(
-                text = nowPlaying.title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+        // App icon, app name and what's playing; OK opens the app
+        Surface(
+            onClick = onOpenApp,
+            shape = ClickableSurfaceDefaults.shape(infoShape),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(BorderStroke(1.5.dp, Color.White.copy(alpha = 0.8f)), shape = infoShape)
+            ),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.Transparent,
+                focusedContainerColor = Color.White.copy(alpha = 0.12f)
             )
-            Text(
-                text = listOfNotNull(nowPlaying.subtitle, nowPlaying.appLabel).joinToString(" • "),
-                fontSize = 10.sp,
-                color = TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                if (appIcon != null) {
+                    Image(
+                        bitmap = appIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(38.dp).clip(RoundedCornerShape(9.dp))
+                    )
+                } else {
+                    Icon(Icons.Rounded.MusicNote, contentDescription = null, tint = FireAmber, modifier = Modifier.size(28.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.width(210.dp)) {
+                    Text(
+                        text = nowPlaying.appLabel + if (nowPlaying.isPlaying) "  ·  Playing" else "  ·  Paused",
+                        fontSize = 10.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = nowPlaying.title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!nowPlaying.subtitle.isNullOrBlank()) {
+                        Text(
+                            text = nowPlaying.subtitle,
+                            fontSize = 11.sp,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
         }
         MediaButton(Icons.Rounded.SkipPrevious, "Previous", onPrevious)
         MediaButton(
             if (nowPlaying.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
             if (nowPlaying.isPlaying) "Pause" else "Play",
-            onPlayPause,
-            onLongClick = onOpenApp
+            onPlayPause
         )
         MediaButton(Icons.Rounded.SkipNext, "Next", onNext)
     }
@@ -143,12 +195,10 @@ fun NowPlayingCard(
 private fun MediaButton(
     icon: ImageVector,
     description: String,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onClick: () -> Unit
 ) {
     Surface(
         onClick = onClick,
-        onLongClick = onLongClick,
         modifier = Modifier.size(34.dp),
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
