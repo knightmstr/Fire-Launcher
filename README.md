@@ -27,9 +27,9 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
    - Focus defaults to the first card on application launch.
 4. **Clean Home Screen & All Apps Grid**:
-   - Home shows an **All Apps** tile followed by your Favorites, so everything fits on one screen.
+   - Home shows your Favorites with an **All Apps** tile always at the right end, so everything fits on one screen.
    - The tile opens a full-screen grid of every app that wraps to the screen width (Back closes it, Sort button cycles the order). Prefer the old row? *Launcher Settings → Show All Apps row on home*.
-   - **App card size** (Small / Medium / Large) in Launcher Settings; Small is the default.
+   - **App tile size** (Extra small → Extra large, Small by default) and **App tile shape** (Rounded, Square, Extra rounded, Pill) in Launcher Settings.
 4b. **App Options Menu (hold OK, or press ☰ on the remote)**:
    - **Favorites**: add/remove, and **Move left / Move right** to reorder the Favorites row (the menu stays open so you can nudge several places).
    - **Rename** any app (e.g. "Prime Video" → "Prime"); restore the original name at any time. Search still matches the original name.
@@ -40,11 +40,11 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - **Force Stop & App Info** opens the Fire OS app settings page.
    - Favorited cards show a yellow dot; everything is saved in Preferences DataStore.
 5. **Top-Bar Buttons & Launcher Settings**:
-   - Icon-only buttons at the top right, before the clock: next wallpaper, search, **Wi-Fi**, **Fire TV settings** and **Launcher Settings** (Wi-Fi and Fire TV settings are hidden in Kids mode).
+   - Icon-only buttons at the top right, before the clock: next wallpaper, search, **Wi-Fi** and one **Settings** gear that asks *Launcher settings* or *Fire TV settings*. In Kids mode Wi-Fi is hidden and the gear asks for the PIN.
    - The current wallpaper (your photo, or its r/TVWallpapersSFW title) is shown under the FireLauncher name, top left.
    - **Launcher Settings**: wallpaper rotation interval (15 min – 3 hr or never), screensaver timeout (5–30 min or off), °C/°F, and the hidden-apps row. Every option cycles with OK — no keyboard needed.
 6. **Kids Mode**:
-   - Turn on in Launcher Settings once you've allowed some apps. Only those apps appear; hidden apps, the Wi-Fi / Fire TV settings buttons and the options menu are locked away; the Launcher Settings button asks for the PIN.
+   - Turn on in Launcher Settings once you've allowed some apps. Only those apps appear; hidden apps, the Wi-Fi button, Fire TV settings and the options menu are locked away; the Settings gear asks for the PIN.
    - Leaving Kids mode needs a 4-digit PIN entered on an on-screen keypad (salted SHA-256, never stored in plain text; 30 s lockout after 5 wrong tries).
    - This locks the launcher only. For device-wide limits also use Fire OS **Settings → Preferences → Parental Controls**.
 7. **Your Own Photos as Wallpapers (default)**:

@@ -58,6 +58,7 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_SHOW_HIDDEN = booleanPreferencesKey("settings_show_hidden_apps")
         private val KEY_WALLPAPER_SOURCE = stringPreferencesKey("settings_wallpaper_source")
         private val KEY_CARD_SIZE = stringPreferencesKey("settings_card_size")
+        private val KEY_CARD_SHAPE = stringPreferencesKey("settings_card_shape")
         private val KEY_SHOW_ALL_APPS_ROW = booleanPreferencesKey("settings_show_all_apps_row")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
@@ -147,6 +148,7 @@ class LauncherPrefsStore(private val context: Context) {
             showHiddenApps = p[KEY_SHOW_HIDDEN] ?: false,
             wallpaperSource = WallpaperSource.fromName(p[KEY_WALLPAPER_SOURCE]),
             cardSize = CardSize.fromName(p[KEY_CARD_SIZE]),
+            cardShape = CardShape.fromName(p[KEY_CARD_SHAPE]),
             showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false
         )
     }
@@ -158,6 +160,7 @@ class LauncherPrefsStore(private val context: Context) {
             p[KEY_SHOW_HIDDEN] = settings.showHiddenApps
             p[KEY_WALLPAPER_SOURCE] = settings.wallpaperSource.name
             p[KEY_CARD_SIZE] = settings.cardSize.name
+            p[KEY_CARD_SHAPE] = settings.cardShape.name
             p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
         }
     }

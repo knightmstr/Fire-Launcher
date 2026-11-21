@@ -58,6 +58,7 @@ import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AllAppsScreen
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
+import com.knightmstr.firelauncher.ui.components.LocalCardShape
 import com.knightmstr.firelauncher.ui.components.LocalCardWidth
 import com.knightmstr.firelauncher.ui.components.LocalScreenEdge
 import com.knightmstr.firelauncher.ui.components.rememberScreenEdge
@@ -142,6 +143,7 @@ fun LauncherRoot(
 
     CompositionLocalProvider(
         LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalCardShape provides settings.cardShape,
         LocalScreenEdge provides rememberScreenEdge()
     ) {
         LauncherContent(
@@ -255,6 +257,7 @@ fun LauncherRoot(
     if (isAllAppsOpen) {
         CompositionLocalProvider(
         LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalCardShape provides settings.cardShape,
         LocalScreenEdge provides rememberScreenEdge()
     ) {
             AllAppsScreen(
@@ -593,12 +596,13 @@ fun LauncherContent(
                     }
                 } else {
                     // Standard Home Launcher Rows
-                    // Row 1: "All Apps" tile followed by favourites (always shown)
+                    // Row 1: favourites, then the "All Apps" tile at the end (always shown)
                     item(key = "row_favorites") {
                         AppRow(
                             title = if (favoriteApps.isEmpty()) "Home (open All Apps, hold OK on an app → Add to Favorites)"
                             else "Favorites",
-                            apps = listOf(allAppsTile) + favoriteApps,
+                            // All Apps always sits at the right end of the favourites
+                            apps = favoriteApps + allAppsTile,
                             favorites = favorites,
                             firstItemFocusRequester = firstItemFocusRequester,
                             onAppFocused = onAppFocused,
