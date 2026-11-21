@@ -9,8 +9,8 @@
 
 set -e
 
-PACKAGE_NAME="com.example.firelauncher"
-MAIN_ACTIVITY="com.example.firelauncher/.MainActivity"
+PACKAGE_NAME="com.knightmstr.firelauncher"
+MAIN_ACTIVITY="com.knightmstr.firelauncher/.MainActivity"
 
 echo "=========================================================="
 echo "    🔥 FireLauncher Cache & Memory Wipe Utility 🔥        "

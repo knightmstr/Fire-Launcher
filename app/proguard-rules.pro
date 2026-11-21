@@ -1,5 +1,5 @@
 # ProGuard / R8 rules for FireLauncher
--keep class com.example.firelauncher.** { *; }
+-keep class com.knightmstr.firelauncher.** { *; }
 -dontwarn androidx.tv.**
 -dontwarn kotlinx.coroutines.**
 
