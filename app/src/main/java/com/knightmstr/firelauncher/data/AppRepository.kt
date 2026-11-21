@@ -8,6 +8,7 @@ import android.content.pm.ResolveInfo
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.provider.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -20,6 +21,14 @@ class AppRepository(private val context: Context) {
     companion object {
         /** Key of the home-screen tile that opens the All Apps grid; handled by the ViewModel. */
         const val ALL_APPS_KEY = "system.all_apps"
+
+        // Fire OS's own settings screens, opened by name. The standard Settings action goes through
+        // Amazon's home screen first on Fire OS, so you'd see Amazon's home instead of just Settings.
+        // Approach from couch-tv (github.com/Seagey/couch-tv, MIT).
+        private val FIRE_SETTINGS =
+            ComponentName("com.amazon.tv.launcher", "com.amazon.tv.launcher.ui.MainSettingsActivity")
+        private val FIRE_NETWORK =
+            ComponentName("com.amazon.tv.settings.v2", "com.amazon.tv.settings.v2.tv.network.NetworkActivity")
     }
 
     private val packageManager: PackageManager = context.packageManager
@@ -122,14 +131,26 @@ class AppRepository(private val context: Context) {
         systemIntentAction = ALL_APPS_KEY
     )
 
+    /** Fire TV Settings main menu on its own (not Amazon's home), else Android's Settings. */
+    fun openFireTvSettings(): Boolean =
+        openFirstAvailable(Intent().setComponent(FIRE_SETTINGS), Intent(Settings.ACTION_SETTINGS))
+
+    /** Fire TV Network (Wi-Fi) screen, else Android's Wi-Fi settings. */
+    fun openNetworkSettings(): Boolean =
+        openFirstAvailable(Intent().setComponent(FIRE_NETWORK), Intent(Settings.ACTION_WIFI_SETTINGS))
+
     /**
-     * Opens a Fire OS settings screen (e.g. Settings.ACTION_WIFI_SETTINGS).
-     * Returns false if this Fire OS build doesn't have that screen.
+     * Starts the first intent this TV can open. Screens named by component must be exported (public).
+     * CLEAR_TASK makes Settings open on the requested page, not whichever page was left open last.
      */
-    fun openSettingsScreen(action: String): Boolean {
-        val intent = Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (intent.resolveActivity(packageManager) == null) return false
-        return runCatching { context.startActivity(intent) }.isSuccess
+    private fun openFirstAvailable(vararg candidates: Intent): Boolean {
+        for (candidate in candidates) {
+            val info = packageManager.resolveActivity(candidate, 0)?.activityInfo ?: continue
+            if (candidate.component != null && !info.exported) continue
+            val intent = Intent(candidate).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            if (runCatching { context.startActivity(intent) }.isSuccess) return true
+        }
+        return false
     }
 
     /**

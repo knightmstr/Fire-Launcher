@@ -176,11 +176,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ------------------------------------------------------------------ Top-bar buttons
 
-    /** Wi-Fi button. Returns false if Fire OS has no Wi-Fi settings screen. */
-    fun openWifiSettings(): Boolean = repository.openSettingsScreen(Settings.ACTION_WIFI_SETTINGS)
+    /** Wi-Fi button: Fire OS's Network screen. */
+    fun openWifiSettings(): Boolean = repository.openNetworkSettings()
 
-    /** Fire TV settings button. */
-    fun openSystemSettings(): Boolean = repository.openSettingsScreen(Settings.ACTION_SETTINGS)
+    /** Fire TV settings button: Fire OS's Settings menu on its own, not via Amazon's home. */
+    fun openSystemSettings(): Boolean = repository.openFireTvSettings()
 
     /** Launcher Settings button; in Kids mode it asks for the PIN to leave Kids mode instead. */
     fun onLauncherSettingsPressed() {

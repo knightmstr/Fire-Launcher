@@ -32,6 +32,9 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Fire OS settings screens opened directly by name (see AppRepository.openFireTvSettings) -->
+        <package android:name="com.amazon.tv.launcher" />
+        <package android:name="com.amazon.tv.settings.v2" />
     </queries>
 
     <application
