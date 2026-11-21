@@ -10,14 +10,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.rounded.Thermostat
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -54,8 +59,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -590,10 +593,9 @@ fun WeatherWidget(
 }
 
 /**
- * TV dialog modal allowing user to search and add ANY city globally via Open-Meteo
- * or pick from saved locations, with D-pad navigation.
+ * Weather location picker: search any city (Open-Meteo geocoding) or pick a saved one.
+ * Built on [TvDialogFrame] / [TvMenuItem] so every row is reachable with the D-pad.
  */
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun CitySelectionDialog(
     currentCity: String,
@@ -608,285 +610,100 @@ fun CitySelectionDialog(
     onDismiss: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var fieldFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val firstCity = rememberInitialFocus()
+    val searching = searchQuery.trim().length >= 2
+    val displayList = if (searching) searchResults else savedCities
+    val fieldShape = RoundedCornerShape(12.dp)
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    TvDialogFrame(
+        title = "Weather location",
+        subtitle = "Search any city, or pick a saved one",
+        accentColor = FireOrange,
+        onDismiss = onDismiss,
+        width = 520.dp
     ) {
-        Box(
+        // Search box: press OK to type with the on-screen keyboard, then Down to the results
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xCC080B11))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .background(DarkSurfaceVariant, fieldShape)
+                .border(
+                    BorderStroke(if (fieldFocused) 2.dp else 1.dp, if (fieldFocused) Color.White else FireOrange.copy(alpha = 0.5f)),
+                    fieldShape
+                )
+                .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            Surface(
-                onClick = {},
-                modifier = Modifier
-                    .width(480.dp)
-                    .clickable(enabled = false) {},
-                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(24.dp)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xFF121622)
-            ),
-                border = ClickableSurfaceDefaults.border(
-                    border = Border(
-                        border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.6f)),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                )
-            ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                // Header with title and °F / °C unit toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Live Weather Location",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Powered by Open-Meteo • Search any city globally",
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // °F / °C toggle
-                        Surface(
-                            onClick = onToggleUnit,
-                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = DarkSurfaceVariant
-                            ),
-                            border = ClickableSurfaceDefaults.border(
-                                focusedBorder = Border(
-                                    border = BorderStroke(1.5.dp, Color.White),
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                            ),
-                            modifier = Modifier.padding(end = 12.dp)
-                        ) {
-                            Text(
-                                text = if (isCelsius) "Unit: °C" else "Unit: °F",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = FireAmber,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-
-                        Text(
-                            text = "Close",
-                            fontSize = 12.sp,
-                            color = TextSecondary,
-                            modifier = Modifier.clickable { onDismiss() }
-                        )
-                    }
+            Icon(Icons.Rounded.Search, contentDescription = null, tint = FireOrange, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                if (searchQuery.isEmpty()) {
+                    Text("Search a city (e.g. Darwin, Tokyo)…", color = TextSecondary, fontSize = 13.sp)
                 }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // City Search Input Field
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = {
+                        searchQuery = it
+                        if (it.isBlank()) onClearSearch() else onSearch(it)
+                    },
+                    singleLine = true,
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                    cursorBrush = SolidColor(FireOrange),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.moveFocus(FocusDirection.Down) }),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(DarkSurfaceVariant)
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = "Search",
-                        tint = FireOrange,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        if (searchQuery.isEmpty()) {
-                            Text(
-                                text = "Type city name (e.g. Tokyo, London, Austin)...",
-                                color = TextSecondary,
-                                fontSize = 13.sp
-                            )
-                        }
-                        BasicTextField(
-                            value = searchQuery,
-                            onValueChange = {
-                                searchQuery = it
-                                onSearch(it)
-                            },
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            ),
-                            cursorBrush = SolidColor(FireOrange),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    if (searchQuery.isNotEmpty()) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Clear",
-                            tint = TextSecondary,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clickable {
-                                    searchQuery = ""
-                                    onClearSearch()
-                                }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // List header
-                Text(
-                    text = if (searchQuery.trim().length >= 2) "Search Results (Click to add & set)" else "Saved Locations",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = FireAmber,
-                    modifier = Modifier.padding(bottom = 6.dp)
+                        .onFocusChanged { fieldFocused = it.isFocused }
                 )
-
-                // Results or Saved Cities list
-                val displayList = if (searchQuery.trim().length >= 2) searchResults else savedCities
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                ) {
-                    if (isSearching) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Searching Open-Meteo cities...",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                    } else if (displayList.isEmpty() && searchQuery.trim().length >= 2) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "No cities found matching \"$searchQuery\"",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                    } else {
-                        items(displayList) { cityItem ->
-                            val isSelected = cityItem.name.equals(currentCity, ignoreCase = true)
-
-                            Surface(
-                                onClick = { onCitySelected(cityItem) },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) FireOrange.copy(alpha = 0.2f) else DarkSurface.copy(alpha = 0.4f),
-                                    focusedContainerColor = DarkSurfaceVariant
-                                ),
-                                border = ClickableSurfaceDefaults.border(
-                                    focusedBorder = Border(
-                                        border = BorderStroke(1.5.dp, Color.White),
-                                        shape = RoundedCornerShape(10.dp)
-                                    )
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Public,
-                                            contentDescription = "City",
-                                            tint = if (isSelected) FireAmber else TextSecondary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = cityItem.name,
-                                                fontSize = 14.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isSelected) FireAmber else TextPrimary
-                                            )
-                                            val sub = if (!cityItem.admin1.isNullOrBlank()) {
-                                                "${cityItem.admin1}, ${cityItem.country}"
-                                            } else cityItem.country
-                                            Text(
-                                                text = sub,
-                                                fontSize = 10.sp,
-                                                color = TextSecondary
-                                            )
-                                        }
-                                    }
-
-                                    if (isSelected) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Check,
-                                                contentDescription = "Selected",
-                                                tint = FireAmber,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "ACTIVE",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = FireAmber
-                                            )
-                                        }
-                                    } else {
-                                        Text(
-                                            text = "Select",
-                                            fontSize = 11.sp,
-                                            color = TextSecondary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
-    }
+
+        if (searchQuery.isNotEmpty()) {
+            TvMenuItem(
+                title = "Clear search",
+                icon = Icons.Rounded.Close,
+                iconTint = TextSecondary,
+                onClick = {
+                    searchQuery = ""
+                    onClearSearch()
+                }
+            )
+        }
+
+        Text(
+            text = if (searching) "Search results" else "Saved locations",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = FireAmber
+        )
+
+        when {
+            searching && isSearching -> Text("Searching…", fontSize = 12.sp, color = TextSecondary)
+            searching && displayList.isEmpty() ->
+                Text("No cities found for \"$searchQuery\"", fontSize = 12.sp, color = TextSecondary)
+            else -> displayList.forEachIndexed { index, city ->
+                val isSelected = city.name.equals(currentCity, ignoreCase = true)
+                TvMenuItem(
+                    title = city.name,
+                    subtitle = if (!city.admin1.isNullOrBlank()) "${city.admin1}, ${city.country}" else city.country,
+                    icon = if (isSelected) Icons.Rounded.Check else Icons.Rounded.Public,
+                    iconTint = if (isSelected) FireAmber else TextSecondary,
+                    trailing = if (isSelected) "Active" else null,
+                    modifier = if (index == 0 && !searching) Modifier.focusRequester(firstCity) else Modifier,
+                    onClick = { onCitySelected(city) }
+                )
+            }
+        }
+
+        TvMenuItem(
+            title = "Temperature unit",
+            icon = Icons.Rounded.Thermostat,
+            iconTint = FireOrange,
+            trailing = if (isCelsius) "°C" else "°F",
+            onClick = onToggleUnit
+        )
     }
 }
 
@@ -954,216 +771,32 @@ fun SortTriggerButton(
     }
 }
 
-/**
- * TV Leanback modal dialog allowing users to choose between:
- * 1. Alphabetical (A–Z)
- * 2. Most Recently Used
- * 3. Most Frequently Used
- */
-@OptIn(ExperimentalTvMaterial3Api::class)
+/** Sort order picker for the app library (A–Z, Recent, Frequent, My Order). */
 @Composable
 fun SortSelectionDialog(
     currentSort: AppSortOrder,
     onSelectSort: (AppSortOrder) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val options = listOf(
-        Triple(
-            AppSortOrder.ALPHABETICAL,
-            "Alphabetical (A–Z)",
-            "Standard alphabetical order by application name"
-        ),
-        Triple(
-            AppSortOrder.MOST_RECENT,
-            "Most Recently Used",
-            "Applications you opened most recently appear first"
-        ),
-        Triple(
-            AppSortOrder.MOST_FREQUENT,
-            "Most Frequently Used",
-            "Applications you launch most often appear first"
-        ),
-        Triple(
-            AppSortOrder.CUSTOM,
-            AppSortOrder.CUSTOM.title,
-            AppSortOrder.CUSTOM.subtitle
-        )
-    )
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    val firstItem = rememberInitialFocus()
+    TvDialogFrame(
+        title = "Sort apps by",
+        subtitle = null,
+        accentColor = FireAmber,
+        onDismiss = onDismiss
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xCC080B11))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center
-        ) {
-        Surface(
-            onClick = {},
-            modifier = Modifier
-                .width(480.dp)
-                .clickable(enabled = false) {},
-            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
-            border = ClickableSurfaceDefaults.border(
-                Border(
-                    border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(20.dp)
-                )
-            ),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xF0131722)
+        AppSortOrder.entries.forEachIndexed { index, order ->
+            val selected = order == currentSort
+            TvMenuItem(
+                title = order.title,
+                subtitle = order.subtitle,
+                icon = if (selected) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Sort,
+                iconTint = if (selected) FireAmber else TextSecondary,
+                trailing = if (selected) "Current" else null,
+                modifier = if (index == 0) Modifier.focusRequester(firstItem) else Modifier,
+                onClick = { onSelectSort(order) }
             )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(FireOrange.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Sort,
-                                contentDescription = null,
-                                tint = FireOrange,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "Sort App Library",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Select order for All Apps row",
-                                fontSize = 12.sp,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-
-                    Surface(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(32.dp),
-                        shape = ClickableSurfaceDefaults.shape(CircleShape),
-                        border = ClickableSurfaceDefaults.border(
-                            focusedBorder = Border(
-                                border = BorderStroke(1.5.dp, Color.White),
-                                shape = CircleShape
-                            )
-                        ),
-                        colors = ClickableSurfaceDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.08f),
-                            focusedContainerColor = Color.White.copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Options List
-                options.forEach { (order, label, desc) ->
-                    val isSelected = order == currentSort
-                    Surface(
-                        onClick = { onSelectSort(order) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 5.dp),
-                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
-                        border = ClickableSurfaceDefaults.border(
-                            border = Border(
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isSelected) FireAmber.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.08f)
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ),
-                            focusedBorder = Border(
-                                border = BorderStroke(2.dp, Color.White),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        ),
-                        glow = ClickableSurfaceDefaults.glow(
-                            focusedGlow = Glow(
-                                elevationColor = FireOrange.copy(alpha = 0.5f),
-                                elevation = 10.dp
-                            )
-                        ),
-                        colors = ClickableSurfaceDefaults.colors(
-                            containerColor = if (isSelected) FireAmber.copy(alpha = 0.12f) else DarkSurface,
-                            focusedContainerColor = DarkSurfaceVariant
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = label,
-                                    fontSize = 15.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = if (isSelected) FireAmber else TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = desc,
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(FireAmber),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Check,
-                                        contentDescription = "Selected",
-                                        tint = Color.Black,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
-    }
     }
 }
 
