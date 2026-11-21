@@ -51,10 +51,12 @@ import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AllAppsScreen
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextOverflow
 import com.knightmstr.firelauncher.ui.components.CitySelectionDialog
 import com.knightmstr.firelauncher.ui.components.HomeDock
 import com.knightmstr.firelauncher.ui.components.HomeClock
-import com.knightmstr.firelauncher.ui.components.HomeWatchHelpDialog
+import com.knightmstr.firelauncher.ui.components.GrantSetupDialog
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
 import com.knightmstr.firelauncher.ui.components.LocalCardShape
 import com.knightmstr.firelauncher.ui.components.LocalCardWidth
@@ -129,18 +131,21 @@ fun LauncherRoot(
     val isUpdateDialogOpen by viewModel.isUpdateDialogOpen.collectAsStateWithLifecycle()
     val isAllAppsOpen by viewModel.isAllAppsOpen.collectAsStateWithLifecycle()
     val homeWatchStatus by viewModel.homeWatchStatus.collectAsStateWithLifecycle()
-    val showHomeWatchHelp by viewModel.showHomeWatchHelp.collectAsStateWithLifecycle()
+    val grantSetupFor by viewModel.grantSetupFor.collectAsStateWithLifecycle()
+    val screensaverTakeover by viewModel.screensaverTakeover.collectAsStateWithLifecycle()
+    val keepAwake by viewModel.keepAwake.collectAsStateWithLifecycle()
+    val needsRestart by viewModel.needsRestart.collectAsStateWithLifecycle()
 
     // Pause the screensaver timer while any dialog has the keys
     val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen ||
-        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen || showHomeWatchHelp
+        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen || grantSetupFor != null
     LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
 
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
     BackHandler(enabled = isSearchActive) { viewModel.setSearchActive(false) }
 
     CompositionLocalProvider(
-        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalCardWidth provides settings.tileWidthDp.dp,
         LocalCardShape provides settings.cardShape,
         LocalScreenEdge provides rememberScreenEdge()
     ) {
@@ -240,7 +245,10 @@ fun LauncherRoot(
                     is UpdateState.Failed -> "Last check failed"
                     else -> "Check GitHub for a new version"
                 },
-                homeWatch = homeWatchStatus
+                homeWatch = homeWatchStatus,
+                screensaverTakeover = screensaverTakeover,
+                keepAwake = keepAwake,
+                needsRestart = needsRestart
             ),
             onUpdate = viewModel::updateSettings,
             onToggleUnit = viewModel::toggleTemperatureUnit,
@@ -250,13 +258,15 @@ fun LauncherRoot(
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
             onOpenUpdates = viewModel::openUpdateDialog,
             onHomeWatch = viewModel::onHomeWatchPressed,
+            onScreensaverTakeover = viewModel::onScreensaverTakeoverPressed,
+            onKeepAwake = viewModel::onKeepAwakePressed,
             onDismiss = viewModel::closeSettings
         )
     }
 
     if (isAllAppsOpen) {
         CompositionLocalProvider(
-        LocalCardWidth provides settings.cardSize.widthDp.dp,
+        LocalCardWidth provides settings.tileWidthDp.dp,
         LocalCardShape provides settings.cardShape,
         LocalScreenEdge provides rememberScreenEdge()
     ) {
@@ -273,10 +283,11 @@ fun LauncherRoot(
         }
     }
 
-    if (showHomeWatchHelp) {
-        HomeWatchHelpDialog(
-            onEnable = viewModel::enableHomeWatch,
-            onDismiss = viewModel::closeHomeWatchHelp
+    grantSetupFor?.let { feature ->
+        GrantSetupDialog(
+            title = feature.title,
+            onEnable = viewModel::enableGrantedFeature,
+            onDismiss = viewModel::closeGrantSetup
         )
     }
 
@@ -484,9 +495,6 @@ fun LauncherContent(
                 onToggleSearch = onToggleSearch,
                 onRequestVoiceSearch = onRequestVoiceSearch,
                 onNextWallpaper = onNextWallpaper,
-                wallpaperInfo = currentWallpaper?.let { wp ->
-                    if (wp.isLocal) "Your photo • ${wp.title}" else "${wp.title} • r/TVWallpapersSFW"
-                },
                 kidsMode = kidsMode,
                 onOpenWifi = onOpenWifi,
                 onOpenSystemSettings = onOpenSystemSettings,
@@ -553,8 +561,7 @@ fun LauncherContent(
                     ) {
                         HomeClock(
                             weather = weather,
-                            onWeatherClick = { showCityDialog = true },
-                            onToggleUnit = onToggleUnit
+                            onWeatherClick = { showCityDialog = true }
                         )
                         nowPlaying?.let { np ->
                             Spacer(modifier = Modifier.height(10.dp))
@@ -593,9 +600,10 @@ fun LauncherContent(
                     )
                 }
 
-                // Bottom: the dock (favourites, then All Apps at the right end)
+                // Bottom: the dock (favourites, then a round All Apps button at the right end)
                 HomeDock(
-                    apps = favoriteApps + allAppsTile,
+                    apps = favoriteApps,
+                    allAppsTile = allAppsTile,
                     favorites = favorites,
                     focusedApp = focusedApp,
                     hint = when {
@@ -610,6 +618,21 @@ fun LauncherContent(
                     onAppLongClicked = onAppLongClicked
                 )
             }
+        }
+
+        // Wallpaper credit: small and quiet in the bottom-right corner
+        currentWallpaper?.let { wp ->
+            Text(
+                text = if (wp.isLocal) "Your photo · ${wp.title}" else "${wp.title} · r/TVWallpapersSFW",
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.55f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LocalScreenEdge.current, bottom = 12.dp)
+                    .widthIn(max = 320.dp)
+            )
         }
 
         if (showCityDialog) {

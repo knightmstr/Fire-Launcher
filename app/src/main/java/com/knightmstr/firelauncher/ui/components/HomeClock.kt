@@ -1,10 +1,21 @@
 package com.knightmstr.firelauncher.ui.components
 
 import android.text.format.DateFormat
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Thunderstorm
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material.icons.rounded.WbCloudy
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,11 +26,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Border
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
+import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.knightmstr.firelauncher.data.WeatherData
 import kotlinx.coroutines.delay
@@ -27,17 +44,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val SoftShadow = Shadow(color = Color(0x99000000), blurRadius = 18f)
+/** Soft shadow so white text stays readable on bright wallpapers without a box behind it. */
+private val Soft = TextStyle(shadow = Shadow(color = Color(0x80000000), blurRadius = 24f))
+private val Mist = Color.White.copy(alpha = 0.85f)
 
 /**
- * Centre of the home: the date and weather (press it to change the city), with a big light clock
- * underneath. Laid out like couch-tv's Fire TV home, so the wallpaper stays the main thing.
+ * Centre of the home: one quiet line with the date and weather (select the weather to change the
+ * city), and a big light clock underneath. No boxes, just text over the wallpaper, like couch-tv.
  */
 @Composable
 fun HomeClock(
     weather: WeatherData,
     onWeatherClick: () -> Unit,
-    onToggleUnit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -57,36 +75,79 @@ fun HomeClock(
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = date,
-                style = TextStyle(shadow = SoftShadow),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            WeatherWidget(weather = weather, onClick = onWeatherClick, onToggleUnit = onToggleUnit)
+            Text(text = date, style = Soft, fontSize = 19.sp, fontWeight = FontWeight.Medium, color = Mist)
+            Text(text = "·", style = Soft, fontSize = 19.sp, color = Mist.copy(alpha = 0.6f))
+            WeatherText(weather = weather, onClick = onWeatherClick)
         }
-        Row(verticalAlignment = Alignment.Bottom) {
+        Row {
             Text(
                 text = time,
-                style = TextStyle(shadow = SoftShadow),
-                fontSize = 112.sp,
+                style = Soft,
+                fontSize = 108.sp,
                 fontWeight = FontWeight.Light,
-                color = Color.White.copy(alpha = 0.92f),
-                letterSpacing = (-2).sp
+                color = Color.White.copy(alpha = 0.8f),
+                letterSpacing = (-2).sp,
+                modifier = Modifier.alignByBaseline()
             )
             if (amPm != null) {
                 Text(
                     text = amPm,
-                    style = TextStyle(shadow = SoftShadow),
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.padding(start = 8.dp, bottom = 26.dp)
+                    style = Soft,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Light,
+                    color = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.alignByBaseline().padding(start = 6.dp)
                 )
             }
         }
     }
+}
+
+/** "☀ 31° Mainly sunny · Darwin": plain text, with a faint pill only while it has focus. */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun WeatherText(weather: WeatherData, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(BorderStroke(1.5.dp, Color.White.copy(alpha = 0.8f)), shape = shape)
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.White.copy(alpha = 0.14f)
+        )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Icon(
+                imageVector = weatherIcon(weather.iconType),
+                contentDescription = weather.condition,
+                tint = Mist,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "${weather.displayTemperature} ${weather.condition} · ${weather.city}",
+                style = Soft,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Medium,
+                color = Mist
+            )
+        }
+    }
+}
+
+private fun weatherIcon(type: String): ImageVector = when (type) {
+    "partly_cloudy" -> Icons.Rounded.WbCloudy
+    "cloudy" -> Icons.Rounded.Cloud
+    "rain" -> Icons.Rounded.WaterDrop
+    "thunder" -> Icons.Rounded.Thunderstorm
+    else -> Icons.Rounded.WbSunny
 }

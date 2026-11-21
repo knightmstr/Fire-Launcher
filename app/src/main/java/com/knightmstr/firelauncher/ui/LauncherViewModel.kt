@@ -9,13 +9,13 @@ import androidx.lifecycle.viewModelScope
 import com.knightmstr.firelauncher.FireLauncherApp
 import com.knightmstr.firelauncher.data.AppModel
 import com.knightmstr.firelauncher.home.HomeWatch
+import com.knightmstr.firelauncher.screensaver.ScreensaverTakeover
 import com.knightmstr.firelauncher.data.AppRepository
 import com.knightmstr.firelauncher.data.AppSortOrder
 import com.knightmstr.firelauncher.data.AppUsageStat
 import com.knightmstr.firelauncher.data.CityLocationModel
 import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.data.LauncherSettings
-import com.knightmstr.firelauncher.data.LocalPhotoSource
 import com.knightmstr.firelauncher.data.PinHasher
 import com.knightmstr.firelauncher.data.WallpaperSource
 import com.knightmstr.firelauncher.media.NowPlaying
@@ -24,7 +24,6 @@ import com.knightmstr.firelauncher.update.UpdateInstaller
 import com.knightmstr.firelauncher.update.UpdateState
 import com.knightmstr.firelauncher.data.PrefsCodec
 import com.knightmstr.firelauncher.data.WallpaperModel
-import com.knightmstr.firelauncher.data.WallpaperRepository
 import com.knightmstr.firelauncher.data.WeatherData
 import com.knightmstr.firelauncher.data.WeatherRepository
 import kotlinx.coroutines.Job
@@ -50,7 +49,8 @@ import kotlinx.coroutines.launch
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(application)
-    private val prefs = LauncherPrefsStore(application)
+    private val app = application as FireLauncherApp
+    private val prefs = app.prefs
     private val weatherRepository = WeatherRepository()
 
     // ------------------------------------------------------------------ Settings
@@ -58,17 +58,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val settings: StateFlow<LauncherSettings> = prefs.settingsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, LauncherSettings())
 
-    private val localPhotos = LocalPhotoSource(application)
+    private val localPhotos = app.localPhotos
 
-    private val wallpaperRepository = WallpaperRepository(
-        scope = viewModelScope,
-        rotationIntervalMinutes = settings.map { it.wallpaperIntervalMinutes }.distinctUntilChanged(),
-        source = settings.map { it.wallpaperSource }.distinctUntilChanged(),
-        localPhotos = localPhotos
-    )
+    // App-wide, so the screensaver shows the same wallpaper (see FireLauncherApp)
+    private val wallpaperRepository = app.wallpapers
 
     private val nowPlayingRepository = NowPlayingRepository(application)
-    private val updates = (application as FireLauncherApp).updateRepository
+    private val updates = app.updateRepository
 
     private val _isSettingsOpen = MutableStateFlow(false)
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
@@ -309,35 +305,67 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _pinDialog.value = null
     }
 
-    // ------------------------------------------------------------------ Home button watcher
+    // ------------------------------------------------------------------ Fire TV system features
+    // Home button watcher, screensaver takeover and keep-awake all need the same one-time ADB
+    // grant (WRITE_SECURE_SETTINGS); without it, pressing the row opens the setup dialog.
 
     private val _homeWatchStatus = MutableStateFlow(HomeWatch.status(application))
     val homeWatchStatus: StateFlow<HomeWatch.Status> = _homeWatchStatus.asStateFlow()
 
-    private val _showHomeWatchHelp = MutableStateFlow(false)
-    val showHomeWatchHelp: StateFlow<Boolean> = _showHomeWatchHelp.asStateFlow()
+    private val _screensaverTakeover = MutableStateFlow(ScreensaverTakeover.status(application))
+    val screensaverTakeover: StateFlow<ScreensaverTakeover.Status> = _screensaverTakeover.asStateFlow()
 
-    fun refreshHomeWatch() { _homeWatchStatus.value = HomeWatch.status(getApplication()) }
+    private val _keepAwake = MutableStateFlow(ScreensaverTakeover.keepAwake(application))
+    val keepAwake: StateFlow<Boolean> = _keepAwake.asStateFlow()
 
-    /** Settings row: toggles when FireLauncher has the ADB grant, otherwise explains how to get it. */
-    fun onHomeWatchPressed() {
-        when (HomeWatch.status(getApplication())) {
-            HomeWatch.Status.ON -> HomeWatch.setWanted(getApplication(), false)
-            HomeWatch.Status.OFF -> HomeWatch.setWanted(getApplication(), true)
-            HomeWatch.Status.NEEDS_PERMISSION -> _showHomeWatchHelp.value = true
-        }
-        refreshHomeWatch()
+    private val _needsRestart = MutableStateFlow(ScreensaverTakeover.needsRestart(application))
+    val needsRestart: StateFlow<Boolean> = _needsRestart.asStateFlow()
+
+    /** Which feature the one-time ADB setup dialog is for; null = closed. */
+    private val _grantSetupFor = MutableStateFlow<GrantFeature?>(null)
+    val grantSetupFor: StateFlow<GrantFeature?> = _grantSetupFor.asStateFlow()
+
+    fun refreshSystemFeatures() {
+        val ctx = getApplication<Application>()
+        _homeWatchStatus.value = HomeWatch.status(ctx)
+        _screensaverTakeover.value = ScreensaverTakeover.status(ctx)
+        _keepAwake.value = ScreensaverTakeover.keepAwake(ctx)
+        _needsRestart.value = ScreensaverTakeover.needsRestart(ctx)
     }
 
-    /** From the help dialog, after the ADB grant: turn it on now. Returns false if still not granted. */
-    fun enableHomeWatch(): Boolean {
-        val ok = HomeWatch.setWanted(getApplication(), true)
-        refreshHomeWatch()
-        if (ok) _showHomeWatchHelp.value = false
+    fun onHomeWatchPressed() = toggleOrSetUp(GrantFeature.HOME_BUTTON)
+    fun onScreensaverTakeoverPressed() = toggleOrSetUp(GrantFeature.SCREENSAVER)
+    fun onKeepAwakePressed() = toggleOrSetUp(GrantFeature.KEEP_AWAKE)
+
+    private fun toggleOrSetUp(feature: GrantFeature) {
+        val ctx = getApplication<Application>()
+        if (!HomeWatch.canManage(ctx)) {
+            _grantSetupFor.value = feature
+            return
+        }
+        when (feature) {
+            GrantFeature.HOME_BUTTON -> HomeWatch.setWanted(ctx, !HomeWatch.isEnabled(ctx))
+            GrantFeature.SCREENSAVER -> ScreensaverTakeover.setOn(ctx, !ScreensaverTakeover.isActive(ctx))
+            GrantFeature.KEEP_AWAKE -> ScreensaverTakeover.setKeepAwake(ctx, !ScreensaverTakeover.keepAwake(ctx))
+        }
+        refreshSystemFeatures()
+    }
+
+    /** From the setup dialog, after the ADB grant: turn the feature on. False if not granted yet. */
+    fun enableGrantedFeature(): Boolean {
+        val ctx = getApplication<Application>()
+        val ok = when (_grantSetupFor.value) {
+            GrantFeature.HOME_BUTTON -> HomeWatch.setWanted(ctx, true)
+            GrantFeature.SCREENSAVER -> ScreensaverTakeover.setOn(ctx, true)
+            GrantFeature.KEEP_AWAKE -> ScreensaverTakeover.setKeepAwake(ctx, true)
+            null -> false
+        }
+        refreshSystemFeatures()
+        if (ok) _grantSetupFor.value = null
         return ok
     }
 
-    fun closeHomeWatchHelp() { _showHomeWatchHelp.value = false }
+    fun closeGrantSetup() { _grantSetupFor.value = null }
 
     // ------------------------------------------------------------------ App updates
 
@@ -496,7 +524,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         closeRename()
         closeSettings()
         closeNowPlayingHelp()
-        closeHomeWatchHelp()
+        closeGrantSetup()
         closeAllApps()
         if (updates.state.value !is UpdateState.Downloading) closeUpdateDialog()
         onUserInteraction()
@@ -572,6 +600,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private suspend fun refreshWeather(lat: Double, lon: Double, city: String, country: String, celsius: Boolean) {
         _weather.value = weatherRepository.fetchLiveWeather(city, country, lat, lon, celsius)
+        app.latestWeather.value = _weather.value
     }
 
     // ------------------------------------------------------------------ Global search
@@ -624,7 +653,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (foreground) {
             scheduleIdle()
             nowPlayingRepository.start()
-            refreshHomeWatch()
+            refreshSystemFeatures()
             updates.onInstallPermissionMaybeGranted()
             _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
             // Pick up photos added while the launcher was in the background
@@ -731,3 +760,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 enum class PinPurpose { CREATE, EXIT_KIDS_MODE }
 
 data class PinDialogState(val purpose: PinPurpose, val error: String? = null)
+
+/** Fire TV features that need the one-time ADB grant (WRITE_SECURE_SETTINGS). */
+enum class GrantFeature(val title: String) {
+    HOME_BUTTON("Make Home open FireLauncher"),
+    SCREENSAVER("Use FireLauncher's screensaver"),
+    KEEP_AWAKE("Keep Fire TV awake")
+}

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.provider.Settings
+import com.knightmstr.firelauncher.screensaver.ScreensaverTakeover
 
 /**
  * Switches the Home button watcher ([HomeWatchService]) on and off, and keeps it on.
@@ -113,7 +114,9 @@ object HomeWatch {
     /** BOOT_COMPLETED: Android sometimes drops accessibility services; put ours back. */
     class BootReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_BOOT_COMPLETED) runCatching { ensure(context) }
+            if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+            runCatching { ensure(context) }
+            runCatching { ScreensaverTakeover.ensure(context) }
         }
     }
 }

@@ -27,9 +27,9 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
    - Focus defaults to the first card on application launch.
 4. **Clean Home Screen & All Apps Grid** (layout after [couch-tv](https://github.com/Seagey/couch-tv)'s Fire TV home):
-   - The wallpaper fills the screen: the date, weather and a **big clock** sit in the middle (with what's playing underneath), and a translucent **dock** along the bottom holds your Favorites with an **All Apps** tile at the right end. The focused app's name shows under the dock.
+   - The wallpaper fills the screen: one quiet line with the date and weather, a soft **big clock** in the middle (with what's playing underneath), and a translucent **dock** along the bottom holding your Favorites with a round **All Apps** button at the end. The focused app's name shows under the dock, with a hint that fades after a few seconds. The wallpaper credit sits small in the bottom-right corner.
    - The tile opens a full-screen grid of every app that wraps to the screen width (Back closes it, Sort button cycles the order). Prefer the old row? *Launcher Settings → Show All Apps row on home*.
-   - **App tile size** (Extra small → Extra large, Small by default) and **App tile shape** (Rounded, Square, Extra rounded, Pill) in Launcher Settings.
+   - **App tile size** slider (focus it and press ◀ ▶; changes show straight away) and **App tile shape** (Rounded, Square, Extra rounded, Pill) in Launcher Settings.
 4b. **App Options Menu (hold OK, or press ☰ on the remote)**:
    - **Favorites**: add/remove, and **Move left / Move right** to reorder the Favorites row (the menu stays open so you can nudge several places).
    - **Rename** any app (e.g. "Prime Video" → "Prime"); restore the original name at any time. Search still matches the original name.
@@ -40,7 +40,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - **Force Stop & App Info** opens the Fire OS app settings page.
    - Favorited cards show a yellow dot; everything is saved in Preferences DataStore.
 5. **Top-Bar Buttons & Launcher Settings**:
-   - Icon-only buttons at the top right, before the clock: next wallpaper, search, **Wi-Fi** and one **Settings** gear that asks *Launcher settings* or *Fire TV settings*. In Kids mode Wi-Fi is hidden and the gear asks for the PIN.
+   - Icon-only buttons at the top right, before the clock: next wallpaper, search, **Wi-Fi** and one **Settings** gear with a small drop-down: *Launcher settings* or *Fire TV settings*. In Kids mode Wi-Fi is hidden and the gear asks for the PIN.
    - The current wallpaper (your photo, or its r/TVWallpapersSFW title) is shown under the FireLauncher name, top left.
    - **Launcher Settings**: wallpaper rotation interval (15 min – 3 hr or never), screensaver timeout (5–30 min or off), °C/°F, and the hidden-apps row. Every option cycles with OK — no keyboard needed.
 6. **Kids Mode**:
@@ -54,7 +54,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
      ```
    - Photos load from local storage — no wallpaper downloads at all. If none are found it falls back to Reddit; you can also pick Reddit explicitly in Settings.
 8. **Now Playing Controls**:
-   - Shows what's playing (Spotify, YouTube, Plex…) with previous / play-pause / next in the header. Hold play-pause to jump back into the app.
+   - A small window under the clock: the playing app's icon and name, what's playing, then previous / play-pause / next. Select the left part to jump back into the app.
    - Needs one-time notification access (FireLauncher never reads notifications; Android requires it to see media sessions). Many Fire OS builds hide that screen, so grant it over ADB:
      ```bash
      adb shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
@@ -65,7 +65,10 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - **Download & install** fetches the `-release.apk`, verifies its SHA-256 against the release's checksum file, checks it's FireLauncher and newer, then hands it to Android's installer. You always confirm on Android's own screen.
    - One-time setup: allow FireLauncher under **Install unknown apps** (the dialog links there; on Fire OS it's *Settings → My Fire TV → Developer options → Install unknown apps*).
    - Updates only install if signed with the same key, which is why releases need the `KEYSTORE_*` secrets. Forks: change `UPDATE_REPO` in `app/build.gradle.kts`.
-10. **Idle Screensaver**:
+10. **Idle Screensaver (and replacing Amazon's)**:
+   - **Use FireLauncher's screensaver** (Launcher settings) makes it the Fire TV's own screensaver, so it shows inside other apps too: same wallpaper, clock and weather as the home, with a new wallpaper every 5 minutes. On Fire OS 8 it also switches off Amazon's Ambient Experience; restart the Fire TV once.
+   - **Keep Fire TV awake** turns off Fire OS's sleep timer, so the screensaver keeps showing instead of the TV going to sleep.
+   - Both use the same one-time adb grant as the Home button watcher, and turning them off puts Amazon's settings back. When the screensaver starts inside other apps is Fire TV's own *Settings → Display & Sounds → Screensaver → Start Time*.
    - After the chosen idle time, shows a dimmed wallpaper slideshow with a large clock, date and temperature.
    - The clock drifts to a new position every minute to avoid screen burn-in. Any remote button wakes it without triggering an action.
    - The launcher no longer holds `FLAG_KEEP_SCREEN_ON`, so Fire OS's own sleep timer still works.
@@ -314,6 +317,9 @@ FireLauncher/
 │           ├── home/
 │           │   ├── HomeWatch.kt           # Switches the Home button watcher on/off, keeps it on
 │           │   └── HomeWatchService.kt    # Accessibility service: Amazon home → FireLauncher
+│           ├── screensaver/
+│           │   ├── FireDream.kt           # FireLauncher's screensaver as a system screensaver
+│           │   └── ScreensaverTakeover.kt # Replace Amazon's screensaver, keep awake (restorable)
 │           ├── media/
 │           │   ├── MediaListenerService.kt # Empty listener holding the media-session permission
 │           │   └── NowPlayingRepository.kt # Active media session tracking & transport controls
@@ -335,7 +341,7 @@ FireLauncher/
 │               │   ├── NowPlayingHelpDialog.kt # How to grant Now playing access
 │               │   ├── HomeClock.kt           # Date, weather and big clock mid-screen
 │               │   ├── HomeDock.kt            # Bottom dock: favourites + All Apps
-│               │   ├── HomeWatchHelpDialog.kt # Setup for the Home button watcher
+│               │   ├── GrantSetupDialog.kt    # One-time adb setup for Fire TV system options
 │               │   ├── LauncherSettingsDialog.kt # In-launcher settings
 │               │   ├── PinDialog.kt           # D-pad PIN keypad (enter / create)
 │               │   ├── RenameAppDialog.kt     # Custom app name entry

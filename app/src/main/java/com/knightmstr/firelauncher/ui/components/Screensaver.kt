@@ -36,12 +36,14 @@ import java.util.Date
 import java.util.Locale
 import kotlin.random.Random
 
-private const val WALLPAPER_CHANGE_MS = 2 * 60 * 1000L
+/** The screensaver shows a new wallpaper every 5 minutes. */
+private const val WALLPAPER_CHANGE_MS = 5 * 60 * 1000L
 
 /**
  * Idle screensaver: dimmed wallpaper slideshow with a large clock, date and temperature.
  * The clock drifts to a new spot every minute to avoid burn-in on OLED/plasma TVs.
- * Any remote key dismisses it (handled in MainActivity).
+ * Used on the home screen (any key dismisses it, see MainActivity) and as the Fire TV's
+ * system screensaver (FireDream).
  */
 @Composable
 fun Screensaver(
@@ -106,7 +108,7 @@ fun Screensaver(
                     color = Color.White
                 )
                 Text(
-                    text = "$date  •  ${weather.displayTemperature} ${weather.city}",
+                    text = "$date  ·  ${weather.displayTemperature} ${weather.condition} · ${weather.city}",
                     fontSize = 18.sp,
                     color = TextSecondary
                 )

@@ -5,6 +5,7 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Lock
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.knightmstr.firelauncher.data.LauncherSettings
 import com.knightmstr.firelauncher.home.HomeWatch
+import com.knightmstr.firelauncher.screensaver.ScreensaverTakeover
 import com.knightmstr.firelauncher.data.LocalPhotoSource
 import com.knightmstr.firelauncher.data.WallpaperSource
 import com.knightmstr.firelauncher.ui.theme.FireAmber
@@ -38,7 +40,10 @@ data class SettingsStatus(
     val hasNowPlayingAccess: Boolean,
     val installedVersion: String,
     val updateSummary: String,
-    val homeWatch: HomeWatch.Status
+    val homeWatch: HomeWatch.Status,
+    val screensaverTakeover: ScreensaverTakeover.Status,
+    val keepAwake: Boolean,
+    val needsRestart: Boolean
 )
 
 /**
@@ -57,6 +62,8 @@ fun LauncherSettingsDialog(
     onOpenNowPlayingHelp: () -> Unit,
     onOpenUpdates: () -> Unit,
     onHomeWatch: () -> Unit,
+    onScreensaverTakeover: () -> Unit,
+    onKeepAwake: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val firstItem = rememberInitialFocus()
@@ -118,6 +125,36 @@ fun LauncherSettingsDialog(
         )
 
         TvMenuItem(
+            title = "Use FireLauncher's screensaver",
+            subtitle = when {
+                status.screensaverTakeover == ScreensaverTakeover.Status.ON && status.needsRestart ->
+                    "On: restart the Fire TV once to replace Amazon's"
+                status.screensaverTakeover == ScreensaverTakeover.Status.ON ->
+                    "Replaces Amazon's screensaver: same wallpaper, clock and weather"
+                status.screensaverTakeover == ScreensaverTakeover.Status.OFF -> "Off: Amazon's screensaver"
+                else -> "Needs the one-time adb setup"
+            },
+            icon = Icons.Rounded.Bedtime,
+            iconTint = Color(0xFFA78BFA),
+            trailing = when (status.screensaverTakeover) {
+                ScreensaverTakeover.Status.ON -> "On"
+                ScreensaverTakeover.Status.OFF -> "Off"
+                ScreensaverTakeover.Status.NEEDS_PERMISSION -> "Set up"
+            },
+            onClick = onScreensaverTakeover
+        )
+
+        TvMenuItem(
+            title = "Keep Fire TV awake",
+            subtitle = if (status.keepAwake) "Never sleeps on a timer; the screensaver keeps showing"
+            else "Off: Fire TV sleeps after its sleep timer",
+            icon = Icons.Rounded.LightMode,
+            iconTint = FireAmber,
+            trailing = if (status.keepAwake) "On" else "Off",
+            onClick = onKeepAwake
+        )
+
+        TvMenuItem(
             title = "Show All Apps row on home",
             subtitle = "Off: open the All Apps tile for a full-screen grid",
             icon = Icons.Rounded.Apps,
@@ -126,13 +163,20 @@ fun LauncherSettingsDialog(
             onClick = { onUpdate { it.copy(showAllAppsRow = !it.showAllAppsRow) } }
         )
 
-        TvMenuItem(
+        TvSliderItem(
             title = "App tile size",
             subtitle = "Smaller tiles fit more apps on screen",
             icon = Icons.Rounded.AspectRatio,
             iconTint = Color(0xFF60A5FA),
-            trailing = settings.cardSize.title,
-            onClick = { onUpdate { it.copy(cardSize = it.cardSize.next()) } }
+            value = settings.tileWidthDp,
+            range = LauncherSettings.TILE_WIDTH_RANGE,
+            step = LauncherSettings.TILE_WIDTH_STEP,
+            // Shown as a step number, e.g. "6 / 9"
+            valueLabel = LauncherSettings.TILE_WIDTH_RANGE.let { r ->
+                "${(settings.tileWidthDp - r.first) / LauncherSettings.TILE_WIDTH_STEP + 1} / " +
+                    "${(r.last - r.first) / LauncherSettings.TILE_WIDTH_STEP + 1}"
+            },
+            onValueChange = { w -> onUpdate { it.copy(tileWidthDp = w) } }
         )
 
         TvMenuItem(
@@ -161,8 +205,8 @@ fun LauncherSettingsDialog(
         )
 
         TvMenuItem(
-            title = "Screensaver after",
-            subtitle = "Clock and wallpaper when the remote is idle",
+            title = "Screensaver after (on the home screen)",
+            subtitle = "Inside other apps, Fire TV's own Screensaver start time applies",
             icon = Icons.Rounded.Bedtime,
             iconTint = Color(0xFFA78BFA),
             trailing = LauncherSettings.describeMinutes(settings.screensaverTimeoutMinutes),

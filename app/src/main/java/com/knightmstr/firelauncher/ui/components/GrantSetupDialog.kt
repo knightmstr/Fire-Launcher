@@ -24,9 +24,13 @@ import com.knightmstr.firelauncher.ui.theme.FireAmber
 import com.knightmstr.firelauncher.ui.theme.TextPrimary
 import com.knightmstr.firelauncher.ui.theme.TextSecondary
 
-/** One-time setup for the Home button watcher: an ADB grant, then FireLauncher switches it on. */
+/**
+ * One-time setup shared by the Fire TV features that change system settings (Home button,
+ * screensaver, keep awake): one ADB grant, then FireLauncher can switch them on and off itself.
+ */
 @Composable
-fun HomeWatchHelpDialog(
+fun GrantSetupDialog(
+    title: String,
     onEnable: () -> Boolean,
     onDismiss: () -> Unit
 ) {
@@ -34,8 +38,8 @@ fun HomeWatchHelpDialog(
     val first = rememberInitialFocus()
 
     TvDialogFrame(
-        title = "Make Home open FireLauncher",
-        subtitle = "One-time setup from your phone (Termux) or a computer",
+        title = title,
+        subtitle = "One-time setup from your phone (Termux) or a computer. It also unlocks the other Fire TV options.",
         accentColor = FireAmber,
         onDismiss = onDismiss,
         width = 580.dp
@@ -59,15 +63,15 @@ fun HomeWatchHelpDialog(
         TvMenuItem(
             title = "Turn on",
             subtitle = if (stillMissing) "Not granted yet: run the command above first"
-            else "FireLauncher then keeps it on after updates and restarts",
+            else "FireLauncher then keeps it set after updates and restarts",
             icon = Icons.Rounded.Home,
             iconTint = FireAmber,
             modifier = Modifier.focusRequester(first),
             onClick = { stillMissing = !onEnable() }
         )
         Text(
-            text = "Amazon's home may flash for a moment before FireLauncher comes back. " +
-                "FireLauncher only sees which Amazon screen opened, never what's on screen.",
+            text = "This lets FireLauncher change the Home button, screensaver and sleep settings. " +
+                "Turning an option off puts Amazon's setting back.",
             fontSize = 11.sp,
             color = Color(0xFF9CA3AF)
         )

@@ -73,4 +73,14 @@ class PrefsCodecTest {
         assertTrue(LauncherPrefsStore.defaultIsCelsius(Locale("en", "AU")))
         assertTrue(LauncherPrefsStore.defaultIsCelsius(Locale.UK))
     }
+
+    @Test
+    fun `old tile size names map onto the slider range`() {
+        assertEquals(140, LauncherSettings.tileWidthFromLegacySize(null))
+        assertEquals(140, LauncherSettings.tileWidthFromLegacySize("SMALL"))
+        assertEquals(115, LauncherSettings.tileWidthFromLegacySize("EXTRA_SMALL"))
+        assertEquals(170, LauncherSettings.tileWidthFromLegacySize("EXTRA_LARGE"))
+        assertEquals(90, LauncherSettings.clampTileWidth(10))
+        assertEquals(170, LauncherSettings.clampTileWidth(400))
+    }
 }

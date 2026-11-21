@@ -1,8 +1,10 @@
 package com.knightmstr.firelauncher.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.Popup
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.Settings
@@ -36,17 +38,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Cloud
-import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.rounded.Thunderstorm
 import androidx.compose.material.icons.rounded.Wallpaper
-import androidx.compose.material.icons.rounded.WaterDrop
-import androidx.compose.material.icons.rounded.WbCloudy
-import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,7 +50,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -72,7 +67,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.knightmstr.firelauncher.data.AppSortOrder
 import com.knightmstr.firelauncher.data.CityLocationModel
-import com.knightmstr.firelauncher.data.WeatherData
 import com.knightmstr.firelauncher.ui.theme.DarkSurface
 import com.knightmstr.firelauncher.ui.theme.DarkSurfaceVariant
 import com.knightmstr.firelauncher.ui.theme.FireAmber
@@ -97,8 +91,6 @@ fun TopBar(
     onToggleSearch: (Boolean) -> Unit = {},
     onRequestVoiceSearch: () -> Unit = {},
     onNextWallpaper: () -> Unit = {},
-    /** e.g. "Your photo • Beach" or "Yosemite • r/TVWallpapersSFW", shown under the name. */
-    wallpaperInfo: String? = null,
     kidsMode: Boolean = false,
     onOpenWifi: () -> Unit = {},
     onOpenSystemSettings: () -> Unit = {},
@@ -117,44 +109,12 @@ fun TopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Brand logo, name and current wallpaper info
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_logo_mark),
-                    contentDescription = null,
-                    modifier = Modifier.size(30.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "FireLauncher",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        letterSpacing = 0.5.sp
-                    )
-                    if (wallpaperInfo != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.Wallpaper,
-                                contentDescription = null,
-                                tint = FireAmber,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = wallpaperInfo,
-                                fontSize = 10.sp,
-                                color = TextSecondary,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 260.dp)
-                            )
-                        }
-                    }
-                }
-            }
+            // Just the small logo: the wallpaper credit sits quietly at the bottom right instead
+            Image(
+                painter = painterResource(R.drawable.ic_logo_mark),
+                contentDescription = "FireLauncher",
+                modifier = Modifier.size(26.dp)
+            )
 
             // Centre: the search field while searching (the clock and weather live mid-screen)
             if (isSearchActive) {
@@ -179,21 +139,24 @@ fun TopBar(
                     if (isSearchActive) "Close search" else "Search apps"
                 ) { onToggleSearch(!isSearchActive) }
                 if (!kidsMode) TopIconButton(Icons.Rounded.Wifi, "Wi-Fi", onOpenWifi)
-                // One gear: asks Launcher or Fire TV settings. In Kids mode it goes straight to the PIN.
-                TopIconButton(
-                    Icons.Rounded.Settings,
-                    if (kidsMode) "Leave Kids mode" else "Settings"
-                ) { if (kidsMode) onOpenLauncherSettings() else showSettingsChooser = true }
+                // One gear with a small drop-down: Launcher or Fire TV settings.
+                // In Kids mode it goes straight to the PIN.
+                Box {
+                    TopIconButton(
+                        Icons.Rounded.Settings,
+                        if (kidsMode) "Leave Kids mode" else "Settings"
+                    ) { if (kidsMode) onOpenLauncherSettings() else showSettingsChooser = true }
+                    if (showSettingsChooser) {
+                        SettingsDropDown(
+                            onLauncherSettings = { showSettingsChooser = false; onOpenLauncherSettings() },
+                            onFireTvSettings = { showSettingsChooser = false; onOpenSystemSettings() },
+                            onDismiss = { showSettingsChooser = false }
+                        )
+                    }
+                }
             }
         }
 
-        if (showSettingsChooser) {
-            SettingsChooserDialog(
-                onLauncherSettings = { showSettingsChooser = false; onOpenLauncherSettings() },
-                onFireTvSettings = { showSettingsChooser = false; onOpenSystemSettings() },
-                onDismiss = { showSettingsChooser = false }
-            )
-        }
     }
 }
 
@@ -324,132 +287,6 @@ fun GlobalSearchBar(
 }
 
 /**
- * TV-Material focusable weather surface displaying weather icon, temp, condition, and selected city.
- */
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun WeatherWidget(
-    weather: WeatherData,
-    onClick: () -> Unit,
-    onToggleUnit: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(16.dp)
-
-    Surface(
-        onClick = onClick,
-        modifier = modifier
-            .onFocusChanged { isFocused = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-        border = ClickableSurfaceDefaults.border(
-            border = Border(
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                shape = shape
-            ),
-            focusedBorder = Border(
-                border = BorderStroke(2.dp, Color.White),
-                shape = shape
-            )
-        ),
-        glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(
-                elevationColor = FireOrange.copy(alpha = 0.7f),
-                elevation = 14.dp
-            )
-        ),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = DarkSurface.copy(alpha = 0.85f),
-            focusedContainerColor = DarkSurfaceVariant
-        )
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-        ) {
-            // Weather icon
-            val weatherIcon: ImageVector = when (weather.iconType) {
-                "clear" -> Icons.Rounded.WbSunny
-                "partly_cloudy" -> Icons.Rounded.WbCloudy
-                "cloudy" -> Icons.Rounded.Cloud
-                "rain" -> Icons.Rounded.WaterDrop
-                "thunder" -> Icons.Rounded.Thunderstorm
-                else -> Icons.Rounded.WbSunny
-            }
-            val iconTint = when (weather.iconType) {
-                "clear" -> FireAmber
-                "partly_cloudy" -> Color(0xFF90E0EF)
-                "rain" -> Color(0xFF00B4D8)
-                else -> Color(0xFFE0E0E0)
-            }
-
-            Icon(
-                imageVector = weatherIcon,
-                contentDescription = weather.condition,
-                tint = iconTint,
-                modifier = Modifier.size(22.dp)
-            )
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            // Temperature and condition
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = weather.displayTemperature,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = weather.condition,
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
-                    if (weather.isLive) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF10B981))
-                        )
-                    }
-                }
-
-                // City badge with pin
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 1.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.LocationOn,
-                        contentDescription = "Location",
-                        tint = FireOrange,
-                        modifier = Modifier.size(11.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = weather.city,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = FireAmber
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = weather.displayHighLow,
-                        fontSize = 10.sp,
-                        color = TextSecondary
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
  * Weather location picker: search any city (Open-Meteo geocoding) or pick a saved one.
  * Built on [TvDialogFrame] / [TvMenuItem] so every row is reachable with the D-pad.
  */
@@ -564,30 +401,49 @@ fun CitySelectionDialog(
     }
 }
 
-/** Opened by the gear: choose FireLauncher's own settings or the Fire TV's. */
+/**
+ * Small menu that drops down from the settings gear: FireLauncher's own settings or the Fire TV's.
+ * A focusable popup, so the remote moves inside it and Back closes it.
+ */
 @Composable
-fun SettingsChooserDialog(
+private fun SettingsDropDown(
     onLauncherSettings: () -> Unit,
     onFireTvSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val first = rememberInitialFocus()
-    TvDialogFrame(title = "Settings", subtitle = null, accentColor = FireAmber, onDismiss = onDismiss, width = 420.dp) {
-        TvMenuItem(
-            title = "Launcher settings",
-            subtitle = "Wallpapers, tiles, screensaver, Kids mode, updates",
-            icon = Icons.Rounded.Tune,
-            iconTint = FireAmber,
-            modifier = Modifier.focusRequester(first),
-            onClick = onLauncherSettings
-        )
-        TvMenuItem(
-            title = "Fire TV settings",
-            subtitle = "Network, display, sound, apps, remotes",
-            icon = Icons.Rounded.Tv,
-            iconTint = FireOrange,
-            onClick = onFireTvSettings
-        )
+    val gap = with(LocalDensity.current) { 50.dp.roundToPx() }
+    val shape = RoundedCornerShape(16.dp)
+    Popup(
+        alignment = Alignment.TopEnd,
+        offset = IntOffset(0, gap),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
+    ) {
+        Column(
+            modifier = Modifier
+                .width(290.dp)
+                .background(Color(0xF2141824), shape)
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), shape)
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            TvMenuItem(
+                title = "Launcher settings",
+                subtitle = "Wallpapers, tiles, Kids mode, updates",
+                icon = Icons.Rounded.Tune,
+                iconTint = FireAmber,
+                modifier = Modifier.focusRequester(first),
+                onClick = onLauncherSettings
+            )
+            TvMenuItem(
+                title = "Fire TV settings",
+                subtitle = "Network, display, sound, apps",
+                icon = Icons.Rounded.Tv,
+                iconTint = FireOrange,
+                onClick = onFireTvSettings
+            )
+        }
     }
 }
 
