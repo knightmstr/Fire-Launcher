@@ -9,7 +9,7 @@ This document is a sequential, machine-readable execution manifest intended for 
 - **Target Architecture**: Android 7.1+ / 9.0 (Fire OS 6, 7, 8)
 - **Target Device**: Amazon Fire TV Stick / Fire TV Cube / Fire TV Edition
 - **Default ADB Port**: `5555`
-- **Target Package Name**: `com.example.firelauncher`
+- **Target Package Name**: `com.knightmstr.firelauncher`
 - **Pre-compiled APK Path**: `app/build/outputs/apk/debug/app-debug.apk`
 
 ---
@@ -130,7 +130,7 @@ echo "Installing FireLauncher ($APK_PATH) onto Fire TV..."
 adb -s "$FIRETV_IP:5555" install -r -d "$APK_PATH"
 
 # Verify successful installation
-adb -s "$FIRETV_IP:5555" shell pm list packages | grep "com.example.firelauncher" || {
+adb -s "$FIRETV_IP:5555" shell pm list packages | grep "com.knightmstr.firelauncher" || {
     echo "ERROR: FireLauncher installation verification failed."
     exit 1
 }
@@ -196,7 +196,7 @@ Start FireLauncher once to register the leanback activity, then initiate a clean
 ```bash
 # Launch FireLauncher activity
 echo "Launching FireLauncher activity..."
-adb -s "$FIRETV_IP:5555" shell am start -n com.example.firelauncher/.MainActivity
+adb -s "$FIRETV_IP:5555" shell am start -n com.knightmstr.firelauncher/.MainActivity
 
 sleep 3
 

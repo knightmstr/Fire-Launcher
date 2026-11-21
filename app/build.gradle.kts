@@ -37,11 +37,11 @@ val resolvedVersionName = (project.findProperty("versionName") as String?)?.take
     ?: "1.0.0"
 
 android {
-    namespace = "com.example.firelauncher"
+    namespace = "com.knightmstr.firelauncher"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.firelauncher"
+        applicationId = "com.knightmstr.firelauncher"
         minSdk = 25
         targetSdk = 34
         versionCode = resolvedVersionCode

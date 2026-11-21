@@ -45,14 +45,14 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
 7. **Your Own Photos as Wallpapers (default)**:
    - Put photos in an album/folder named **FireLauncher** (e.g. `Pictures/FireLauncher`) and allow photo access in Launcher Settings, **or** push them with no permission needed:
      ```bash
-     adb push holiday.jpg /sdcard/Android/data/com.example.firelauncher/files/Pictures/
+     adb push holiday.jpg /sdcard/Android/data/com.knightmstr.firelauncher/files/Pictures/
      ```
    - Photos load from local storage — no wallpaper downloads at all. If none are found it falls back to Reddit; you can also pick Reddit explicitly in Settings.
 8. **Now Playing Controls**:
    - Shows what's playing (Spotify, YouTube, Plex…) with previous / play-pause / next in the header. Hold play-pause to jump back into the app.
    - Needs one-time notification access (FireLauncher never reads notifications; Android requires it to see media sessions). Many Fire OS builds hide that screen, so grant it over ADB:
      ```bash
-     adb shell cmd notification allow_listener com.example.firelauncher/com.example.firelauncher.media.MediaListenerService
+     adb shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
      ```
    - Only listens while the launcher is on screen.
 9. **In-App Updates from GitHub Releases**:
@@ -202,7 +202,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 To launch FireLauncher immediately:
 ```bash
-adb shell am start -n com.example.firelauncher/.MainActivity
+adb shell am start -n com.knightmstr.firelauncher/.MainActivity
 ```
 
 ---
@@ -216,7 +216,7 @@ adb shell am start -n com.example.firelauncher/.MainActivity
 ### Options to Use FireLauncher as Your Primary Screen:
 1. **Remote Button Remapping (Recommended & Safest)**:
    - Install **Button Mapper** or **Launcher Manager** (via Downloader or ADB).
-   - Remap the Home button single-press or double-press to launch `com.example.firelauncher/.MainActivity`.
+   - Remap the Home button single-press or double-press to launch `com.knightmstr.firelauncher/.MainActivity`.
 2. **Launch on Boot (Accessibility Service / Boot Receiver)**:
    - Configure a boot launcher utility to automatically start FireLauncher when the Fire TV finishes starting up.
 3. **Direct Quick-Launch**:
@@ -292,7 +292,7 @@ FireLauncher/
 │       │   │   └── themes.xml         # Fullscreen TV theme
 │       │   └── xml/
 │       │       └── network_security_config.xml # TLS-only policy & cleartext traffic block
-│       └── java/com/example/firelauncher/
+│       └── java/com/knightmstr/firelauncher/
 │           ├── FireLauncherApp.kt     # Application class
 │           ├── MainActivity.kt        # SingleTask TV activity + Home & Back interceptors
 │           ├── data/
@@ -339,7 +339,7 @@ FireLauncher/
 │               └── theme/
 │                   ├── Color.kt           # Color palette constants
 │                   └── Theme.kt           # Material3 TV DarkColorScheme
-├── app/src/test/java/com/example/firelauncher/
+├── app/src/test/java/com/knightmstr/firelauncher/
 │   ├── FireLauncherUnitTest.kt        # Sort order, weather formatting, debloat scripts
 │   ├── KidsAndOrderTest.kt            # PIN hashing, custom app order, enum fallbacks
 │   ├── UpdateVersionsTest.kt          # Tag → versionCode, checksum parsing
@@ -374,7 +374,7 @@ FireLauncher is engineered specifically for resource-constrained Fire TV Sticks 
    - Extending the Long-Press D-pad OK gesture on any app card opens a leanback context menu.
    - Provides direct 1-click access to the Fire OS system settings management window via `Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)` with `Uri.parse("package:${app.packageName}")` for immediate Force Stop and app cache clearing.
 4. **Memory Recovery Script (`tools/clear_launcher_cache.sh`)**:
-   - Lightweight shell utility to purge the launcher's temporary data and image cache over ADB (`adb shell pm clear com.example.firelauncher`) and cleanly relaunch the interface without rebooting.
+   - Lightweight shell utility to purge the launcher's temporary data and image cache over ADB (`adb shell pm clear com.knightmstr.firelauncher`) and cleanly relaunch the interface without rebooting.
 
 ---
 
