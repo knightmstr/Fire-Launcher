@@ -285,7 +285,7 @@ FireLauncher/
 │       ├── AndroidManifest.xml        # Leanback & Home intent filters + package queries
 │       ├── res/
 │       │   ├── drawable/
-│       │   │   ├── ic_logo_mark.xml   # Tile logo (top bar + icon)
+│       │   │   ├── ic_logo_mark.xml   # Ember logo (top bar + icon)
 │       │   │   ├── ic_launcher_background.xml
 │       │   │   └── ic_launcher_foreground.xml
 │       │   ├── drawable-xhdpi/
