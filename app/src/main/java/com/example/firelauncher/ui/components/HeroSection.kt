@@ -38,7 +38,8 @@ import com.example.firelauncher.ui.theme.TextSecondary
 fun HeroSection(
     focusedApp: AppModel?,
     isFavorite: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    kidsMode: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -103,6 +104,8 @@ fun HeroSection(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     val hintText = when {
+                        kidsMode && app.isSystemShortcut -> "Press OK and enter the PIN to leave Kids mode"
+                        kidsMode -> "Kids mode is on"
                         app.isSystemShortcut -> "Press OK to open settings"
                         fav -> "Hold OK or press ☰ for options (reorder, rename, hide, app info)"
                         else -> "Hold OK or press ☰ for options (favorite, rename, hide, app info)"

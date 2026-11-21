@@ -70,4 +70,19 @@ object PrefsCodec {
         val byKey = items.associateBy(key)
         return order.mapNotNull { byKey[it] }
     }
+
+    /**
+     * Orders [items] by [order]; anything not yet in [order] (e.g. newly installed apps)
+     * follows, sorted by [fallbackSort].
+     */
+    fun <T> applyOrderWithRemainder(
+        items: List<T>,
+        order: List<String>,
+        key: (T) -> String,
+        fallbackSort: (T) -> String
+    ): List<T> {
+        val ordered = applyOrder(items, order, key)
+        val placed = ordered.map(key).toSet()
+        return ordered + items.filter { key(it) !in placed }.sortedBy(fallbackSort)
+    }
 }

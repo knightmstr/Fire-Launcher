@@ -121,6 +121,7 @@ fun AppRow(
                                 AppSortOrder.ALPHABETICAL -> "Sort: A–Z ▾"
                                 AppSortOrder.MOST_RECENT -> "Sort: Recent ▾"
                                 AppSortOrder.MOST_FREQUENT -> "Sort: Frequent ▾"
+                                AppSortOrder.CUSTOM -> "Sort: My Order ▾"
                             },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,

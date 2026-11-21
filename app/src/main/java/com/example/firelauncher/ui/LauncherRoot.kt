@@ -53,7 +53,15 @@ import com.example.firelauncher.data.AppSortOrder
 import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WallpaperModel
 import com.example.firelauncher.data.WeatherData
+import com.example.firelauncher.data.LauncherPrefsStore
+import com.example.firelauncher.media.NowPlaying
 import com.example.firelauncher.ui.components.AppContextMenuDialog
+import com.example.firelauncher.ui.components.CreatePinDialog
+import com.example.firelauncher.ui.components.NowPlayingCard
+import com.example.firelauncher.ui.components.NowPlayingHelpDialog
+import com.example.firelauncher.ui.components.PinEntryDialog
+import com.example.firelauncher.ui.components.QuickButtonsBar
+import com.example.firelauncher.ui.components.SettingsStatus
 import com.example.firelauncher.ui.components.LauncherSettingsDialog
 import com.example.firelauncher.ui.components.RenameAppDialog
 import com.example.firelauncher.ui.components.Screensaver
@@ -101,9 +109,22 @@ fun LauncherRoot(
     val contextMenuApp by viewModel.contextMenuApp.collectAsStateWithLifecycle()
     val renameTarget by viewModel.renameTarget.collectAsStateWithLifecycle()
     val screensaverVisible by viewModel.screensaverVisible.collectAsStateWithLifecycle()
+    val quickButtonApps by viewModel.quickButtonApps.collectAsStateWithLifecycle()
+    val quickButtonKeys by viewModel.quickButtonKeys.collectAsStateWithLifecycle()
+    val nowPlaying by viewModel.nowPlaying.collectAsStateWithLifecycle()
+    val kidsMode by viewModel.kidsModeEnabled.collectAsStateWithLifecycle()
+    val pinDialog by viewModel.pinDialog.collectAsStateWithLifecycle()
+    val showNowPlayingHelp by viewModel.showNowPlayingHelp.collectAsStateWithLifecycle()
+    val hiddenAppCount by viewModel.hiddenAppCount.collectAsStateWithLifecycle()
+    val localPhotoCount by viewModel.localPhotoCount.collectAsStateWithLifecycle()
+    val hasPhotoPermission by viewModel.hasPhotoPermission.collectAsStateWithLifecycle()
+    val hasKidsPin by viewModel.hasKidsPin.collectAsStateWithLifecycle()
+    val kidsAppCount by viewModel.kidsAppCount.collectAsStateWithLifecycle()
+    val hasNowPlayingAccess by viewModel.hasNowPlayingAccess.collectAsStateWithLifecycle()
 
     // Pause the screensaver timer while any dialog has the keys
-    val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen
+    val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen ||
+        pinDialog != null || showNowPlayingHelp
     LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
 
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
@@ -126,6 +147,13 @@ fun LauncherRoot(
         searchQuery = searchQuery,
         isSearchActive = isSearchActive,
         filteredApps = filteredApps,
+        quickButtonApps = quickButtonApps,
+        nowPlaying = nowPlaying,
+        kidsMode = kidsMode,
+        onMediaPlayPause = viewModel::mediaPlayPause,
+        onMediaNext = viewModel::mediaNext,
+        onMediaPrevious = viewModel::mediaPrevious,
+        onOpenNowPlayingApp = viewModel::openNowPlayingApp,
         onSearchCities = viewModel::searchCities,
         onClearCitySearch = viewModel::clearCitySearch,
         onSelectCity = viewModel::selectCity,
@@ -142,15 +170,21 @@ fun LauncherRoot(
     )
 
     contextMenuApp?.let { app ->
-        val favIndex = favoriteApps.indexOfFirst { it.packageName == app.packageName }
         AppContextMenuDialog(
             app = app,
             isFavorite = favorites.contains(app.packageName),
-            favoriteIndex = favIndex,
+            favoriteIndex = favoriteApps.indexOfFirst { it.packageName == app.packageName },
             favoriteCount = favoriteApps.size,
+            allAppsIndex = apps.indexOfFirst { it.packageName == app.packageName },
+            allAppsCount = apps.size,
+            isQuickButton = app.packageName in quickButtonKeys,
+            quickButtonsFull = quickButtonKeys.size >= LauncherPrefsStore.MAX_QUICK_BUTTONS,
             onLaunchApp = { viewModel.launchApp(app) },
             onToggleFavorite = { viewModel.toggleFavorite(app) },
             onMoveFavorite = { delta -> viewModel.moveFavorite(app, delta) },
+            onMoveInAllApps = { delta -> viewModel.moveInAllApps(app, delta) },
+            onToggleQuickButton = { viewModel.toggleQuickButton(app) },
+            onToggleKidsAllowed = { viewModel.setKidsAllowed(app, !app.isKidsAllowed) },
             onRename = { viewModel.startRename(app) },
             onToggleHidden = { viewModel.setHidden(app, !app.isHidden) },
             onOpenAppDetails = { viewModel.openAppDetails(app) },
@@ -169,12 +203,46 @@ fun LauncherRoot(
     if (isSettingsOpen) {
         LauncherSettingsDialog(
             settings = settings,
-            isCelsius = isCelsius,
-            hiddenAppCount = hiddenApps.size,
+            status = SettingsStatus(
+                isCelsius = isCelsius,
+                hiddenAppCount = hiddenAppCount,
+                localPhotoCount = localPhotoCount,
+                hasPhotoPermission = hasPhotoPermission,
+                hasKidsPin = hasKidsPin,
+                kidsAppCount = kidsAppCount,
+                hasNowPlayingAccess = hasNowPlayingAccess
+            ),
             onUpdate = viewModel::updateSettings,
             onToggleUnit = viewModel::toggleTemperatureUnit,
+            onRequestPhotoPermission = viewModel::requestPhotoPermission,
+            onEnableKidsMode = { viewModel.setKidsModeEnabled(true) },
+            onChangeKidsPin = viewModel::changeKidsPin,
+            onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
             onDismiss = viewModel::closeSettings
         )
+    }
+
+    if (showNowPlayingHelp) {
+        NowPlayingHelpDialog(
+            onOpenSystemSettings = viewModel::openNotificationAccessSettings,
+            onDismiss = viewModel::closeNowPlayingHelp
+        )
+    }
+
+    pinDialog?.let { state ->
+        when (state.purpose) {
+            PinPurpose.CREATE -> CreatePinDialog(
+                onCreated = viewModel::onPinCreated,
+                onDismiss = viewModel::closePinDialog
+            )
+            PinPurpose.EXIT_KIDS_MODE -> PinEntryDialog(
+                title = "Enter PIN to leave Kids mode",
+                subtitle = null,
+                error = state.error,
+                onComplete = viewModel::submitExitPin,
+                onDismiss = viewModel::closePinDialog
+            )
+        }
     }
 
     AnimatedVisibility(
@@ -212,6 +280,13 @@ fun LauncherContent(
     searchQuery: String,
     isSearchActive: Boolean,
     filteredApps: List<AppModel>,
+    quickButtonApps: List<AppModel>,
+    nowPlaying: NowPlaying?,
+    kidsMode: Boolean,
+    onMediaPlayPause: () -> Unit,
+    onMediaNext: () -> Unit,
+    onMediaPrevious: () -> Unit,
+    onOpenNowPlayingApp: () -> Unit,
     onSearchCities: (String) -> Unit,
     onClearCitySearch: () -> Unit,
     onSelectCity: (CityLocationModel) -> Unit,
@@ -360,12 +435,31 @@ fun LauncherContent(
                 Box(modifier = Modifier.weight(1f)) {
                     HeroSection(
                         focusedApp = focusedApp,
-                        isFavorite = focusedApp != null && favorites.contains(focusedApp.packageName)
+                        isFavorite = focusedApp != null && favorites.contains(focusedApp.packageName),
+                        kidsMode = kidsMode
                     )
                 }
 
-                // Discreet Wallpaper Attribution Chip
-                currentWallpaper?.let { wp ->
+                nowPlaying?.let { np ->
+                    NowPlayingCard(
+                        nowPlaying = np,
+                        onPlayPause = onMediaPlayPause,
+                        onNext = onMediaNext,
+                        onPrevious = onMediaPrevious,
+                        onOpenApp = onOpenNowPlayingApp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+
+                QuickButtonsBar(
+                    apps = quickButtonApps,
+                    onClick = onAppClicked,
+                    onLongClick = onAppLongClicked
+                )
+
+                // Discreet wallpaper attribution chip (hidden while media controls take the space)
+                currentWallpaper?.takeIf { nowPlaying == null && quickButtonApps.size < 4 }?.let { wp ->
+                    Spacer(modifier = Modifier.width(12.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -381,7 +475,8 @@ fun LauncherContent(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "${wp.title.take(28)}... • r/TVWallpapersSFW",
+                            text = if (wp.isLocal) "Your photo • ${wp.title.take(24)}"
+                            else "${wp.title.take(28)}… • r/TVWallpapersSFW",
                             fontSize = 10.sp,
                             color = TextSecondary,
                             fontWeight = FontWeight.Medium

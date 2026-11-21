@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
@@ -27,7 +29,8 @@ import com.example.firelauncher.ui.theme.TextSecondary
 /**
  * App options, opened by long-pressing OK on a card or pressing the remote's ☰ Menu button.
  *
- * Move left/right keep the menu open so a favourite can be nudged several places in a row.
+ * Move left/right keep the menu open so an app can be nudged several places in a row.
+ * Moving within All Apps switches the sort to "My Order".
  */
 @Composable
 fun AppContextMenuDialog(
@@ -35,9 +38,16 @@ fun AppContextMenuDialog(
     isFavorite: Boolean,
     favoriteIndex: Int,
     favoriteCount: Int,
+    allAppsIndex: Int,
+    allAppsCount: Int,
+    isQuickButton: Boolean,
+    quickButtonsFull: Boolean,
     onLaunchApp: () -> Unit,
     onToggleFavorite: () -> Unit,
     onMoveFavorite: (delta: Int) -> Unit,
+    onMoveInAllApps: (delta: Int) -> Unit,
+    onToggleQuickButton: () -> Unit,
+    onToggleKidsAllowed: () -> Unit,
     onRename: () -> Unit,
     onToggleHidden: () -> Unit,
     onOpenAppDetails: () -> Unit,
@@ -69,28 +79,25 @@ fun AppContextMenuDialog(
         )
 
         if (isFavorite && favoriteCount > 1) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                TvMenuItem(
-                    title = "Move left",
-                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
-                    iconTint = FavoriteYellow,
-                    enabled = favoriteIndex > 0,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onMoveFavorite(-1) }
-                )
-                TvMenuItem(
-                    title = "Move right",
-                    icon = Icons.AutoMirrored.Rounded.ArrowForward,
-                    iconTint = FavoriteYellow,
-                    enabled = favoriteIndex in 0 until favoriteCount - 1,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onMoveFavorite(1) }
-                )
-            }
+            MoveRow("Favorites", favoriteIndex, favoriteCount, FavoriteYellow, onMoveFavorite)
         }
+
+        if (allAppsIndex >= 0 && allAppsCount > 1) {
+            MoveRow("All Apps", allAppsIndex, allAppsCount, Color(0xFF60A5FA), onMoveInAllApps)
+        }
+
+        TvMenuItem(
+            title = if (isQuickButton) "Remove Quick button" else "Add as Quick button",
+            subtitle = when {
+                isQuickButton -> null
+                quickButtonsFull -> "Quick buttons are full (5) — remove one first"
+                else -> "One-press shortcut at the top of the screen"
+            },
+            icon = Icons.Rounded.Bolt,
+            iconTint = FireAmber,
+            enabled = isQuickButton || !quickButtonsFull,
+            onClick = { onToggleQuickButton(); onDismiss() }
+        )
 
         TvMenuItem(
             title = "Rename",
@@ -109,11 +116,45 @@ fun AppContextMenuDialog(
         )
 
         TvMenuItem(
+            title = if (app.isKidsAllowed) "Remove from Kids mode" else "Allow in Kids mode",
+            subtitle = if (app.isKidsAllowed) "Kids mode won't show this app" else "Show this app while Kids mode is on",
+            icon = Icons.Rounded.ChildCare,
+            iconTint = Color(0xFFF472B6),
+            onClick = { onToggleKidsAllowed(); onDismiss() }
+        )
+
+        TvMenuItem(
             title = "Force Stop & App Info",
             subtitle = "Fire OS settings: force stop, clear cache, manage data",
             icon = Icons.Rounded.Settings,
             iconTint = FireOrange,
             onClick = { onOpenAppDetails(); onDismiss() }
+        )
+    }
+}
+
+/** "Move left / Move right" pair for one row. Keeps the menu open so it can be pressed repeatedly. */
+@Composable
+private fun MoveRow(rowName: String, index: Int, count: Int, tint: Color, onMove: (Int) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TvMenuItem(
+            title = "$rowName: left",
+            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+            iconTint = tint,
+            enabled = index > 0,
+            modifier = Modifier.weight(1f),
+            onClick = { onMove(-1) }
+        )
+        TvMenuItem(
+            title = "$rowName: right",
+            icon = Icons.AutoMirrored.Rounded.ArrowForward,
+            iconTint = tint,
+            enabled = index in 0 until count - 1,
+            modifier = Modifier.weight(1f),
+            onClick = { onMove(1) }
         )
     }
 }
