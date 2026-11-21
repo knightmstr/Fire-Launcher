@@ -44,9 +44,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Soft shadow so white text stays readable on bright wallpapers without a box behind it. */
-private val Soft = TextStyle(shadow = Shadow(color = Color(0x80000000), blurRadius = 24f))
-private val Mist = Color.White.copy(alpha = 0.85f)
+/** A faint, wide shadow: just enough to read on bright skies, without lifting the text off the photo. */
+private val Soft = TextStyle(shadow = Shadow(color = Color(0x40000000), blurRadius = 16f))
+/** Translucent white so the wallpaper shows through the text. */
+private val Mist = Color.White.copy(alpha = 0.72f)
 
 /**
  * Centre of the home: one quiet line with the date and weather (select the weather to change the
@@ -77,7 +78,7 @@ fun HomeClock(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(text = date, style = Soft, fontSize = 19.sp, fontWeight = FontWeight.Medium, color = Mist)
+            Text(text = date, style = Soft, fontSize = 19.sp, fontWeight = FontWeight.Normal, color = Mist)
             Text(text = "·", style = Soft, fontSize = 19.sp, color = Mist.copy(alpha = 0.6f))
             WeatherText(weather = weather, onClick = onWeatherClick)
         }
@@ -86,8 +87,8 @@ fun HomeClock(
                 text = time,
                 style = Soft,
                 fontSize = 108.sp,
-                fontWeight = FontWeight.Light,
-                color = Color.White.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Thin,
+                color = Color.White.copy(alpha = 0.6f),
                 letterSpacing = (-2).sp,
                 modifier = Modifier.alignByBaseline()
             )
@@ -96,8 +97,8 @@ fun HomeClock(
                     text = amPm,
                     style = Soft,
                     fontSize = 24.sp,
-                    fontWeight = FontWeight.Light,
-                    color = Color.White.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Thin,
+                    color = Color.White.copy(alpha = 0.55f),
                     modifier = Modifier.alignByBaseline().padding(start = 6.dp)
                 )
             }
@@ -137,7 +138,7 @@ private fun WeatherText(weather: WeatherData, onClick: () -> Unit) {
                 text = "${weather.displayTemperature} ${weather.condition} · ${weather.city}",
                 style = Soft,
                 fontSize = 19.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Normal,
                 color = Mist
             )
         }
