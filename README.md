@@ -55,35 +55,40 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
      adb shell cmd notification allow_listener com.example.firelauncher/com.example.firelauncher.media.MediaListenerService
      ```
    - Only listens while the launcher is on screen.
-9. **Idle Screensaver**:
+9. **In-App Updates from GitHub Releases**:
+   - Checks `knightmstr/Fire-Launcher` releases 20 s after start and every 12 h. When a newer version exists, an **Update** chip appears in the header (also under Launcher Settings → App updates).
+   - **Download & install** fetches the `-release.apk`, verifies its SHA-256 against the release's checksum file, checks it's FireLauncher and newer, then hands it to Android's installer. You always confirm on Android's own screen.
+   - One-time setup: allow FireLauncher under **Install unknown apps** (the dialog links there; on Fire OS it's *Settings → My Fire TV → Developer options → Install unknown apps*).
+   - Updates only install if signed with the same key, which is why releases need the `KEYSTORE_*` secrets. Forks: change `UPDATE_REPO` in `app/build.gradle.kts`.
+10. **Idle Screensaver**:
    - After the chosen idle time, shows a dimmed wallpaper slideshow with a large clock, date and temperature.
    - The clock drifts to a new position every minute to avoid screen burn-in. Any remote button wakes it without triggering an action.
    - The launcher no longer holds `FLAG_KEEP_SCREEN_ON`, so Fire OS's own sleep timer still works.
-10. **r/TVWallpapersSFW Wallpapers (optional source) Homepage Wallpapers & Vivid Glass Scrim**:
+11. **r/TVWallpapersSFW Wallpapers (optional source) Homepage Wallpapers & Vivid Glass Scrim**:
    - Fetches authentic 16:9 high-resolution landscape TV wallpapers directly from `r/TVWallpapersSFW`.
    - Rotates automatically (every **30 minutes** by default, configurable in Launcher Settings) with smooth Coil image crossfading.
    - **Enhanced Wallpaper Visibility**: Replaced heavy opaque masks with an ultra-clear, translucent glass scrim (12%–52% gradient). Wallpapers are now bright, vivid, and cinematic across the entire screen while maintaining 100% text/card legibility with subtle drop shadows.
    - Includes a discreet top-right attribution chip showing the wallpaper title and source subreddit.
    - Top bar "Next Wallpaper" button allows manual instant cycling.
    - Built-in curated 4K fallback wallpapers ensure seamless operation even offline or in network-restricted environments.
-11. **Library 'Sort By' Menu (A–Z, Most Recent, Most Frequent)**:
+12. **Library 'Sort By' Menu (A–Z, Most Recent, Most Frequent)**:
    - Dynamic sorting modal dialog accessible from the Top Bar ("Sort" button / `S` key) and directly on the "All Apps" row header (`Sorted by: ... ▾`).
    - Three automatic sort orders, plus **My Order** (arranged by you via *Move in All Apps*):
      - **Alphabetical (A–Z)**: Classic alphabetical ordering by application title.
      - **Most Recently Used (MRU)**: Orders apps by latest launch timestamp, showing friendly relative time badges (e.g. *"5m ago"*, *"2h ago"*).
      - **Most Frequently Used (MFU)**: Orders apps by total launch frequency, showing play count badges (e.g. *"24×"*).
    - Tracks app launches and saves sorting preferences persistently in Preferences DataStore (`KEY_APP_SORT_ORDER` and `KEY_APP_USAGE_STATS`).
-12. **Accurate Live Weather with Global City Search (Open-Meteo API)**:
+13. **Accurate Live Weather with Global City Search (Open-Meteo API)**:
    - Replaces mock weather with real-time meteorological forecasts powered by **Open-Meteo** (free, no API key required, WMO weather standards).
    - Shows live temperature, weather condition icon/summary, high/low, humidity %, and wind speed.
    - **Global City Search Modal**: Users can search for any city in the world using Open-Meteo Geocoding, view region/country, and add it with one click.
    - Custom cities are saved persistently in AndroidX Preferences DataStore.
    - Quick toggle between **Fahrenheit (°F)** and **Celsius (°C)**; defaults to °C everywhere except the US.
-13. **Top Bar, Global App Search & Live Clock**:
+14. **Top Bar, Global App Search & Live Clock**:
    - Dedicated **Global Search** button with real-time app filtering by name and package identifier, expandable search bar, and empty search state.
    - Live clock honoring 12-hour / 24-hour system preferences, plus formatted date.
    - Hero header showing the currently focused app's title, category, and contextual action hint (*"Hold OK to add to favorites"* / *"Hold OK to remove from favorites"*).
-14. **TV Overscan & Remote Navigation Safeguards**:
+15. **TV Overscan & Remote Navigation Safeguards**:
     - 48dp horizontal margins for TV overscan-safe rendering on any HDMI display.
     - Hardware Back button is deliberately absorbed and ignored to prevent accidental launcher exit, but gracefully dismisses active search or modal dialogs first.
     - Pressing the Home key while the launcher is open delivers an intent to `singleTask`'s `onNewIntent`, automatically scrolling to the top and refocusing the primary card.
@@ -308,6 +313,11 @@ FireLauncher/
 │           ├── media/
 │           │   ├── MediaListenerService.kt # Empty listener holding the media-session permission
 │           │   └── NowPlayingRepository.kt # Active media session tracking & transport controls
+│           ├── update/
+│           │   ├── UpdateModels.kt        # ReleaseInfo, UpdateState, version/checksum helpers
+│           │   ├── UpdateRepository.kt    # GitHub check, download, SHA-256 + package verification
+│           │   ├── UpdateInstaller.kt     # PackageInstaller session + install permission
+│           │   └── InstallResultReceiver.kt # Install result callback & relaunch after update
 │           └── ui/
 │               ├── LauncherViewModel.kt   # MVVM StateFlow coordinator (apps, favorites, dialogs, screensaver)
 │               ├── LauncherRoot.kt        # State collector, rows, dialogs & screensaver overlay
@@ -323,6 +333,7 @@ FireLauncher/
 │               │   ├── PinDialog.kt           # D-pad PIN keypad (enter / create)
 │               │   ├── RenameAppDialog.kt     # Custom app name entry
 │               │   ├── Screensaver.kt         # Idle clock + wallpaper slideshow
+│               │   ├── UpdateDialog.kt        # Update dialog & header chip
 │               │   ├── TopBar.kt              # Weather & city search, wallpaper cycle, sort, clock & search
 │               │   └── TvMenu.kt              # Shared dialog frame & D-pad menu row
 │               └── theme/
@@ -331,6 +342,7 @@ FireLauncher/
 ├── app/src/test/java/com/example/firelauncher/
 │   ├── FireLauncherUnitTest.kt        # Sort order, weather formatting, debloat scripts
 │   ├── KidsAndOrderTest.kt            # PIN hashing, custom app order, enum fallbacks
+│   ├── UpdateVersionsTest.kt          # Tag → versionCode, checksum parsing
 │   └── PrefsCodecTest.kt              # Favorites reorder, label sanitising, settings cycling
 ├── .github/workflows/
 │   ├── android-ci.yml                 # Automated PR/push test, lint & APK build
