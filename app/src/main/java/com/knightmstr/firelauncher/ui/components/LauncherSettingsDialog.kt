@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Lock
@@ -19,6 +20,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.knightmstr.firelauncher.data.LauncherSettings
+import com.knightmstr.firelauncher.home.HomeWatch
 import com.knightmstr.firelauncher.data.LocalPhotoSource
 import com.knightmstr.firelauncher.data.WallpaperSource
 import com.knightmstr.firelauncher.ui.theme.FireAmber
@@ -35,7 +37,8 @@ data class SettingsStatus(
     val kidsAppCount: Int,
     val hasNowPlayingAccess: Boolean,
     val installedVersion: String,
-    val updateSummary: String
+    val updateSummary: String,
+    val homeWatch: HomeWatch.Status
 )
 
 /**
@@ -53,6 +56,7 @@ fun LauncherSettingsDialog(
     onChangeKidsPin: () -> Unit,
     onOpenNowPlayingHelp: () -> Unit,
     onOpenUpdates: () -> Unit,
+    onHomeWatch: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val firstItem = rememberInitialFocus()
@@ -95,6 +99,23 @@ fun LauncherSettingsDialog(
                 onClick = onRequestPhotoPermission
             )
         }
+
+        TvMenuItem(
+            title = "Home button opens FireLauncher",
+            subtitle = when (status.homeWatch) {
+                HomeWatch.Status.ON -> "Brings FireLauncher back when Home opens Amazon's home"
+                HomeWatch.Status.OFF -> "Off: Home shows Amazon's home"
+                HomeWatch.Status.NEEDS_PERMISSION -> "Needs a one-time setup with adb"
+            },
+            icon = Icons.Rounded.Home,
+            iconTint = FireAmber,
+            trailing = when (status.homeWatch) {
+                HomeWatch.Status.ON -> "On"
+                HomeWatch.Status.OFF -> "Off"
+                HomeWatch.Status.NEEDS_PERMISSION -> "Set up"
+            },
+            onClick = onHomeWatch
+        )
 
         TvMenuItem(
             title = "Show All Apps row on home",

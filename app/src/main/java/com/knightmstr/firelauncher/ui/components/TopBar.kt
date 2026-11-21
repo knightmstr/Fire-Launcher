@@ -1,7 +1,5 @@
 package com.knightmstr.firelauncher.ui.components
 
-import android.content.Context
-import android.text.format.DateFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.widthIn
@@ -50,7 +48,6 @@ import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.WbCloudy
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,7 +59,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -83,30 +79,18 @@ import com.knightmstr.firelauncher.ui.theme.FireAmber
 import com.knightmstr.firelauncher.ui.theme.FireOrange
 import com.knightmstr.firelauncher.ui.theme.TextPrimary
 import com.knightmstr.firelauncher.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Top bar:
  * - Left: logo, name and the current wallpaper (your photo or r/TVWallpapersSFW)
- * - Centre: live weather (opens the city picker) or the search field
- * - Right: icon buttons (next wallpaper, search, Wi-Fi, settings) then the clock.
+ * - Centre: the search field while searching (clock and weather are mid-screen, see HomeClock)
+ * - Right: update chip, Quick buttons, then icon buttons (next wallpaper, search, Wi-Fi, settings).
  *   The settings gear asks Launcher or Fire TV settings; in Kids mode Wi-Fi is hidden and the
  *   gear asks for the PIN.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TopBar(
-    weather: WeatherData,
-    savedCities: List<CityLocationModel>,
-    searchResults: List<CityLocationModel>,
-    isSearchingCities: Boolean,
-    onSearchCities: (String) -> Unit,
-    onClearCitySearch: () -> Unit,
-    onSelectCity: (CityLocationModel) -> Unit,
-    onToggleUnit: () -> Unit,
     searchQuery: String = "",
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
@@ -119,21 +103,11 @@ fun TopBar(
     onOpenWifi: () -> Unit = {},
     onOpenSystemSettings: () -> Unit = {},
     onOpenLauncherSettings: () -> Unit = {},
+    /** Extra items before the icon buttons (update chip, Quick buttons). */
+    leadingActions: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    var currentTimeString by remember { mutableStateOf(getFormattedTime(context)) }
-    var currentDateString by remember { mutableStateOf(getFormattedDate()) }
-    var showCityDialog by remember { mutableStateOf(false) }
     var showSettingsChooser by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTimeString = getFormattedTime(context)
-            currentDateString = getFormattedDate()
-            delay(1000L)
-        }
-    }
 
     Box(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -182,9 +156,8 @@ fun TopBar(
                 }
             }
 
-            // Center: Weather Widget or Search Input
+            // Centre: the search field while searching (the clock and weather live mid-screen)
             if (isSearchActive) {
-                // Expanded TV Search Bar
                 GlobalSearchBar(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange,
@@ -192,20 +165,14 @@ fun TopBar(
                     onClose = { onToggleSearch(false) },
                     modifier = Modifier.weight(1f, fill = false).padding(horizontal = 24.dp)
                 )
-            } else {
-                // Top Weather Widget (Live weather for selected city)
-                WeatherWidget(
-                    weather = weather,
-                    onClick = { showCityDialog = true },
-                    onToggleUnit = onToggleUnit
-                )
             }
 
-            // Right: icon buttons, then the clock
+            // Right: update chip and Quick buttons, then the round icon buttons
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                leadingActions()
                 TopIconButton(Icons.Rounded.Wallpaper, "Next wallpaper", onNextWallpaper)
                 TopIconButton(
                     if (isSearchActive) Icons.Rounded.Close else Icons.Rounded.Search,
@@ -217,23 +184,6 @@ fun TopBar(
                     Icons.Rounded.Settings,
                     if (kidsMode) "Leave Kids mode" else "Settings"
                 ) { if (kidsMode) onOpenLauncherSettings() else showSettingsChooser = true }
-
-                // Live clock and date
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text(
-                        text = currentTimeString,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = currentDateString,
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
-                }
             }
         }
 
@@ -242,28 +192,6 @@ fun TopBar(
                 onLauncherSettings = { showSettingsChooser = false; onOpenLauncherSettings() },
                 onFireTvSettings = { showSettingsChooser = false; onOpenSystemSettings() },
                 onDismiss = { showSettingsChooser = false }
-            )
-        }
-
-        // Live City Search & Selection Dialog
-        if (showCityDialog) {
-            CitySelectionDialog(
-                currentCity = weather.city,
-                savedCities = savedCities,
-                searchResults = searchResults,
-                isSearching = isSearchingCities,
-                isCelsius = weather.isCelsius,
-                onSearch = onSearchCities,
-                onClearSearch = onClearCitySearch,
-                onCitySelected = { city ->
-                    onSelectCity(city)
-                    showCityDialog = false
-                },
-                onToggleUnit = onToggleUnit,
-                onDismiss = {
-                    onClearCitySearch()
-                    showCityDialog = false
-                }
             )
         }
     }
@@ -690,16 +618,4 @@ fun SortSelectionDialog(
             )
         }
     }
-}
-
-private fun getFormattedTime(context: Context): String {
-    val is24Hour = DateFormat.is24HourFormat(context)
-    val pattern = if (is24Hour) "HH:mm" else "h:mm a"
-    val formatter = SimpleDateFormat(pattern, Locale.getDefault())
-    return formatter.format(Date())
-}
-
-private fun getFormattedDate(): String {
-    val formatter = SimpleDateFormat("EEE, MMM d", Locale.getDefault())
-    return formatter.format(Date())
 }

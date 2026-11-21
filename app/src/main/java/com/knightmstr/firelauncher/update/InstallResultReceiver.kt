@@ -7,6 +7,7 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import com.knightmstr.firelauncher.FireLauncherApp
 import com.knightmstr.firelauncher.MainActivity
+import com.knightmstr.firelauncher.home.HomeWatch
 
 /** Receives PackageInstaller results, and relaunches FireLauncher after it updates itself. */
 class InstallResultReceiver : BroadcastReceiver() {
@@ -42,6 +43,8 @@ class InstallResultReceiver : BroadcastReceiver() {
 class PackageReplacedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        // Android can drop accessibility services on update: put the Home button watcher back
+        runCatching { HomeWatch.ensure(context) }
         // Best effort: newer Android versions may block background launches; the user can still open it.
         runCatching {
             context.startActivity(
