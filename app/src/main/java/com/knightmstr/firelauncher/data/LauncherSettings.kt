@@ -15,7 +15,9 @@ data class LauncherSettings(
     /** Where wallpapers come from. Local photos are the default (no network, no rotation fetches). */
     val wallpaperSource: WallpaperSource = WallpaperSource.MY_PHOTOS,
     /** App card size; Small fits about 6 cards per row on a 1080p TV. */
-    val cardSize: CardSize = CardSize.SMALL
+    val cardSize: CardSize = CardSize.SMALL,
+    /** Show every app as a row on the home screen (off: use the All Apps tile instead). */
+    val showAllAppsRow: Boolean = false
 ) {
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30

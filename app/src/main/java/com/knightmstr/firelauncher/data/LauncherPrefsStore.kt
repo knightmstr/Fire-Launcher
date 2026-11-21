@@ -58,6 +58,7 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_SHOW_HIDDEN = booleanPreferencesKey("settings_show_hidden_apps")
         private val KEY_WALLPAPER_SOURCE = stringPreferencesKey("settings_wallpaper_source")
         private val KEY_CARD_SIZE = stringPreferencesKey("settings_card_size")
+        private val KEY_SHOW_ALL_APPS_ROW = booleanPreferencesKey("settings_show_all_apps_row")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
         private val KEY_QUICK_BUTTONS = stringPreferencesKey("quick_buttons_order")
@@ -145,7 +146,8 @@ class LauncherPrefsStore(private val context: Context) {
             screensaverTimeoutMinutes = p[KEY_SCREENSAVER_TIMEOUT] ?: LauncherSettings.DEFAULT_SCREENSAVER_TIMEOUT,
             showHiddenApps = p[KEY_SHOW_HIDDEN] ?: false,
             wallpaperSource = WallpaperSource.fromName(p[KEY_WALLPAPER_SOURCE]),
-            cardSize = CardSize.fromName(p[KEY_CARD_SIZE])
+            cardSize = CardSize.fromName(p[KEY_CARD_SIZE]),
+            showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false
         )
     }
 
@@ -156,6 +158,7 @@ class LauncherPrefsStore(private val context: Context) {
             p[KEY_SHOW_HIDDEN] = settings.showHiddenApps
             p[KEY_WALLPAPER_SOURCE] = settings.wallpaperSource.name
             p[KEY_CARD_SIZE] = settings.cardSize.name
+            p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
         }
     }
 

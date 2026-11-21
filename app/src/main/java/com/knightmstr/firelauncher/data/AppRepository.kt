@@ -22,6 +22,8 @@ class AppRepository(private val context: Context) {
     companion object {
         /** Key of the in-launcher Settings tile; handled by the ViewModel, never sent as an Intent. */
         const val LAUNCHER_SETTINGS_KEY = "system.launcher_settings"
+        /** Key of the home-screen tile that opens the All Apps grid; handled by the ViewModel. */
+        const val ALL_APPS_KEY = "system.all_apps"
     }
 
     private val packageManager: PackageManager = context.packageManager
@@ -116,6 +118,17 @@ class AppRepository(private val context: Context) {
     /**
      * Builds system shortcuts: Wi-Fi, Display, Sound, Bluetooth, All Settings and Launcher Settings.
      */
+    /** Tile at the start of the home row that opens the full All Apps grid. */
+    fun getAllAppsTile(): AppModel = AppModel(
+        packageName = ALL_APPS_KEY,
+        activityName = "FireLauncher.AllApps",
+        label = "All Apps",
+        icon = ColorDrawable(Color.TRANSPARENT),
+        accentColor = 0xFFFF9800.toInt(), // Fire amber
+        isSystemShortcut = true,
+        systemIntentAction = ALL_APPS_KEY
+    )
+
     fun getSystemShortcuts(): List<AppModel> {
         val dummyDrawable: Drawable = ColorDrawable(Color.TRANSPARENT)
 

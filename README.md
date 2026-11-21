@@ -26,7 +26,11 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - 16:9 rounded cards built on `androidx.tv.material3.Surface`.
    - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
    - Focus defaults to the first card on application launch.
-4. **App Options Menu (hold OK, or press ☰ on the remote)**:
+4. **Clean Home Screen & All Apps Grid**:
+   - Home shows an **All Apps** tile, your Favorites and the System row, so everything fits on one screen.
+   - The tile opens a full-screen grid of every app that wraps to the screen width (Back closes it, Sort button cycles the order). Prefer the old row? *Launcher Settings → Show All Apps row on home*.
+   - **App card size** (Small / Medium / Large) in Launcher Settings; Small is the default.
+4b. **App Options Menu (hold OK, or press ☰ on the remote)**:
    - **Favorites**: add/remove, and **Move left / Move right** to reorder the Favorites row (the menu stays open so you can nudge several places).
    - **Rename** any app (e.g. "Prime Video" → "Prime"); restore the original name at any time. Search still matches the original name.
    - **Hide** apps you never use from All Apps and Favorites. Turn on *Show hidden apps row* in Launcher Settings to see and unhide them.
@@ -323,6 +327,7 @@ FireLauncher/
 │               ├── LauncherRoot.kt        # State collector, rows, dialogs & screensaver overlay
 │               ├── VoiceSearchHelper.kt   # Remote mic speech-recognition intent
 │               ├── components/
+│               │   ├── AllAppsScreen.kt       # Full-screen All Apps grid
 │               │   ├── AppCard.kt             # 16:9 Surface, 1.12x scale, white border, glow, yellow dot
 │               │   ├── AppContextMenuDialog.kt # Options: favorite, reorder, rename, hide, app info
 │               │   ├── AppRow.kt              # LazyRow with category header & Sort trigger

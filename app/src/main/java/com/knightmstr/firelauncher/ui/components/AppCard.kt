@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.DisplaySettings
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -189,6 +190,7 @@ private fun SystemShortcutContent(
         "system.sound" -> Icons.AutoMirrored.Rounded.VolumeUp
         "system.bluetooth" -> Icons.Rounded.Bluetooth
         AppRepository.LAUNCHER_SETTINGS_KEY -> Icons.Rounded.Tune
+        AppRepository.ALL_APPS_KEY -> Icons.Rounded.Apps
         else -> Icons.Rounded.Settings
     }
 

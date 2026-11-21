@@ -1,6 +1,7 @@
 package com.knightmstr.firelauncher.ui.components
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChildCare
@@ -93,6 +94,15 @@ fun LauncherSettingsDialog(
                 onClick = onRequestPhotoPermission
             )
         }
+
+        TvMenuItem(
+            title = "Show All Apps row on home",
+            subtitle = "Off: open the All Apps tile for a full-screen grid",
+            icon = Icons.Rounded.Apps,
+            iconTint = FireAmber,
+            trailing = if (settings.showAllAppsRow) "On" else "Off",
+            onClick = { onUpdate { it.copy(showAllAppsRow = !it.showAllAppsRow) } }
+        )
 
         TvMenuItem(
             title = "App card size",

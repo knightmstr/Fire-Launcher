@@ -56,6 +56,7 @@ import com.knightmstr.firelauncher.data.WallpaperModel
 import com.knightmstr.firelauncher.data.WeatherData
 import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.media.NowPlaying
+import com.knightmstr.firelauncher.ui.components.AllAppsScreen
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
 import com.knightmstr.firelauncher.ui.components.LocalCardWidth
 import com.knightmstr.firelauncher.ui.components.CreatePinDialog
@@ -128,10 +129,11 @@ fun LauncherRoot(
     val hasNowPlayingAccess by viewModel.hasNowPlayingAccess.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val isUpdateDialogOpen by viewModel.isUpdateDialogOpen.collectAsStateWithLifecycle()
+    val isAllAppsOpen by viewModel.isAllAppsOpen.collectAsStateWithLifecycle()
 
     // Pause the screensaver timer while any dialog has the keys
     val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen ||
-        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen
+        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen
     LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
 
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
@@ -143,6 +145,8 @@ fun LauncherRoot(
             hiddenApps = if (settings.showHiddenApps) hiddenApps else emptyList(),
             favorites = favorites,
             favoriteApps = favoriteApps,
+            allAppsTile = viewModel.allAppsTile,
+            showAllAppsRow = settings.showAllAppsRow,
             systemShortcuts = systemShortcuts,
             focusedApp = focusedApp,
             homeTick = homeTick,
@@ -242,6 +246,21 @@ fun LauncherRoot(
         )
     }
 
+    if (isAllAppsOpen) {
+        CompositionLocalProvider(LocalCardWidth provides settings.cardSize.widthDp.dp) {
+            AllAppsScreen(
+                apps = apps,
+                favorites = favorites,
+                sortOrder = sortOrder,
+                onCycleSort = viewModel::cycleSortOrder,
+                onAppFocused = viewModel::setFocusedApp,
+                onAppClicked = { if (viewModel.launchApp(it)) viewModel.closeAllApps() },
+                onAppLongClicked = viewModel::openContextMenu,
+                onDismiss = viewModel::closeAllApps
+            )
+        }
+    }
+
     if (isUpdateDialogOpen) {
         UpdateDialog(
             state = updateState,
@@ -299,6 +318,8 @@ fun LauncherContent(
     hiddenApps: List<AppModel>,
     favorites: Set<String>,
     favoriteApps: List<AppModel>,
+    allAppsTile: AppModel,
+    showAllAppsRow: Boolean,
     systemShortcuts: List<AppModel>,
     focusedApp: AppModel?,
     homeTick: Long,
@@ -582,34 +603,34 @@ fun LauncherContent(
                     }
                 } else {
                     // Standard Home Launcher Rows
-                    // Row 1: Favorites (Only visible when non-empty)
-                    if (favoriteApps.isNotEmpty()) {
-                        item(key = "row_favorites") {
+                    // Row 1: "All Apps" tile followed by favourites (always shown)
+                    item(key = "row_favorites") {
+                        AppRow(
+                            title = if (favoriteApps.isEmpty()) "Home (open All Apps, hold OK on an app → Add to Favorites)"
+                            else "Favorites",
+                            apps = listOf(allAppsTile) + favoriteApps,
+                            favorites = favorites,
+                            firstItemFocusRequester = firstItemFocusRequester,
+                            onAppFocused = onAppFocused,
+                            onAppClicked = onAppClicked,
+                            onAppLongClicked = onAppLongClicked
+                        )
+                    }
+
+                    // Row 2: All Apps (optional; off by default, the tile opens a full grid instead)
+                    if (showAllAppsRow) {
+                        item(key = "row_all_apps") {
                             AppRow(
-                                title = "Favorites",
-                                apps = favoriteApps,
+                                title = "All Apps",
+                                apps = apps,
                                 favorites = favorites,
-                                firstItemFocusRequester = firstItemFocusRequester,
+                                sortOrder = sortOrder,
+                                onOpenSortMenu = { showRowSortDialog = true },
                                 onAppFocused = onAppFocused,
                                 onAppClicked = onAppClicked,
                                 onAppLongClicked = onAppLongClicked
                             )
                         }
-                    }
-
-                    // Row 2: All Apps (with sort by menu trigger)
-                    item(key = "row_all_apps") {
-                        AppRow(
-                            title = "All Apps",
-                            apps = apps,
-                            favorites = favorites,
-                            sortOrder = sortOrder,
-                            onOpenSortMenu = { showRowSortDialog = true },
-                            firstItemFocusRequester = if (favoriteApps.isEmpty()) firstItemFocusRequester else null,
-                            onAppFocused = onAppFocused,
-                            onAppClicked = onAppClicked,
-                            onAppLongClicked = onAppLongClicked
-                        )
                     }
 
                     // Row 3: System Shortcuts
