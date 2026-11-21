@@ -27,9 +27,9 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
    - Focus defaults to the first card on application launch.
 4. **Clean Home Screen & All Apps Grid** (layout after [couch-tv](https://github.com/Seagey/couch-tv)'s Fire TV home):
-   - The wallpaper fills the screen: the date, weather and a **big clock** sit in the middle (with what's playing underneath), and a translucent **dock** along the bottom holds your Favorites with an **All Apps** tile at the right end. The focused app's name shows under the dock.
+   - The wallpaper fills the screen: one quiet line with the date and weather, a soft **big clock** in the middle (with what's playing underneath), and a translucent **dock** along the bottom holding your Favorites with a round **All Apps** button at the end. The focused app's name shows under the dock, with a hint that fades after a few seconds. The wallpaper credit sits small in the bottom-right corner.
    - The tile opens a full-screen grid of every app that wraps to the screen width (Back closes it, Sort button cycles the order). Prefer the old row? *Launcher Settings → Show All Apps row on home*.
-   - **App tile size** (Extra small → Extra large, Small by default) and **App tile shape** (Rounded, Square, Extra rounded, Pill) in Launcher Settings.
+   - **App tile size** slider (focus it and press ◀ ▶; changes show straight away) and **App tile shape** (Rounded, Square, Extra rounded, Pill) in Launcher Settings.
 4b. **App Options Menu (hold OK, or press ☰ on the remote)**:
    - **Favorites**: add/remove, and **Move left / Move right** to reorder the Favorites row (the menu stays open so you can nudge several places).
    - **Rename** any app (e.g. "Prime Video" → "Prime"); restore the original name at any time. Search still matches the original name.
@@ -40,7 +40,7 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - **Force Stop & App Info** opens the Fire OS app settings page.
    - Favorited cards show a yellow dot; everything is saved in Preferences DataStore.
 5. **Top-Bar Buttons & Launcher Settings**:
-   - Icon-only buttons at the top right, before the clock: next wallpaper, search, **Wi-Fi** and one **Settings** gear that asks *Launcher settings* or *Fire TV settings*. In Kids mode Wi-Fi is hidden and the gear asks for the PIN.
+   - Icon-only buttons at the top right, before the clock: next wallpaper, search, **Wi-Fi** and one **Settings** gear with a small drop-down: *Launcher settings* or *Fire TV settings*. In Kids mode Wi-Fi is hidden and the gear asks for the PIN.
    - The current wallpaper (your photo, or its r/TVWallpapersSFW title) is shown under the FireLauncher name, top left.
    - **Launcher Settings**: wallpaper rotation interval (15 min – 3 hr or never), screensaver timeout (5–30 min or off), °C/°F, and the hidden-apps row. Every option cycles with OK — no keyboard needed.
 6. **Kids Mode**:
