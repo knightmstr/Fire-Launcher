@@ -97,7 +97,6 @@ fun LauncherRoot(
     val hiddenApps by viewModel.hiddenApps.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val favoriteApps by viewModel.favoriteApps.collectAsStateWithLifecycle()
-    val systemShortcuts by viewModel.systemShortcuts.collectAsStateWithLifecycle()
     val focusedApp by viewModel.focusedApp.collectAsStateWithLifecycle()
     val homeTick by viewModel.homeTick.collectAsStateWithLifecycle()
     val weather by viewModel.weather.collectAsStateWithLifecycle()
@@ -147,7 +146,9 @@ fun LauncherRoot(
             favoriteApps = favoriteApps,
             allAppsTile = viewModel.allAppsTile,
             showAllAppsRow = settings.showAllAppsRow,
-            systemShortcuts = systemShortcuts,
+            onOpenWifi = { viewModel.openWifiSettings() },
+            onOpenSystemSettings = { viewModel.openSystemSettings() },
+            onOpenLauncherSettings = viewModel::onLauncherSettingsPressed,
             focusedApp = focusedApp,
             homeTick = homeTick,
             weather = weather,
@@ -320,7 +321,9 @@ fun LauncherContent(
     favoriteApps: List<AppModel>,
     allAppsTile: AppModel,
     showAllAppsRow: Boolean,
-    systemShortcuts: List<AppModel>,
+    onOpenWifi: () -> Unit,
+    onOpenSystemSettings: () -> Unit,
+    onOpenLauncherSettings: () -> Unit,
     focusedApp: AppModel?,
     homeTick: Long,
     weather: WeatherData,
@@ -467,20 +470,24 @@ fun LauncherContent(
                 onClearCitySearch = onClearCitySearch,
                 onSelectCity = onSelectCity,
                 onToggleUnit = onToggleUnit,
-                sortOrder = sortOrder,
-                onSelectSort = onSelectSort,
                 searchQuery = searchQuery,
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
                 onToggleSearch = onToggleSearch,
                 onRequestVoiceSearch = onRequestVoiceSearch,
                 onNextWallpaper = onNextWallpaper,
-                wallpaperTitle = currentWallpaper?.title
+                wallpaperInfo = currentWallpaper?.let { wp ->
+                    if (wp.isLocal) "Your photo • ${wp.title}" else "${wp.title} • r/TVWallpapersSFW"
+                },
+                kidsMode = kidsMode,
+                onOpenWifi = onOpenWifi,
+                onOpenSystemSettings = onOpenSystemSettings,
+                onOpenLauncherSettings = onOpenLauncherSettings
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Hero section: Focused app title, dynamic hints, and active wallpaper badge
+            // Hero section: focused app title and hints, now playing, quick buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -517,33 +524,6 @@ fun LauncherContent(
                     onClick = onAppClicked,
                     onLongClick = onAppLongClicked
                 )
-
-                // Discreet wallpaper attribution chip (hidden while media controls take the space)
-                currentWallpaper?.takeIf { nowPlaying == null && quickButtonApps.size < 4 }?.let { wp ->
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x66181C28))
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Wallpaper,
-                            contentDescription = "Wallpaper",
-                            tint = FireAmber,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (wp.isLocal) "Your photo • ${wp.title.take(24)}"
-                            else "${wp.title.take(28)}… • r/TVWallpapersSFW",
-                            fontSize = 10.sp,
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -633,19 +613,7 @@ fun LauncherContent(
                         }
                     }
 
-                    // Row 3: System Shortcuts
-                    item(key = "row_system") {
-                        AppRow(
-                            title = "System",
-                            apps = systemShortcuts,
-                            favorites = favorites,
-                            onAppFocused = onAppFocused,
-                            onAppClicked = onAppClicked,
-                            onAppLongClicked = onAppLongClicked
-                        )
-                    }
-
-                    // Row 4: Hidden apps (only when enabled in Launcher Settings)
+                    // Row 3: Hidden apps (only when enabled in Launcher Settings)
                     if (hiddenApps.isNotEmpty()) {
                         item(key = "row_hidden") {
                             AppRow(

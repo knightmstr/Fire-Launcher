@@ -160,8 +160,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val hiddenAppCount: StateFlow<Int> = hiddenPackages.map { it.size }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    private val allSystemShortcuts = repository.getSystemShortcuts()
-
     /** "All Apps" tile shown first in the home row. */
     val allAppsTile: AppModel = repository.getAllAppsTile()
 
@@ -176,13 +174,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         setSortOrder(next)
     }
 
-    /** In Kids mode only the (PIN-protected) settings tile remains, relabelled "Exit Kids Mode". */
-    val systemShortcuts: StateFlow<List<AppModel>> = kidsModeEnabled.map { kids ->
-        if (!kids) allSystemShortcuts
-        else allSystemShortcuts
-            .filter { it.packageName == AppRepository.LAUNCHER_SETTINGS_KEY }
-            .map { it.copy(label = "Exit Kids Mode", originalLabel = "Exit Kids Mode") }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, allSystemShortcuts)
+    // ------------------------------------------------------------------ Top-bar buttons
+
+    /** Wi-Fi button. Returns false if Fire OS has no Wi-Fi settings screen. */
+    fun openWifiSettings(): Boolean = repository.openSettingsScreen(Settings.ACTION_WIFI_SETTINGS)
+
+    /** Fire TV settings button. */
+    fun openSystemSettings(): Boolean = repository.openSettingsScreen(Settings.ACTION_SETTINGS)
+
+    /** Launcher Settings button; in Kids mode it asks for the PIN to leave Kids mode instead. */
+    fun onLauncherSettingsPressed() {
+        if (kidsModeEnabled.value) _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE)
+        else openSettings()
+    }
 
     // ------------------------------------------------------------------ Favourites
 
@@ -418,7 +422,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ------------------------------------------------------------------ Focus, menus & dialogs
 
-    private val allKnownApps = combine(decoratedApps, systemShortcuts) { a, b -> a + b + allAppsTile }
+    private val allKnownApps = decoratedApps.map { it + allAppsTile }
 
     private fun resolve(keyFlow: StateFlow<String?>): StateFlow<AppModel?> =
         combine(keyFlow, allKnownApps) { key, list -> key?.let { k -> list.firstOrNull { it.uniqueKey == k } } }
@@ -669,11 +673,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun launchApp(app: AppModel): Boolean {
         if (app.packageName == AppRepository.ALL_APPS_KEY) {
             openAllApps()
-            return true
-        }
-        if (app.packageName == AppRepository.LAUNCHER_SETTINGS_KEY) {
-            if (kidsModeEnabled.value) _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE)
-            else openSettings()
             return true
         }
         if (!app.isSystemShortcut) {

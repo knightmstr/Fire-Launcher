@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FireLauncher mark: 2x2 app tiles, one in brand amber. Used by the top bar and the app icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:pathData="M8,3h9a5,5 0,0 1,5,5v9a5,5 0,0 1,-5,5h-9a5,5 0,0 1,-5,-5v-9a5,5 0,0 1,5,-5z" android:fillColor="#FFFFFFFF" />
+    <path android:pathData="M8,26h9a5,5 0,0 1,5,5v9a5,5 0,0 1,-5,5h-9a5,5 0,0 1,-5,-5v-9a5,5 0,0 1,5,-5z" android:fillColor="#BEFFFFFF" />
+    <path android:pathData="M31,26h9a5,5 0,0 1,5,5v9a5,5 0,0 1,-5,5h-9a5,5 0,0 1,-5,-5v-9a5,5 0,0 1,5,-5z" android:fillColor="#78FFFFFF" />
+    <path android:pathData="M31,3h9a5,5 0,0 1,5,5v9a5,5 0,0 1,-5,5h-9a5,5 0,0 1,-5,-5v-9a5,5 0,0 1,5,-5z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="26" android:startY="3" android:endX="45" android:endY="22">
+                <item android:offset="0" android:color="#FFFFB703" />
+                <item android:offset="1" android:color="#FFFB8500" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

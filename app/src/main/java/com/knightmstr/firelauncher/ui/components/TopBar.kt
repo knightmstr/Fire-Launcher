@@ -3,6 +3,14 @@ package com.knightmstr.firelauncher.ui.components
 import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Wifi
+import com.knightmstr.firelauncher.R
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +58,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -81,11 +88,11 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Top bar displaying:
- * - Launcher brand on the left
- * - Focusable Live Weather widget in the center with Open-Meteo city search
- * - Wallpaper skip & Search icon buttons
- * - Dynamic clock (12h/24h) and formatted calendar date on the right.
+ * Top bar:
+ * - Left: logo, name and the current wallpaper (your photo or r/TVWallpapersSFW)
+ * - Centre: live weather (opens the city picker) or the search field
+ * - Right: icon buttons (next wallpaper, search, Wi-Fi, Fire TV settings, launcher settings)
+ *   then the clock. Wi-Fi and Fire TV settings are hidden in Kids mode.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -98,22 +105,24 @@ fun TopBar(
     onClearCitySearch: () -> Unit,
     onSelectCity: (CityLocationModel) -> Unit,
     onToggleUnit: () -> Unit,
-    sortOrder: AppSortOrder = AppSortOrder.ALPHABETICAL,
-    onSelectSort: (AppSortOrder) -> Unit = {},
     searchQuery: String = "",
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
     onToggleSearch: (Boolean) -> Unit = {},
     onRequestVoiceSearch: () -> Unit = {},
     onNextWallpaper: () -> Unit = {},
-    wallpaperTitle: String? = null,
+    /** e.g. "Your photo • Beach" or "Yosemite • r/TVWallpapersSFW", shown under the name. */
+    wallpaperInfo: String? = null,
+    kidsMode: Boolean = false,
+    onOpenWifi: () -> Unit = {},
+    onOpenSystemSettings: () -> Unit = {},
+    onOpenLauncherSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var currentTimeString by remember { mutableStateOf(getFormattedTime(context)) }
     var currentDateString by remember { mutableStateOf(getFormattedDate()) }
     var showCityDialog by remember { mutableStateOf(false) }
-    var showSortDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -131,26 +140,13 @@ fun TopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Brand logo & title
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(listOf(FireAmber, FireOrange))
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
+            // Brand logo, name and current wallpaper info
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    painter = painterResource(R.drawable.ic_logo_mark),
+                    contentDescription = null,
+                    modifier = Modifier.size(30.dp)
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
@@ -160,13 +156,25 @@ fun TopBar(
                         color = TextPrimary,
                         letterSpacing = 0.5.sp
                     )
-                    if (wallpaperTitle != null) {
-                        Text(
-                            text = "r/TVWallpapersSFW",
-                            fontSize = 9.sp,
-                            color = FireAmber,
-                            fontWeight = FontWeight.Medium
-                        )
+                    if (wallpaperInfo != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.Wallpaper,
+                                contentDescription = null,
+                                tint = FireAmber,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = wallpaperInfo,
+                                fontSize = 10.sp,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 260.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -190,27 +198,24 @@ fun TopBar(
                 )
             }
 
-            // Right: Sort Menu + Next Wallpaper + Search Trigger Button + Live Clock & Date
+            // Right: icon buttons, then the clock
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Dedicated Library Sort by Trigger Button
-                SortTriggerButton(
-                    currentSort = sortOrder,
-                    onClick = { showSortDialog = true }
-                )
-
-                // Next Wallpaper Button
-                WallpaperTriggerButton(
-                    onClick = onNextWallpaper,
-                    title = "Change Wallpaper (30m auto)"
-                )
-
-                // Dedicated Search Icon Trigger
-                SearchTriggerButton(
-                    isActive = isSearchActive,
-                    onClick = { onToggleSearch(!isSearchActive) }
+                TopIconButton(Icons.Rounded.Wallpaper, "Next wallpaper", onNextWallpaper)
+                TopIconButton(
+                    if (isSearchActive) Icons.Rounded.Close else Icons.Rounded.Search,
+                    if (isSearchActive) "Close search" else "Search apps"
+                ) { onToggleSearch(!isSearchActive) }
+                if (!kidsMode) {
+                    TopIconButton(Icons.Rounded.Wifi, "Wi-Fi", onOpenWifi)
+                    TopIconButton(Icons.Rounded.Settings, "Fire TV settings", onOpenSystemSettings)
+                }
+                TopIconButton(
+                    Icons.Rounded.Tune,
+                    if (kidsMode) "Leave Kids mode" else "Launcher settings",
+                    onOpenLauncherSettings
                 )
 
                 // Live clock and date
@@ -253,121 +258,37 @@ fun TopBar(
                 }
             )
         }
-
-        // App Library Sort By Selection Dialog
-        if (showSortDialog) {
-            SortSelectionDialog(
-                currentSort = sortOrder,
-                onSelectSort = { order ->
-                    onSelectSort(order)
-                    showSortDialog = false
-                },
-                onDismiss = { showSortDialog = false }
-            )
-        }
     }
 }
 
-/**
- * Dedicated TV-Material focusable Wallpaper trigger button in the top bar.
- */
+/** Round icon-only button used across the top bar (wallpaper, search, Wi-Fi, settings). */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun WallpaperTriggerButton(
-    onClick: () -> Unit,
-    title: String,
-    modifier: Modifier = Modifier
+fun TopIconButton(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit
 ) {
     val shape = CircleShape
-
     Surface(
         onClick = onClick,
-        modifier = modifier.size(40.dp),
+        modifier = Modifier.size(40.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
         border = ClickableSurfaceDefaults.border(
-            border = Border(
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                shape = shape
-            ),
-            focusedBorder = Border(
-                border = BorderStroke(2.dp, Color.White),
-                shape = shape
-            )
+            border = Border(border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), shape = shape),
+            focusedBorder = Border(border = BorderStroke(2.dp, Color.White), shape = shape)
         ),
         glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(
-                elevationColor = FireOrange.copy(alpha = 0.7f),
-                elevation = 14.dp
-            )
+            focusedGlow = Glow(elevationColor = FireOrange.copy(alpha = 0.7f), elevation = 14.dp)
         ),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = DarkSurface.copy(alpha = 0.85f),
             focusedContainerColor = DarkSurfaceVariant
         )
     ) {
-        Box(
-            modifier = Modifier.size(40.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Wallpaper,
-                contentDescription = title,
-                tint = FireAmber,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-}
-
-/**
- * Dedicated TV-Material focusable Search Icon button in the top bar.
- */
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun SearchTriggerButton(
-    isActive: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = CircleShape
-
-    Surface(
-        onClick = onClick,
-        modifier = modifier.size(40.dp),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
-        border = ClickableSurfaceDefaults.border(
-            border = Border(
-                border = BorderStroke(1.dp, if (isActive) FireOrange else Color.White.copy(alpha = 0.15f)),
-                shape = shape
-            ),
-            focusedBorder = Border(
-                border = BorderStroke(2.dp, Color.White),
-                shape = shape
-            )
-        ),
-        glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(
-                elevationColor = FireOrange.copy(alpha = 0.8f),
-                elevation = 16.dp
-            )
-        ),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (isActive) FireOrange.copy(alpha = 0.25f) else DarkSurface.copy(alpha = 0.85f),
-            focusedContainerColor = DarkSurfaceVariant
-        )
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isActive) Icons.Rounded.Close else Icons.Rounded.Search,
-                contentDescription = if (isActive) "Close Search" else "Search Apps",
-                tint = if (isActive) FireOrange else TextPrimary,
-                modifier = Modifier.size(18.dp)
-            )
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = description, tint = FireAmber, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -704,70 +625,6 @@ fun CitySelectionDialog(
             trailing = if (isCelsius) "°C" else "°F",
             onClick = onToggleUnit
         )
-    }
-}
-
-/**
- * Focusable TV-Material button in the top bar to toggle/select library sort order.
- */
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun SortTriggerButton(
-    currentSort: AppSortOrder,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(20.dp)
-
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(40.dp),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.10f),
-        border = ClickableSurfaceDefaults.border(
-            border = Border(
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                shape = shape
-            ),
-            focusedBorder = Border(
-                border = BorderStroke(2.dp, Color.White),
-                shape = shape
-            )
-        ),
-        glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(
-                elevationColor = FireAmber.copy(alpha = 0.7f),
-                elevation = 14.dp
-            )
-        ),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = DarkSurface.copy(alpha = 0.85f),
-            focusedContainerColor = DarkSurfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.Sort,
-                contentDescription = "Sort library",
-                tint = FireAmber,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = when (currentSort) {
-                    AppSortOrder.ALPHABETICAL -> "Sort: A–Z"
-                    AppSortOrder.MOST_RECENT -> "Sort: Recent"
-                    AppSortOrder.MOST_FREQUENT -> "Sort: Frequent"
-                    AppSortOrder.CUSTOM -> "Sort: My Order"
-                },
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary
-            )
-        }
     }
 }
 
