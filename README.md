@@ -26,8 +26,8 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - 16:9 rounded cards built on `androidx.tv.material3.Surface`.
    - On D-pad focus: card scales to **1.12x**, gains a crisp **2dp white border**, and emits an **accent-color tinted glow**.
    - Focus defaults to the first card on application launch.
-4. **Clean Home Screen & All Apps Grid**:
-   - Home shows your Favorites with an **All Apps** tile always at the right end, so everything fits on one screen.
+4. **Clean Home Screen & All Apps Grid** (layout after [couch-tv](https://github.com/Seagey/couch-tv)'s Fire TV home):
+   - The wallpaper fills the screen: the date, weather and a **big clock** sit in the middle (with what's playing underneath), and a translucent **dock** along the bottom holds your Favorites with an **All Apps** tile at the right end. The focused app's name shows under the dock.
    - The tile opens a full-screen grid of every app that wraps to the screen width (Back closes it, Sort button cycles the order). Prefer the old row? *Launcher Settings → Show All Apps row on home*.
    - **App tile size** (Extra small → Extra large, Small by default) and **App tile shape** (Rounded, Square, Extra rounded, Pill) in Launcher Settings.
 4b. **App Options Menu (hold OK, or press ☰ on the remote)**:
@@ -89,10 +89,9 @@ A high-performance custom home-screen launcher designed specifically for **Amazo
    - **Global City Search Modal**: Users can search for any city in the world using Open-Meteo Geocoding, view region/country, and add it with one click.
    - Custom cities are saved persistently in AndroidX Preferences DataStore.
    - Quick toggle between **Fahrenheit (°F)** and **Celsius (°C)**; defaults to °C everywhere except the US.
-14. **Top Bar, Global App Search & Live Clock**:
-   - Dedicated **Global Search** button with real-time app filtering by name and package identifier, expandable search bar, and empty search state.
-   - Live clock honoring 12-hour / 24-hour system preferences, plus formatted date.
-   - Hero header showing the currently focused app's title, category, and contextual action hint (*"Hold OK to add to favorites"* / *"Hold OK to remove from favorites"*).
+14. **Global App Search & Big Clock**:
+   - Dedicated **Global Search** button with real-time app filtering by name and package identifier, expandable search bar, and empty search state (results replace the clock and dock while searching).
+   - Big mid-screen clock honoring 12-hour / 24-hour system preferences, with the full date and live weather above it.
 15. **TV Overscan & Remote Navigation Safeguards**:
     - 48dp horizontal margins for TV overscan-safe rendering on any HDMI display.
     - Hardware Back button is deliberately absorbed and ignored to prevent accidental launcher exit, but gracefully dismisses active search or modal dialogs first.
@@ -218,20 +217,16 @@ adb shell am start -n com.knightmstr.firelauncher/.MainActivity
 >
 > On standard Android TV / Google TV, pressing Home or installing a second launcher prompts the system selector. On Amazon Fire OS, the stock Amazon launcher is hardcoded into `AmazonFireLauncher` / `com.amazon.tv.launcher`.
 
-### Options to Use FireLauncher as Your Primary Screen:
-1. **Remote Button Remapping (Recommended & Safest)**:
-   - Install **Button Mapper** or **Launcher Manager** (via Downloader or ADB).
-   - Remap the Home button single-press or double-press to launch `com.knightmstr.firelauncher/.MainActivity`.
-2. **Launch on Boot (Accessibility Service / Boot Receiver)**:
-   - Configure a boot launcher utility to automatically start FireLauncher when the Fire TV finishes starting up.
-3. **Direct Quick-Launch**:
-   - Add FireLauncher to your favorite quick-access app bar on the default Fire TV home screen for 1-click entry into an ad-free, clutter-free leanback interface.
-4. **ADB Package Disabling (Advanced Users Only)**:
-   - On older Fire OS versions (Fire OS 6 and early Fire OS 7), power users disabled the stock package via:
-     ```bash
-     adb shell pm disable-user --user 0 com.amazon.tv.launcher
-     ```
-     *(Note: Amazon has blocked disabling the stock launcher package on newer Fire OS 7 and 8 updates, which makes Button Remapping the preferred modern approach).*
+### Make the Home button open FireLauncher (built in)
+FireLauncher has a **Home button watcher** (based on couch-tv's, MIT): when the Home button opens Amazon's home, FireLauncher comes straight back. Amazon's home may flash for a moment first; that can't be avoided without rooting.
+
+1. Connect with adb (from a computer, or **Termux** on your phone: `pkg install android-tools`, then `adb connect <TV IP>:5555`) and run once:
+   ```bash
+   adb shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
+   ```
+2. On the TV: **gear → Launcher settings → Home button opens FireLauncher → Turn on**.
+
+FireLauncher then switches the watcher back on by itself after updates and restarts. It is an accessibility service that only receives events from Amazon's launcher (`android:packageNames="com.amazon.tv.launcher"`) and reads only which screen opened, never what's on screen. Turn it off in the same settings row; to remove the grant: `adb shell pm revoke com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS`.
 
 ---
 
@@ -316,6 +311,9 @@ FireLauncher/
 │           │   ├── WallpaperRepository.kt # Subreddit fetcher, configurable auto-rotation & curated fallbacks
 │           │   ├── WeatherData.kt         # Open-Meteo live weather & city location models
 │           │   └── WeatherRepository.kt   # Open-Meteo live forecast & global geocoding city search
+│           ├── home/
+│           │   ├── HomeWatch.kt           # Switches the Home button watcher on/off, keeps it on
+│           │   └── HomeWatchService.kt    # Accessibility service: Amazon home → FireLauncher
 │           ├── media/
 │           │   ├── MediaListenerService.kt # Empty listener holding the media-session permission
 │           │   └── NowPlayingRepository.kt # Active media session tracking & transport controls
@@ -334,8 +332,10 @@ FireLauncher/
 │               │   ├── AppContextMenuDialog.kt # Options: favorite, reorder, rename, hide, app info
 │               │   ├── AppRow.kt              # LazyRow with category header & Sort trigger
 │               │   ├── HeaderWidgets.kt       # Quick buttons bar & Now playing card
-│               │   ├── HeroSection.kt         # Focused app title, category & hints
 │               │   ├── NowPlayingHelpDialog.kt # How to grant Now playing access
+│               │   ├── HomeClock.kt           # Date, weather and big clock mid-screen
+│               │   ├── HomeDock.kt            # Bottom dock: favourites + All Apps
+│               │   ├── HomeWatchHelpDialog.kt # Setup for the Home button watcher
 │               │   ├── LauncherSettingsDialog.kt # In-launcher settings
 │               │   ├── PinDialog.kt           # D-pad PIN keypad (enter / create)
 │               │   ├── RenameAppDialog.kt     # Custom app name entry

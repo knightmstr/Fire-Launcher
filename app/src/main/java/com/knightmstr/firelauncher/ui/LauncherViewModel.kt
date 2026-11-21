@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.knightmstr.firelauncher.FireLauncherApp
 import com.knightmstr.firelauncher.data.AppModel
+import com.knightmstr.firelauncher.home.HomeWatch
 import com.knightmstr.firelauncher.data.AppRepository
 import com.knightmstr.firelauncher.data.AppSortOrder
 import com.knightmstr.firelauncher.data.AppUsageStat
@@ -308,6 +309,36 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _pinDialog.value = null
     }
 
+    // ------------------------------------------------------------------ Home button watcher
+
+    private val _homeWatchStatus = MutableStateFlow(HomeWatch.status(application))
+    val homeWatchStatus: StateFlow<HomeWatch.Status> = _homeWatchStatus.asStateFlow()
+
+    private val _showHomeWatchHelp = MutableStateFlow(false)
+    val showHomeWatchHelp: StateFlow<Boolean> = _showHomeWatchHelp.asStateFlow()
+
+    fun refreshHomeWatch() { _homeWatchStatus.value = HomeWatch.status(getApplication()) }
+
+    /** Settings row: toggles when FireLauncher has the ADB grant, otherwise explains how to get it. */
+    fun onHomeWatchPressed() {
+        when (HomeWatch.status(getApplication())) {
+            HomeWatch.Status.ON -> HomeWatch.setWanted(getApplication(), false)
+            HomeWatch.Status.OFF -> HomeWatch.setWanted(getApplication(), true)
+            HomeWatch.Status.NEEDS_PERMISSION -> _showHomeWatchHelp.value = true
+        }
+        refreshHomeWatch()
+    }
+
+    /** From the help dialog, after the ADB grant: turn it on now. Returns false if still not granted. */
+    fun enableHomeWatch(): Boolean {
+        val ok = HomeWatch.setWanted(getApplication(), true)
+        refreshHomeWatch()
+        if (ok) _showHomeWatchHelp.value = false
+        return ok
+    }
+
+    fun closeHomeWatchHelp() { _showHomeWatchHelp.value = false }
+
     // ------------------------------------------------------------------ App updates
 
     val updateState: StateFlow<UpdateState> = updates.state
@@ -465,6 +496,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         closeRename()
         closeSettings()
         closeNowPlayingHelp()
+        closeHomeWatchHelp()
         closeAllApps()
         if (updates.state.value !is UpdateState.Downloading) closeUpdateDialog()
         onUserInteraction()
@@ -592,6 +624,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (foreground) {
             scheduleIdle()
             nowPlayingRepository.start()
+            refreshHomeWatch()
             updates.onInstallPermissionMaybeGranted()
             _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
             // Pick up photos added while the launcher was in the background

@@ -8,20 +8,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Wallpaper
@@ -34,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -57,6 +50,11 @@ import com.knightmstr.firelauncher.data.WeatherData
 import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AllAppsScreen
+import androidx.compose.foundation.layout.offset
+import com.knightmstr.firelauncher.ui.components.CitySelectionDialog
+import com.knightmstr.firelauncher.ui.components.HomeDock
+import com.knightmstr.firelauncher.ui.components.HomeClock
+import com.knightmstr.firelauncher.ui.components.HomeWatchHelpDialog
 import com.knightmstr.firelauncher.ui.components.AppContextMenuDialog
 import com.knightmstr.firelauncher.ui.components.LocalCardShape
 import com.knightmstr.firelauncher.ui.components.LocalCardWidth
@@ -75,11 +73,9 @@ import com.knightmstr.firelauncher.ui.components.LauncherSettingsDialog
 import com.knightmstr.firelauncher.ui.components.RenameAppDialog
 import com.knightmstr.firelauncher.ui.components.Screensaver
 import com.knightmstr.firelauncher.ui.components.AppRow
-import com.knightmstr.firelauncher.ui.components.HeroSection
 import com.knightmstr.firelauncher.ui.components.SortSelectionDialog
 import com.knightmstr.firelauncher.ui.components.TopBar
 import com.knightmstr.firelauncher.ui.theme.DarkBackground
-import com.knightmstr.firelauncher.ui.theme.FireAmber
 import com.knightmstr.firelauncher.ui.theme.FireOrange
 import com.knightmstr.firelauncher.ui.theme.TextPrimary
 import com.knightmstr.firelauncher.ui.theme.TextSecondary
@@ -132,10 +128,12 @@ fun LauncherRoot(
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val isUpdateDialogOpen by viewModel.isUpdateDialogOpen.collectAsStateWithLifecycle()
     val isAllAppsOpen by viewModel.isAllAppsOpen.collectAsStateWithLifecycle()
+    val homeWatchStatus by viewModel.homeWatchStatus.collectAsStateWithLifecycle()
+    val showHomeWatchHelp by viewModel.showHomeWatchHelp.collectAsStateWithLifecycle()
 
     // Pause the screensaver timer while any dialog has the keys
     val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen ||
-        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen
+        pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen || showHomeWatchHelp
     LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
 
     // Back closes an open search; otherwise it is absorbed so the launcher never exits
@@ -241,7 +239,8 @@ fun LauncherRoot(
                     is UpdateState.UpToDate -> "Up to date"
                     is UpdateState.Failed -> "Last check failed"
                     else -> "Check GitHub for a new version"
-                }
+                },
+                homeWatch = homeWatchStatus
             ),
             onUpdate = viewModel::updateSettings,
             onToggleUnit = viewModel::toggleTemperatureUnit,
@@ -250,6 +249,7 @@ fun LauncherRoot(
             onChangeKidsPin = viewModel::changeKidsPin,
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
             onOpenUpdates = viewModel::openUpdateDialog,
+            onHomeWatch = viewModel::onHomeWatchPressed,
             onDismiss = viewModel::closeSettings
         )
     }
@@ -271,6 +271,13 @@ fun LauncherRoot(
                 onDismiss = viewModel::closeAllApps
             )
         }
+    }
+
+    if (showHomeWatchHelp) {
+        HomeWatchHelpDialog(
+            onEnable = viewModel::enableHomeWatch,
+            onDismiss = viewModel::closeHomeWatchHelp
+        )
     }
 
     if (isUpdateDialogOpen) {
@@ -369,9 +376,9 @@ fun LauncherContent(
     onAppLongClicked: (AppModel) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val columnState = rememberLazyListState()
     val firstItemFocusRequester = remember { FocusRequester() }
     var showRowSortDialog by remember { mutableStateOf(false) }
+    var showCityDialog by remember { mutableStateOf(false) }
 
     // Smooth background gradient transition to the focused app's clamped accent color
     val targetAccentColor = focusedApp?.let { Color(it.accentColor) } ?: FireOrange
@@ -393,10 +400,9 @@ fun LauncherContent(
         }
     }
 
-    // When Home is pressed while launcher is open: scroll to top and refocus first card
+    // When Home is pressed while launcher is open: refocus the first card
     LaunchedEffect(homeTick) {
         if (homeTick > 0L) {
-            columnState.scrollToItem(0)
             try {
                 firstItemFocusRequester.requestFocus()
             } catch (_: Exception) {
@@ -405,7 +411,6 @@ fun LauncherContent(
         }
     }
 
-    // Overscan-safe layout with 48dp horizontal margins
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -464,24 +469,15 @@ fun LauncherContent(
                 )
         )
 
-        // Layer 4: Main content. Full width so the app rows run edge to edge; the top bar, header
-        // and the start of each row use an adaptive side margin (LocalScreenEdge, ~3.5% of width).
+        // Layer 4: Main content, laid out like couch-tv's Fire TV home: top bar, the date, weather and
+        // a big clock mid-screen, and a dock of favourites along the bottom, so the wallpaper shows.
         val edge = LocalScreenEdge.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 26.dp, bottom = 20.dp)
+                .padding(top = 26.dp, bottom = 14.dp)
         ) {
-            // Top bar: App name, Live Open-Meteo Weather with Search, Sort by Menu, Next Wallpaper & live clock/date
             TopBar(
-                weather = weather,
-                savedCities = savedCities,
-                searchResults = searchResults,
-                isSearchingCities = isSearchingCities,
-                onSearchCities = onSearchCities,
-                onClearCitySearch = onClearCitySearch,
-                onSelectCity = onSelectCity,
-                onToggleUnit = onToggleUnit,
                 searchQuery = searchQuery,
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
@@ -495,158 +491,146 @@ fun LauncherContent(
                 onOpenWifi = onOpenWifi,
                 onOpenSystemSettings = onOpenSystemSettings,
                 onOpenLauncherSettings = onOpenLauncherSettings,
+                leadingActions = {
+                    UpdateChip(state = updateState, onClick = onOpenUpdates)
+                    QuickButtonsBar(apps = quickButtonApps, onClick = onAppClicked, onLongClick = onAppLongClicked)
+                },
                 modifier = Modifier.padding(horizontal = edge)
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Hero section: focused app title and hints, now playing, quick buttons
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = edge),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    HeroSection(
-                        focusedApp = focusedApp,
-                        isFavorite = focusedApp != null && favorites.contains(focusedApp.packageName),
-                        kidsMode = kidsMode
-                    )
-                }
-
-                nowPlaying?.let { np ->
-                    NowPlayingCard(
-                        nowPlaying = np,
-                        onPlayPause = onMediaPlayPause,
-                        onNext = onMediaNext,
-                        onPrevious = onMediaPrevious,
-                        onOpenApp = onOpenNowPlayingApp
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-
-                UpdateChip(state = updateState, onClick = onOpenUpdates)
-                if (updateState is UpdateState.Available || updateState is UpdateState.Downloading ||
-                    updateState is UpdateState.NeedsInstallPermission
+            if (isSearchActive || searchQuery.isNotBlank()) {
+                // Search: results replace the clock and the dock
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-
-                QuickButtonsBar(
-                    apps = quickButtonApps,
-                    onClick = onAppClicked,
-                    onLongClick = onAppLongClicked
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Scrollable rows of apps or filtered search results
-            LazyColumn(
-                state = columnState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                if (isSearchActive || searchQuery.isNotBlank()) {
-                    // Global Search Mode
                     if (filteredApps.isNotEmpty()) {
-                        item(key = "search_results") {
-                            AppRow(
-                                title = if (searchQuery.isBlank()) "All Apps (${filteredApps.size})" else "Search Results (${filteredApps.size})",
-                                apps = filteredApps,
-                                favorites = favorites,
-                                firstItemFocusRequester = firstItemFocusRequester,
-                                onAppFocused = onAppFocused,
-                                onAppClicked = onAppClicked,
-                                onAppLongClicked = onAppLongClicked
-                            )
-                        }
-                    } else {
-                        // Empty search results state
-                        item(key = "empty_search") {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = edge, vertical = 40.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.SearchOff,
-                                    contentDescription = "No results",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "No apps found matching \"$searchQuery\"",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "Check the spelling or try searching for another app name",
-                                    fontSize = 13.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // Standard Home Launcher Rows
-                    // Row 1: favourites, then the "All Apps" tile at the end (always shown)
-                    item(key = "row_favorites") {
                         AppRow(
-                            title = if (favoriteApps.isEmpty()) "Home (open All Apps, hold OK on an app → Add to Favorites)"
-                            else "Favorites",
-                            // All Apps always sits at the right end of the favourites
-                            apps = favoriteApps + allAppsTile,
+                            title = if (searchQuery.isBlank()) "All Apps (${filteredApps.size})" else "Search Results (${filteredApps.size})",
+                            apps = filteredApps,
                             favorites = favorites,
                             firstItemFocusRequester = firstItemFocusRequester,
                             onAppFocused = onAppFocused,
                             onAppClicked = onAppClicked,
                             onAppLongClicked = onAppLongClicked
                         )
-                    }
-
-                    // Row 2: All Apps (optional; off by default, the tile opens a full grid instead)
-                    if (showAllAppsRow) {
-                        item(key = "row_all_apps") {
-                            AppRow(
-                                title = "All Apps",
-                                apps = apps,
-                                favorites = favorites,
-                                sortOrder = sortOrder,
-                                onOpenSortMenu = { showRowSortDialog = true },
-                                onAppFocused = onAppFocused,
-                                onAppClicked = onAppClicked,
-                                onAppLongClicked = onAppLongClicked
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = edge),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SearchOff,
+                                contentDescription = "No results",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "No apps found matching \"$searchQuery\"",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Check the spelling or try searching for another app name",
+                                fontSize = 13.sp,
+                                color = TextSecondary
                             )
                         }
                     }
-
-                    // Row 3: Hidden apps (only when enabled in Launcher Settings)
-                    if (hiddenApps.isNotEmpty()) {
-                        item(key = "row_hidden") {
-                            AppRow(
-                                title = "Hidden Apps (hold OK to unhide)",
-                                apps = hiddenApps,
-                                favorites = favorites,
-                                onAppFocused = onAppFocused,
-                                onAppClicked = onAppClicked,
-                                onAppLongClicked = onAppLongClicked
+                }
+            } else {
+                // Centre: date, weather and the big clock, plus what's playing
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.offset(y = (-20).dp)
+                    ) {
+                        HomeClock(
+                            weather = weather,
+                            onWeatherClick = { showCityDialog = true },
+                            onToggleUnit = onToggleUnit
+                        )
+                        nowPlaying?.let { np ->
+                            Spacer(modifier = Modifier.height(10.dp))
+                            NowPlayingCard(
+                                nowPlaying = np,
+                                onPlayPause = onMediaPlayPause,
+                                onNext = onMediaNext,
+                                onPrevious = onMediaPrevious,
+                                onOpenApp = onOpenNowPlayingApp
                             )
                         }
                     }
                 }
 
-                // Bottom safety spacer for overscan visibility
-                item(key = "bottom_spacer") {
-                    Spacer(modifier = Modifier.height(32.dp))
+                // Optional rows from Launcher Settings sit just above the dock
+                if (showAllAppsRow) {
+                    AppRow(
+                        title = "All Apps",
+                        apps = apps,
+                        favorites = favorites,
+                        sortOrder = sortOrder,
+                        onOpenSortMenu = { showRowSortDialog = true },
+                        onAppFocused = onAppFocused,
+                        onAppClicked = onAppClicked,
+                        onAppLongClicked = onAppLongClicked
+                    )
                 }
+                if (hiddenApps.isNotEmpty()) {
+                    AppRow(
+                        title = "Hidden Apps (hold OK to unhide)",
+                        apps = hiddenApps,
+                        favorites = favorites,
+                        onAppFocused = onAppFocused,
+                        onAppClicked = onAppClicked,
+                        onAppLongClicked = onAppLongClicked
+                    )
+                }
+
+                // Bottom: the dock (favourites, then All Apps at the right end)
+                HomeDock(
+                    apps = favoriteApps + allAppsTile,
+                    favorites = favorites,
+                    focusedApp = focusedApp,
+                    hint = when {
+                        kidsMode -> "Kids mode is on"
+                        focusedApp?.isSystemShortcut == true -> "Press OK to see all your apps"
+                        favoriteApps.isEmpty() -> "Open All Apps, hold OK on an app → Add to Favorites"
+                        else -> "Hold OK or press ☰ for options"
+                    },
+                    firstItemFocusRequester = firstItemFocusRequester,
+                    onAppFocused = onAppFocused,
+                    onAppClicked = onAppClicked,
+                    onAppLongClicked = onAppLongClicked
+                )
             }
+        }
+
+        if (showCityDialog) {
+            CitySelectionDialog(
+                currentCity = weather.city,
+                savedCities = savedCities,
+                searchResults = searchResults,
+                isSearching = isSearchingCities,
+                isCelsius = weather.isCelsius,
+                onSearch = onSearchCities,
+                onClearSearch = onClearCitySearch,
+                onCitySelected = { city ->
+                    onSelectCity(city)
+                    showCityDialog = false
+                },
+                onToggleUnit = onToggleUnit,
+                onDismiss = {
+                    onClearCitySearch()
+                    showCityDialog = false
+                }
+            )
         }
 
         // App Library Sort By Dialog when opened from the row header

@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.provider.Settings
+import com.knightmstr.firelauncher.home.HomeWatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -132,8 +133,10 @@ class AppRepository(private val context: Context) {
     )
 
     /** Fire TV Settings main menu on its own (not Amazon's home), else Android's Settings. */
-    fun openFireTvSettings(): Boolean =
-        openFirstAvailable(Intent().setComponent(FIRE_SETTINGS), Intent(Settings.ACTION_SETTINGS))
+    fun openFireTvSettings(): Boolean {
+        HomeWatch.allowAmazonBriefly() // so the Home button watcher doesn't send Settings away
+        return openFirstAvailable(Intent().setComponent(FIRE_SETTINGS), Intent(Settings.ACTION_SETTINGS))
+    }
 
     /** Fire TV Network (Wi-Fi) screen, else Android's Wi-Fi settings. */
     fun openNetworkSettings(): Boolean =

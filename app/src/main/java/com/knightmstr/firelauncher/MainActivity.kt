@@ -19,6 +19,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.knightmstr.firelauncher.data.LocalPhotoSource
+import com.knightmstr.firelauncher.home.HomeWatch
 import com.knightmstr.firelauncher.ui.LauncherRoot
 import com.knightmstr.firelauncher.ui.LauncherViewModel
 import com.knightmstr.firelauncher.ui.VoiceSearchHelper
@@ -94,13 +95,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        isInFront = true
         hideSystemUI()
+        // Put the Home button watcher back if Android dropped it (and the user wants it)
+        HomeWatch.ensure(this)
         // Refresh installed apps whenever launcher returns to foreground
         viewModel.refreshApps()
         viewModel.onForegroundChanged(true)
     }
 
     override fun onPause() {
+        isInFront = false
         viewModel.onForegroundChanged(false)
         super.onPause()
     }
@@ -167,5 +172,10 @@ class MainActivity : ComponentActivity() {
                     or View.SYSTEM_UI_FLAG_FULLSCREEN
                 )
         }
+    }
+
+    companion object {
+        /** True while FireLauncher is on screen (read by the Home button watcher). */
+        @Volatile var isInFront = false
     }
 }
