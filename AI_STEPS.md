@@ -10,7 +10,7 @@ This document is a sequential, machine-readable execution manifest intended for 
 - **Target Device**: Amazon Fire TV Stick / Fire TV Cube / Fire TV Edition
 - **Default ADB Port**: `5555`
 - **Target Package Name**: `com.knightmstr.firelauncher`
-- **Pre-compiled APK Path**: `app/build/outputs/apk/debug/app-debug.apk`
+- **APK**: the signed `FireLauncher-vX.Y.Z-release.apk` from the latest GitHub Release (`knightmstr/Fire-Launcher`). Use the release APK, not a local debug build: releases are signed with the project key, so in-app updates install over them. A debug build is signed differently and can't be installed over a release (or updated by one) without uninstalling first.
 
 ---
 
@@ -31,7 +31,7 @@ The following 5 Amazon packages are targeted for user-space disabling (`pm disab
 ## Sequential Execution Steps
 
 ### STEP 1: Verify Host Environment Dependencies
-The agent must verify that the Android Debug Bridge (`adb`) and Python 3 are installed and reachable in `PATH`.
+The agent must verify that the Android Debug Bridge (`adb`), Python 3 and `curl` are installed and reachable in `PATH`.
 
 ```bash
 # Check ADB installation
@@ -39,9 +39,12 @@ adb version || { echo "ERROR: ADB is not installed or not in PATH"; exit 1; }
 
 # Check Python 3 installation
 python3 --version || { echo "ERROR: Python 3 is not installed or not in PATH"; exit 1; }
+
+# Check curl (downloads the release APK)
+curl --version > /dev/null || { echo "ERROR: curl is not installed or not in PATH"; exit 1; }
 ```
 
-Expected output: Valid version strings for both `adb` and `python3`.
+Expected output: Valid version strings for `adb`, `python3` and `curl`.
 
 ---
 
@@ -113,21 +116,19 @@ fi
 
 ---
 
-### STEP 4: Build APK (If Not Present) & Deploy FireLauncher
-Verify the presence of `app/build/outputs/apk/debug/app-debug.apk`. If it is missing, compile using the Gradle wrapper. Then install via `adb install -r`.
+### STEP 4: Download the Latest Release APK & Deploy FireLauncher
+Download the signed release APK from the latest GitHub Release, then install it with `adb install -r`.
 
 ```bash
-APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
-
-# Compile APK if not pre-built
-if [ ! -f "$APK_PATH" ]; then
-    echo "APK not found at $APK_PATH. Compiling debug build with Gradle..."
-    ./gradlew assembleDebug || { echo "ERROR: Gradle compilation failed"; exit 1; }
-fi
+APK_URL=$(curl -fsSL https://api.github.com/repos/knightmstr/Fire-Launcher/releases/latest \
+  | grep -o '"browser_download_url": *"[^"]*-release\.apk"' | sed 's/.*"\(https[^"]*\)"/\1/')
+[ -n "$APK_URL" ] || { echo "ERROR: could not find the latest release APK"; exit 1; }
+APK_PATH="FireLauncher-release.apk"
+curl -fL -o "$APK_PATH" "$APK_URL" || { echo "ERROR: download failed"; exit 1; }
 
 # Install APK onto Fire TV
-echo "Installing FireLauncher ($APK_PATH) onto Fire TV..."
-adb -s "$FIRETV_IP:5555" install -r -d "$APK_PATH"
+echo "Installing FireLauncher ($APK_URL) onto Fire TV..."
+adb -s "$FIRETV_IP:5555" install -r "$APK_PATH"
 
 # Verify successful installation
 adb -s "$FIRETV_IP:5555" shell pm list packages | grep "com.knightmstr.firelauncher" || {
@@ -137,6 +138,8 @@ adb -s "$FIRETV_IP:5555" shell pm list packages | grep "com.knightmstr.firelaunc
 
 echo "SUCCESS: FireLauncher installed successfully."
 ```
+
+If `adb install` fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, an older FireLauncher signed with a different key is installed. Ask the user before running `adb -s "$FIRETV_IP:5555" uninstall com.knightmstr.firelauncher` (this resets their FireLauncher settings), then install again. Also check for the pre-rename package with `pm list packages | grep com.example.firelauncher`, and offer to uninstall it.
 
 ---
 
@@ -186,6 +189,22 @@ if [ $ALL_DISABLED -eq 1 ]; then
 else
     echo "NOTE: Some packages were not reported in disabled state. They may already be inactive or restricted by this Fire OS build."
 fi
+```
+
+---
+
+### STEP 6b (Optional, ask first): Fire TV Extras
+Only if the user wants them. Explain each in one line and wait for a yes:
+
+- **Home button opens FireLauncher, FireLauncher screensaver, keep awake**: lets FireLauncher change these Fire TV settings; each is then switched on in FireLauncher's *Launcher settings*, and turning it off restores Amazon's setting.
+- **Now playing**: lets FireLauncher see what's playing (it never reads notifications).
+
+```bash
+# Home button / screensaver / keep awake
+adb -s "$FIRETV_IP:5555" shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
+
+# Now playing
+adb -s "$FIRETV_IP:5555" shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
 ```
 
 ---
