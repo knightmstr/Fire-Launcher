@@ -16,6 +16,8 @@ data class LauncherSettings(
     val wallpaperSource: WallpaperSource = WallpaperSource.MY_PHOTOS,
     /** App card size; Small fits about 6 cards per row on a 1080p TV. */
     val cardSize: CardSize = CardSize.SMALL,
+    /** Corner style of app tiles. */
+    val cardShape: CardShape = CardShape.ROUNDED,
     /** Show every app as a row on the home screen (off: use the All Apps tile instead). */
     val showAllAppsRow: Boolean = false
 ) {
@@ -41,15 +43,31 @@ data class LauncherSettings(
 }
 
 enum class CardSize(val title: String, val widthDp: Int) {
+    EXTRA_SMALL("Extra small", 115),
     SMALL("Small", 140),
     MEDIUM("Medium", 165),
-    LARGE("Large", 200);
+    LARGE("Large", 200),
+    EXTRA_LARGE("Extra large", 240);
 
     fun next(): CardSize = entries[(ordinal + 1) % entries.size]
 
     companion object {
         fun fromName(name: String?): CardSize =
             entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: SMALL
+    }
+}
+
+enum class CardShape(val title: String) {
+    ROUNDED("Rounded"),
+    SQUARE("Square"),
+    SOFT("Extra rounded"),
+    PILL("Pill");
+
+    fun next(): CardShape = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun fromName(name: String?): CardShape =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: ROUNDED
     }
 }
 

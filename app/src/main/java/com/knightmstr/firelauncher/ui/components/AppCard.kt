@@ -52,6 +52,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.knightmstr.firelauncher.data.AppModel
+import com.knightmstr.firelauncher.data.CardShape
 import com.knightmstr.firelauncher.data.AppRepository
 import com.knightmstr.firelauncher.ui.theme.DarkSurface
 import com.knightmstr.firelauncher.ui.theme.DarkSurfaceVariant
@@ -69,6 +70,9 @@ import com.knightmstr.firelauncher.ui.theme.TextPrimary
  */
 /** Card width chosen in Launcher Settings; provided by LauncherRoot. */
 val LocalCardWidth = compositionLocalOf { 140.dp }
+
+/** Card corner style chosen in Launcher Settings; provided by LauncherRoot. */
+val LocalCardShape = compositionLocalOf { CardShape.ROUNDED }
 
 /** Inner sizes were designed for a 200dp card; everything scales from there. */
 private const val DESIGN_WIDTH = 200f
@@ -96,7 +100,13 @@ fun AppCard(
 ) {
     val accentColor = Color(app.accentColor)
     val cardWidth = LocalCardWidth.current
-    val cardShape = RoundedCornerShape(12.dp * (cardWidth.value / DESIGN_WIDTH))
+    val shapeStyle = LocalCardShape.current
+    val cardShape = when (shapeStyle) {
+        CardShape.ROUNDED -> RoundedCornerShape(s(12))
+        CardShape.SQUARE -> RoundedCornerShape(s(2))
+        CardShape.SOFT -> RoundedCornerShape(s(26))
+        CardShape.PILL -> RoundedCornerShape(percent = 50)
+    }
     var isFocused by remember { mutableStateOf(false) }
 
     Surface(
@@ -164,7 +174,8 @@ fun AppCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(s(10))
+                        // Pill corners cut deep, so the favourite dot moves further in
+                        .padding(if (shapeStyle == CardShape.PILL) s(22) else s(10))
                         .size(s(10))
                         .clip(CircleShape)
                         .background(FavoriteYellow)

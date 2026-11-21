@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MusicNote
@@ -105,12 +106,21 @@ fun LauncherSettingsDialog(
         )
 
         TvMenuItem(
-            title = "App card size",
-            subtitle = "Smaller cards fit more apps on screen",
+            title = "App tile size",
+            subtitle = "Smaller tiles fit more apps on screen",
             icon = Icons.Rounded.AspectRatio,
             iconTint = Color(0xFF60A5FA),
             trailing = settings.cardSize.title,
             onClick = { onUpdate { it.copy(cardSize = it.cardSize.next()) } }
+        )
+
+        TvMenuItem(
+            title = "App tile shape",
+            subtitle = "Rounded, square, extra rounded or pill",
+            icon = Icons.Rounded.RoundedCorner,
+            iconTint = Color(0xFF60A5FA),
+            trailing = settings.cardShape.title,
+            onClick = { onUpdate { it.copy(cardShape = it.cardShape.next()) } }
         )
 
         TvMenuItem(

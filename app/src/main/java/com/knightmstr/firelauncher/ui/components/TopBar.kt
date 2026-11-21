@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wifi
 import com.knightmstr.firelauncher.R
@@ -91,8 +92,9 @@ import java.util.Locale
  * Top bar:
  * - Left: logo, name and the current wallpaper (your photo or r/TVWallpapersSFW)
  * - Centre: live weather (opens the city picker) or the search field
- * - Right: icon buttons (next wallpaper, search, Wi-Fi, Fire TV settings, launcher settings)
- *   then the clock. Wi-Fi and Fire TV settings are hidden in Kids mode.
+ * - Right: icon buttons (next wallpaper, search, Wi-Fi, settings) then the clock.
+ *   The settings gear asks Launcher or Fire TV settings; in Kids mode Wi-Fi is hidden and the
+ *   gear asks for the PIN.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -123,6 +125,7 @@ fun TopBar(
     var currentTimeString by remember { mutableStateOf(getFormattedTime(context)) }
     var currentDateString by remember { mutableStateOf(getFormattedDate()) }
     var showCityDialog by remember { mutableStateOf(false) }
+    var showSettingsChooser by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -208,15 +211,12 @@ fun TopBar(
                     if (isSearchActive) Icons.Rounded.Close else Icons.Rounded.Search,
                     if (isSearchActive) "Close search" else "Search apps"
                 ) { onToggleSearch(!isSearchActive) }
-                if (!kidsMode) {
-                    TopIconButton(Icons.Rounded.Wifi, "Wi-Fi", onOpenWifi)
-                    TopIconButton(Icons.Rounded.Settings, "Fire TV settings", onOpenSystemSettings)
-                }
+                if (!kidsMode) TopIconButton(Icons.Rounded.Wifi, "Wi-Fi", onOpenWifi)
+                // One gear: asks Launcher or Fire TV settings. In Kids mode it goes straight to the PIN.
                 TopIconButton(
-                    Icons.Rounded.Tune,
-                    if (kidsMode) "Leave Kids mode" else "Launcher settings",
-                    onOpenLauncherSettings
-                )
+                    Icons.Rounded.Settings,
+                    if (kidsMode) "Leave Kids mode" else "Settings"
+                ) { if (kidsMode) onOpenLauncherSettings() else showSettingsChooser = true }
 
                 // Live clock and date
                 Column(
@@ -235,6 +235,14 @@ fun TopBar(
                     )
                 }
             }
+        }
+
+        if (showSettingsChooser) {
+            SettingsChooserDialog(
+                onLauncherSettings = { showSettingsChooser = false; onOpenLauncherSettings() },
+                onFireTvSettings = { showSettingsChooser = false; onOpenSystemSettings() },
+                onDismiss = { showSettingsChooser = false }
+            )
         }
 
         // Live City Search & Selection Dialog
@@ -624,6 +632,33 @@ fun CitySelectionDialog(
             iconTint = FireOrange,
             trailing = if (isCelsius) "°C" else "°F",
             onClick = onToggleUnit
+        )
+    }
+}
+
+/** Opened by the gear: choose FireLauncher's own settings or the Fire TV's. */
+@Composable
+fun SettingsChooserDialog(
+    onLauncherSettings: () -> Unit,
+    onFireTvSettings: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val first = rememberInitialFocus()
+    TvDialogFrame(title = "Settings", subtitle = null, accentColor = FireAmber, onDismiss = onDismiss, width = 420.dp) {
+        TvMenuItem(
+            title = "Launcher settings",
+            subtitle = "Wallpapers, tiles, screensaver, Kids mode, updates",
+            icon = Icons.Rounded.Tune,
+            iconTint = FireAmber,
+            modifier = Modifier.focusRequester(first),
+            onClick = onLauncherSettings
+        )
+        TvMenuItem(
+            title = "Fire TV settings",
+            subtitle = "Network, display, sound, apps, remotes",
+            icon = Icons.Rounded.Tv,
+            iconTint = FireOrange,
+            onClick = onFireTvSettings
         )
     }
 }
