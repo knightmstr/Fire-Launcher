@@ -1,7 +1,10 @@
 package com.example.firelauncher.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -18,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SearchOff
@@ -52,6 +54,9 @@ import com.example.firelauncher.data.CityLocationModel
 import com.example.firelauncher.data.WallpaperModel
 import com.example.firelauncher.data.WeatherData
 import com.example.firelauncher.ui.components.AppContextMenuDialog
+import com.example.firelauncher.ui.components.LauncherSettingsDialog
+import com.example.firelauncher.ui.components.RenameAppDialog
+import com.example.firelauncher.ui.components.Screensaver
 import com.example.firelauncher.ui.components.AppRow
 import com.example.firelauncher.ui.components.HeroSection
 import com.example.firelauncher.ui.components.SortSelectionDialog
@@ -74,35 +79,39 @@ fun LauncherRoot(
     onRequestVoiceSearch: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var contextMenuApp by remember { mutableStateOf<AppModel?>(null) }
-
-    // Intercept Back button: if context menu is open, close it; if search is active, close search; otherwise ignore
-    val isSearchActive by viewModel.isSearchActive.collectAsStateWithLifecycle()
-    BackHandler {
-        if (contextMenuApp != null) {
-            contextMenuApp = null
-        } else if (isSearchActive) {
-            viewModel.setSearchActive(false)
-        }
-    }
-
     val apps by viewModel.apps.collectAsStateWithLifecycle()
+    val hiddenApps by viewModel.hiddenApps.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val favoriteApps by viewModel.favoriteApps.collectAsStateWithLifecycle()
     val systemShortcuts by viewModel.systemShortcuts.collectAsStateWithLifecycle()
     val focusedApp by viewModel.focusedApp.collectAsStateWithLifecycle()
     val homeTick by viewModel.homeTick.collectAsStateWithLifecycle()
     val weather by viewModel.weather.collectAsStateWithLifecycle()
+    val isCelsius by viewModel.isCelsius.collectAsStateWithLifecycle()
     val savedCities by viewModel.savedCities.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearchingCities by viewModel.isSearchingCities.collectAsStateWithLifecycle()
     val currentWallpaper by viewModel.currentWallpaper.collectAsStateWithLifecycle()
     val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val isSearchActive by viewModel.isSearchActive.collectAsStateWithLifecycle()
     val filteredApps by viewModel.filteredApps.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
+    val contextMenuApp by viewModel.contextMenuApp.collectAsStateWithLifecycle()
+    val renameTarget by viewModel.renameTarget.collectAsStateWithLifecycle()
+    val screensaverVisible by viewModel.screensaverVisible.collectAsStateWithLifecycle()
+
+    // Pause the screensaver timer while any dialog has the keys
+    val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen
+    LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
+
+    // Back closes an open search; otherwise it is absorbed so the launcher never exits
+    BackHandler(enabled = isSearchActive) { viewModel.setSearchActive(false) }
 
     LauncherContent(
         apps = apps,
+        hiddenApps = if (settings.showHiddenApps) hiddenApps else emptyList(),
         favorites = favorites,
         favoriteApps = favoriteApps,
         systemShortcuts = systemShortcuts,
@@ -117,36 +126,66 @@ fun LauncherRoot(
         searchQuery = searchQuery,
         isSearchActive = isSearchActive,
         filteredApps = filteredApps,
-        onSearchCities = { viewModel.searchCities(it) },
-        onClearCitySearch = { viewModel.clearCitySearch() },
-        onSelectCity = { viewModel.selectCity(it) },
-        onToggleUnit = { viewModel.toggleTemperatureUnit() },
-        onNextWallpaper = { viewModel.nextWallpaper() },
-        onSelectSort = { viewModel.setSortOrder(it) },
-        onSearchQueryChange = { viewModel.setSearchQuery(it) },
-        onToggleSearch = { viewModel.setSearchActive(it) },
+        onSearchCities = viewModel::searchCities,
+        onClearCitySearch = viewModel::clearCitySearch,
+        onSelectCity = viewModel::selectCity,
+        onToggleUnit = viewModel::toggleTemperatureUnit,
+        onNextWallpaper = viewModel::nextWallpaper,
+        onSelectSort = viewModel::setSortOrder,
+        onSearchQueryChange = viewModel::setSearchQuery,
+        onToggleSearch = viewModel::setSearchActive,
         onRequestVoiceSearch = onRequestVoiceSearch,
-        onAppFocused = { viewModel.setFocusedApp(it) },
+        onAppFocused = viewModel::setFocusedApp,
         onAppClicked = { viewModel.launchApp(it) },
-        onAppLongClicked = { app ->
-            if (!app.isSystemShortcut) {
-                contextMenuApp = app
-            } else {
-                viewModel.toggleFavorite(app)
-            }
-        },
+        onAppLongClicked = viewModel::openContextMenu,
         modifier = modifier
     )
 
-    // Context Menu for App Info / Force Stop / Favorite toggle
     contextMenuApp?.let { app ->
+        val favIndex = favoriteApps.indexOfFirst { it.packageName == app.packageName }
         AppContextMenuDialog(
             app = app,
             isFavorite = favorites.contains(app.packageName),
-            onToggleFavorite = { viewModel.toggleFavorite(app) },
-            onOpenAppDetails = { viewModel.openAppDetails(app) },
+            favoriteIndex = favIndex,
+            favoriteCount = favoriteApps.size,
             onLaunchApp = { viewModel.launchApp(app) },
-            onDismiss = { contextMenuApp = null }
+            onToggleFavorite = { viewModel.toggleFavorite(app) },
+            onMoveFavorite = { delta -> viewModel.moveFavorite(app, delta) },
+            onRename = { viewModel.startRename(app) },
+            onToggleHidden = { viewModel.setHidden(app, !app.isHidden) },
+            onOpenAppDetails = { viewModel.openAppDetails(app) },
+            onDismiss = viewModel::closeContextMenu
+        )
+    }
+
+    renameTarget?.let { app ->
+        RenameAppDialog(
+            app = app,
+            onSave = { label -> viewModel.renameApp(app, label) },
+            onDismiss = viewModel::closeRename
+        )
+    }
+
+    if (isSettingsOpen) {
+        LauncherSettingsDialog(
+            settings = settings,
+            isCelsius = isCelsius,
+            hiddenAppCount = hiddenApps.size,
+            onUpdate = viewModel::updateSettings,
+            onToggleUnit = viewModel::toggleTemperatureUnit,
+            onDismiss = viewModel::closeSettings
+        )
+    }
+
+    AnimatedVisibility(
+        visible = screensaverVisible,
+        enter = fadeIn(tween(1200)),
+        exit = fadeOut(tween(300))
+    ) {
+        Screensaver(
+            wallpaper = currentWallpaper,
+            weather = weather,
+            onNextWallpaper = viewModel::nextWallpaper
         )
     }
 }
@@ -158,6 +197,7 @@ fun LauncherRoot(
 @Composable
 fun LauncherContent(
     apps: List<AppModel>,
+    hiddenApps: List<AppModel>,
     favorites: Set<String>,
     favoriteApps: List<AppModel>,
     systemShortcuts: List<AppModel>,
@@ -447,6 +487,20 @@ fun LauncherContent(
                             onAppClicked = onAppClicked,
                             onAppLongClicked = onAppLongClicked
                         )
+                    }
+
+                    // Row 4: Hidden apps (only when enabled in Launcher Settings)
+                    if (hiddenApps.isNotEmpty()) {
+                        item(key = "row_hidden") {
+                            AppRow(
+                                title = "Hidden Apps (hold OK to unhide)",
+                                apps = hiddenApps,
+                                favorites = favorites,
+                                onAppFocused = onAppFocused,
+                                onAppClicked = onAppClicked,
+                                onAppLongClicked = onAppLongClicked
+                            )
+                        }
                     }
                 }
 

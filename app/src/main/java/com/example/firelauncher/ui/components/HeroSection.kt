@@ -31,7 +31,7 @@ import com.example.firelauncher.ui.theme.TextSecondary
 
 /**
  * Hero section displaying the currently focused app's title, package/category info,
- * and context hints (e.g. "Hold OK to add to favorites").
+ * and context hints (e.g. "Hold OK or press ☰ for options").
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -104,8 +104,8 @@ fun HeroSection(
 
                     val hintText = when {
                         app.isSystemShortcut -> "Press OK to open settings"
-                        fav -> "Hold OK for options (Remove favorite, App info / Force stop)"
-                        else -> "Hold OK for options (Add to favorites, App info / Force stop)"
+                        fav -> "Hold OK or press ☰ for options (reorder, rename, hide, app info)"
+                        else -> "Hold OK or press ☰ for options (favorite, rename, hide, app info)"
                     }
 
                     Text(

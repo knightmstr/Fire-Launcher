@@ -29,7 +29,7 @@ import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Sort
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Thunderstorm
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.WaterDrop
@@ -934,7 +934,7 @@ fun SortTriggerButton(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                imageVector = Icons.Rounded.Sort,
+                imageVector = Icons.AutoMirrored.Rounded.Sort,
                 contentDescription = "Sort library",
                 tint = FireAmber,
                 modifier = Modifier.size(16.dp)
@@ -1032,7 +1032,7 @@ fun SortSelectionDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Sort,
+                                imageVector = Icons.AutoMirrored.Rounded.Sort,
                                 contentDescription = null,
                                 tint = FireOrange,
                                 modifier = Modifier.size(20.dp)

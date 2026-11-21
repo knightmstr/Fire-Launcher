@@ -1,5 +1,6 @@
 package com.example.firelauncher
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
@@ -8,7 +9,6 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -94,6 +94,29 @@ class MainActivity : ComponentActivity() {
         hideSystemUI()
         // Refresh installed apps whenever launcher returns to foreground
         viewModel.refreshApps()
+        viewModel.onForegroundChanged(true)
+    }
+
+    override fun onPause() {
+        viewModel.onForegroundChanged(false)
+        super.onPause()
+    }
+
+    /**
+     * Every key press resets the idle timer. While the screensaver is showing, the key
+     * that wakes it is swallowed so it doesn't also launch or move focus.
+     *
+     * RestrictedApi is a lint false positive: androidx.core's ComponentActivity also declares
+     * dispatchKeyEvent, but this overrides the public android.app.Activity method.
+     */
+    @SuppressLint("RestrictedApi")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (viewModel.screensaverVisible.value) {
+            if (event.action == KeyEvent.ACTION_UP) viewModel.onUserInteraction()
+            return true
+        }
+        viewModel.onUserInteraction()
+        return super.dispatchKeyEvent(event)
     }
 
     /**
@@ -115,12 +138,15 @@ class MainActivity : ComponentActivity() {
             launchVoiceSearch()
             return true
         }
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            // Fire TV remote ☰ button opens the options menu for the focused card
+            viewModel.openContextMenuForFocused()
+            return true
+        }
         return super.onKeyDown(keyCode, event)
     }
 
     private fun hideSystemUI() {
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
             window.insetsController?.let { controller ->

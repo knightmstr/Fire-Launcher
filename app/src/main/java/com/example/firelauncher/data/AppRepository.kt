@@ -19,6 +19,11 @@ import kotlinx.coroutines.withContext
  */
 class AppRepository(private val context: Context) {
 
+    companion object {
+        /** Key of the in-launcher Settings tile; handled by the ViewModel, never sent as an Intent. */
+        const val LAUNCHER_SETTINGS_KEY = "system.launcher_settings"
+    }
+
     private val packageManager: PackageManager = context.packageManager
 
     /**
@@ -109,7 +114,7 @@ class AppRepository(private val context: Context) {
     }
 
     /**
-     * Builds standard system shortcuts: Wi-Fi, Display, Sound, Bluetooth, All Settings.
+     * Builds system shortcuts: Wi-Fi, Display, Sound, Bluetooth, All Settings and Launcher Settings.
      */
     fun getSystemShortcuts(): List<AppModel> {
         val dummyDrawable: Drawable = ColorDrawable(Color.TRANSPARENT)
@@ -161,13 +166,13 @@ class AppRepository(private val context: Context) {
                 systemIntentAction = Settings.ACTION_SETTINGS
             ),
             AppModel(
-                packageName = "system.cleantv",
-                activityName = "CleanTV.Optimizer",
-                label = "CleanTV Optimizer",
+                packageName = LAUNCHER_SETTINGS_KEY,
+                activityName = "FireLauncher.Settings",
+                label = "Launcher Settings",
                 icon = dummyDrawable,
                 accentColor = 0xFF10B981.toInt(), // Vibrant Emerald
                 isSystemShortcut = true,
-                systemIntentAction = "com.example.firelauncher.action.CLEANTV"
+                systemIntentAction = LAUNCHER_SETTINGS_KEY
             )
         )
     }
@@ -179,12 +184,7 @@ class AppRepository(private val context: Context) {
     fun launchApp(app: AppModel): Boolean {
         return try {
             if (app.isSystemShortcut && app.systemIntentAction != null) {
-                val intent = Intent(app.systemIntentAction).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    if (app.packageName == "system.cleantv" || app.systemIntentAction.startsWith("com.example.firelauncher")) {
-                        setPackage(context.packageName)
-                    }
-                }
+                val intent = Intent(app.systemIntentAction).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (intent.resolveActivity(packageManager) != null) {
                     context.startActivity(intent)
                     true

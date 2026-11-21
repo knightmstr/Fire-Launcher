@@ -20,7 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.DisplaySettings
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +52,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.example.firelauncher.data.AppModel
+import com.example.firelauncher.data.AppRepository
 import com.example.firelauncher.ui.theme.DarkSurface
 import com.example.firelauncher.ui.theme.DarkSurfaceVariant
 import com.example.firelauncher.ui.theme.FavoriteYellow
@@ -159,11 +161,12 @@ private fun SystemShortcutContent(
     app: AppModel,
     accentColor: Color
 ) {
-    val iconVector: ImageVector = when (app.label.lowercase()) {
-        "wi-fi" -> Icons.Rounded.Wifi
-        "display" -> Icons.Rounded.DisplaySettings
-        "sound" -> Icons.Rounded.VolumeUp
-        "bluetooth" -> Icons.Rounded.Bluetooth
+    val iconVector: ImageVector = when (app.packageName) {
+        "system.wifi" -> Icons.Rounded.Wifi
+        "system.display" -> Icons.Rounded.DisplaySettings
+        "system.sound" -> Icons.AutoMirrored.Rounded.VolumeUp
+        "system.bluetooth" -> Icons.Rounded.Bluetooth
+        AppRepository.LAUNCHER_SETTINGS_KEY -> Icons.Rounded.Tune
         else -> Icons.Rounded.Settings
     }
 
