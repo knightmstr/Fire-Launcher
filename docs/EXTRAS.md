@@ -23,6 +23,8 @@ Pressing Home on the remote normally opens Amazon's home screen. With this on, i
 1. Set up the [one-time permission](#the-one-time-permission).
 2. Go to **⚙ → Launcher settings → Fire TV → Home button opens FireLauncher** and turn it on.
 
+This uses a small accessibility service that only notices when Amazon's home opens. FireLauncher switches it on by itself, so there's nothing to do in Accessibility settings.
+
 Amazon's home may flash for a moment before FireLauncher comes back. Fire OS doesn't allow avoiding that without rooting.
 
 ## Screensaver
@@ -46,9 +48,10 @@ By default the Fire TV goes to sleep after a while. The screen goes black and th
 
 Shows the app, the title and ⏮ ⏯ ⏭ controls for whatever's playing in Spotify, YouTube, Plex and others. It appears on the home screen and in the screensaver. FireLauncher only reads what's playing, never your notifications.
 
-Many Fire TVs hide the screen where you'd allow this, so allow it once with adb:
+Many Fire TVs hide the screen where you'd allow this, so allow it once with adb (see [Install](INSTALL.md) for getting adb):
 
 ```bash
+adb connect 192.168.1.50:5555    # your TV's IP
 adb shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
 ```
 
@@ -57,8 +60,11 @@ adb shell cmd notification allow_listener com.knightmstr.firelauncher/com.knight
 Copy photos straight in, with no permission needed:
 
 ```bash
-adb push photo.jpg /sdcard/Android/data/com.knightmstr.firelauncher/files/Pictures/
+adb connect 192.168.1.50:5555    # your TV's IP
+adb push ~/storage/dcim/Camera/IMG_1234.jpg /sdcard/Android/data/com.knightmstr.firelauncher/files/Pictures/
 ```
+
+That path is for Termux on a phone (run `termux-setup-storage` once first). From a computer, use the photo's path on your computer. Landscape photos look best.
 
 Photos in an album called **FireLauncher** also work, after **Allow photo access** in Launcher settings. Choose which wallpapers to use under **Launcher settings → Wallpaper → Wallpapers from**.
 
@@ -70,7 +76,7 @@ The Home button, screensaver and keep-awake options change Fire TV settings, so 
 
 ### On the TV (no phone needed)
 
-1. Turn on **ADB debugging**: **Settings → My Fire TV → Developer options**. If Developer options is missing, go to **My Fire TV → About** and press OK on your device name 7 times.
+1. Turn on **ADB debugging**: **Settings → My Fire TV** (called **Device & Software** on newer models) **→ Developer options**. If Developer options is missing, go to **My Fire TV → About** and press OK on your device name 7 times.
 2. In FireLauncher, go to **⚙ → Launcher settings** and choose any of the three options. The setup screen opens.
 3. Choose **Set up on this TV**. When the TV asks *Allow USB debugging?*, tick **Always allow** and press **OK**.
 
@@ -97,5 +103,7 @@ adb shell settings get secure screensaver_components    # should name com.knight
 ```
 
 If the option shows **On** in Launcher settings but these show Amazon's values, open FireLauncher once. It puts its settings back after updates and restarts.
+
+**Home still opens Amazon's home.** Check that *Home button opens FireLauncher* shows **On**. If it does, go to **Settings → Accessibility** and check that **FireLauncher** is on there. Updates and restarts can switch it off; opening FireLauncher puts it back.
 
 **Set up on this TV fails.** Check that ADB debugging is on, then try again and choose **Always allow**. If it still fails, use the phone method above.

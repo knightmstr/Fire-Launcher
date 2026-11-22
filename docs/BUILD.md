@@ -30,7 +30,8 @@ app/src/main/java/com/knightmstr/firelauncher/
 ├── media/         Now playing (media sessions)
 ├── update/        GitHub update check, download, verify, install
 └── ui/            Compose screens: home, dock, All Apps, dialogs, settings
-tools/             get_tv_ip.py, clear_launcher_cache.sh (used by AI_STEPS.md)
+tools/             get_tv_ip.py (finds the TV's IP, used by AI_STEPS.md)
+                   clear_launcher_cache.sh (clears FireLauncher's image cache on low-memory sticks)
 ```
 
 </details>

@@ -2,23 +2,49 @@
 
 [← Back to README](../README.md)
 
-[`AI_STEPS.md`](../AI_STEPS.md) is a step-by-step guide you can follow yourself or hand to an AI coding agent (Claude Code, Gemini CLI…). It installs FireLauncher and disables five Amazon ad and telemetry services. Everything can be undone.
+Turns off four Amazon services that show ads and send usage data. They're disabled, not deleted, and you can undo it any time.
 
-## The commands
+| Package | What it does |
+|---|---|
+| `com.amazon.advertising.firetv` | Ads |
+| `com.amazon.device.sale.service` | Deals and sale promotions |
+| `com.amazon.client.metrics` | Usage data sent to Amazon |
+| `com.amazon.device.crashmanager` | Crash reports sent to Amazon |
+
+## Do it
+
+You need adb connected to the Fire TV, as in the [Install guide](INSTALL.md):
 
 ```bash
-# Disable
+adb connect 192.168.1.50:5555    # your TV's IP
+
 for p in com.amazon.advertising.firetv com.amazon.device.sale.service \
-         com.amazon.client.metrics com.amazon.device.crashmanager com.amazon.ftv.screensaver; do
+         com.amazon.client.metrics com.amazon.device.crashmanager; do
   adb shell pm disable-user --user 0 "$p"
 done
 
-# Undo
+adb reboot
+```
+
+Each line prints `Package … new state: disabled-user`. If one says it can't be disabled or isn't found, your Fire OS doesn't have it or doesn't allow it. That's fine; the others still work.
+
+**Optional:** if you use [FireLauncher's screensaver](EXTRAS.md#screensaver), you can also turn off Amazon's sponsored screensaver. Skip this if you use Amazon's.
+
+```bash
+adb shell pm disable-user --user 0 com.amazon.ftv.screensaver
+```
+
+## Undo
+
+```bash
 for p in com.amazon.advertising.firetv com.amazon.device.sale.service \
          com.amazon.client.metrics com.amazon.device.crashmanager com.amazon.ftv.screensaver; do
   adb shell pm enable "$p"
 done
+
+adb reboot
 ```
 
+## Using an AI agent instead
 
-The fifth package, `com.amazon.ftv.screensaver`, is Amazon's screensaver. Leave it enabled if you don't use FireLauncher's [screensaver](EXTRAS.md#screensaver).
+[`AI_STEPS.md`](../AI_STEPS.md) does all of this, and installs FireLauncher, for an AI coding agent such as Claude Code or Gemini CLI. It's written for the agent, not for following by hand. It needs a full copy of this repo, Python 3 and adb on a computer, and it restarts the TV.

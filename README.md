@@ -2,7 +2,7 @@
 
 A clean, ad-free home screen for **Amazon Fire TV**. Your wallpaper fills the screen, with a big clock, the weather and a dock of your favourite apps. No sponsored rows.
 
-Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1+).
+Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 and later).
 
 **[Download the latest release →](https://github.com/knightmstr/Fire-Launcher/releases/latest)**
 
@@ -48,10 +48,10 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1+).
 
 ## Get started
 
-1. Turn on **ADB debugging** on the Fire TV and install the APK with adb, from a computer or from your phone with Termux. → **[Install guide](docs/INSTALL.md)**
-2. Optional: make the **Home button** open FireLauncher, use its **screensaver** and **keep the Fire TV awake**. You can set these up on the TV itself. → **[Extras](docs/EXTRAS.md)**
+1. **Install FireLauncher.** It takes about 10 minutes and needs a phone or computer once. → **[Install guide](docs/INSTALL.md)**
+2. **Make it your home screen** (optional): the Home button, screensaver and keep-awake. You can set these up on the TV itself. → **[Extras](docs/EXTRAS.md)**
 
-After that, updates install from the TV.
+After that, updates install from the TV. Not for you? [Going back to Amazon's home](docs/INSTALL.md#going-back-to-amazons-home) is two switches.
 
 ## More
 
