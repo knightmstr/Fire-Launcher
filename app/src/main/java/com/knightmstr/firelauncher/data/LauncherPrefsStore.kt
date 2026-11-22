@@ -31,7 +31,7 @@ data class SelectedLocation(
 
 /**
  * Single DataStore-backed store for every persisted launcher preference:
- * favourites (ordered), hidden apps, custom labels, custom app order, quick buttons,
+ * favourites (ordered), hidden apps, custom labels, custom app order,
  * Kids mode, sort order, usage stats, weather location/units and [LauncherSettings].
  */
 class LauncherPrefsStore(private val context: Context) {
@@ -60,17 +60,16 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_CARD_SIZE = stringPreferencesKey("settings_card_size") // legacy name, read once
         private val KEY_TILE_WIDTH = intPreferencesKey("settings_tile_width_dp")
         private val KEY_CARD_SHAPE = stringPreferencesKey("settings_card_shape")
+        private val KEY_HOME_LAYOUT = stringPreferencesKey("settings_home_layout")
         private val KEY_SHOW_ALL_APPS_ROW = booleanPreferencesKey("settings_show_all_apps_row")
         private val KEY_NIGHT_DIM = booleanPreferencesKey("settings_screensaver_night_dim")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
-        private val KEY_QUICK_BUTTONS = stringPreferencesKey("quick_buttons_order")
 
         private val KEY_KIDS_ENABLED = booleanPreferencesKey("kids_mode_enabled")
         private val KEY_KIDS_APPS = stringSetPreferencesKey("kids_allowed_packages")
         private val KEY_KIDS_PIN_HASH = stringPreferencesKey("kids_pin_hash")
 
-        const val MAX_QUICK_BUTTONS = 5
 
         val DEFAULT_CITIES = setOf(
             "Seattle|WA, USA|47.6062|-122.3321",
@@ -153,7 +152,8 @@ class LauncherPrefsStore(private val context: Context) {
                 ?: LauncherSettings.tileWidthFromLegacySize(p[KEY_CARD_SIZE]),
             cardShape = CardShape.fromName(p[KEY_CARD_SHAPE]),
             showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false,
-            nightDim = p[KEY_NIGHT_DIM] ?: true
+            nightDim = p[KEY_NIGHT_DIM] ?: true,
+            homeLayout = HomeLayout.fromName(p[KEY_HOME_LAYOUT])
         )
     }
 
@@ -166,6 +166,7 @@ class LauncherPrefsStore(private val context: Context) {
             p[KEY_TILE_WIDTH] = LauncherSettings.clampTileWidth(settings.tileWidthDp)
             p.remove(KEY_CARD_SIZE)
             p[KEY_CARD_SHAPE] = settings.cardShape.name
+            p[KEY_HOME_LAYOUT] = settings.homeLayout.name
             p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
             p[KEY_NIGHT_DIM] = settings.nightDim
         }
@@ -177,24 +178,6 @@ class LauncherPrefsStore(private val context: Context) {
 
     suspend fun setCustomAppOrder(order: List<String>) {
         context.dataStore.edit { it[KEY_CUSTOM_APP_ORDER] = PrefsCodec.encodeList(order) }
-    }
-
-    // ---------------------------------------------------------------- Quick buttons
-
-    val quickButtonsFlow: Flow<List<String>> = pref { PrefsCodec.decodeList(it[KEY_QUICK_BUTTONS]) }
-
-    /** Adds or removes a quick button. Returns false if the bar is already full. */
-    suspend fun toggleQuickButton(packageName: String): Boolean {
-        var added = true
-        context.dataStore.edit { p ->
-            val current = PrefsCodec.decodeList(p[KEY_QUICK_BUTTONS])
-            if (packageName !in current && current.size >= MAX_QUICK_BUTTONS) {
-                added = false
-            } else {
-                p[KEY_QUICK_BUTTONS] = PrefsCodec.encodeList(PrefsCodec.toggle(current, packageName))
-            }
-        }
-        return added
     }
 
     // ---------------------------------------------------------------- Kids mode

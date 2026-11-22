@@ -199,24 +199,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         PrefsCodec.applyOrder(visible, order) { it.packageName }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // ------------------------------------------------------------------ Quick buttons
-
-    private val quickButtonOrder: StateFlow<List<String>> = prefs.quickButtonsFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    val quickButtonKeys: StateFlow<Set<String>> = quickButtonOrder.map { it.toSet() }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
-
-    /** One-press shortcuts shown in the header, max [LauncherPrefsStore.MAX_QUICK_BUTTONS]. */
-    val quickButtonApps: StateFlow<List<AppModel>> = combine(visibleApps, quickButtonOrder) { visible, order ->
-        PrefsCodec.applyOrder(visible, order) { it.packageName }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    fun toggleQuickButton(app: AppModel) {
-        if (app.isSystemShortcut) return
-        viewModelScope.launch { prefs.toggleQuickButton(app.packageName) }
-    }
-
     // ------------------------------------------------------------------ Kids mode
 
     val hasKidsPin: StateFlow<Boolean> = prefs.hasKidsPinFlow

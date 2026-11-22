@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -40,13 +39,10 @@ fun AppContextMenuDialog(
     favoriteCount: Int,
     allAppsIndex: Int,
     allAppsCount: Int,
-    isQuickButton: Boolean,
-    quickButtonsFull: Boolean,
     onLaunchApp: () -> Unit,
     onToggleFavorite: () -> Unit,
     onMoveFavorite: (delta: Int) -> Unit,
     onMoveInAllApps: (delta: Int) -> Unit,
-    onToggleQuickButton: () -> Unit,
     onToggleKidsAllowed: () -> Unit,
     onRename: () -> Unit,
     onToggleHidden: () -> Unit,
@@ -85,19 +81,6 @@ fun AppContextMenuDialog(
         if (allAppsIndex >= 0 && allAppsCount > 1) {
             MoveRow("All Apps", allAppsIndex, allAppsCount, Color(0xFF60A5FA), onMoveInAllApps)
         }
-
-        TvMenuItem(
-            title = if (isQuickButton) "Remove Quick button" else "Add as Quick button",
-            subtitle = when {
-                isQuickButton -> null
-                quickButtonsFull -> "Quick buttons are full (5) — remove one first"
-                else -> "One-press shortcut at the top of the screen"
-            },
-            icon = Icons.Rounded.Bolt,
-            iconTint = FireAmber,
-            enabled = isQuickButton || !quickButtonsFull,
-            onClick = { onToggleQuickButton(); onDismiss() }
-        )
 
         TvMenuItem(
             title = "Rename",

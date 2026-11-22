@@ -36,64 +36,14 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Glow
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import com.knightmstr.firelauncher.data.AppModel
 import com.knightmstr.firelauncher.media.NowPlaying
-import com.knightmstr.firelauncher.ui.theme.DarkSurface
 import com.knightmstr.firelauncher.ui.theme.DarkSurfaceVariant
 import com.knightmstr.firelauncher.ui.theme.FireAmber
-import com.knightmstr.firelauncher.ui.theme.FireOrange
 import com.knightmstr.firelauncher.ui.theme.TextPrimary
 import com.knightmstr.firelauncher.ui.theme.TextSecondary
-
-/** Row of round one-press app shortcuts shown in the header. */
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun QuickButtonsBar(
-    apps: List<AppModel>,
-    onClick: (AppModel) -> Unit,
-    onLongClick: (AppModel) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (apps.isEmpty()) return
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        apps.forEach { app ->
-            val bitmap = remember(app.packageName, app.icon) {
-                runCatching { app.icon.toBitmap(96, 96).asImageBitmap() }.getOrNull()
-            }
-            Surface(
-                onClick = { onClick(app) },
-                onLongClick = { onLongClick(app) },
-                // Same size and style as the round icon buttons next to it (TopIconButton)
-                modifier = Modifier.size(40.dp),
-                shape = ClickableSurfaceDefaults.shape(CircleShape),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
-                border = ClickableSurfaceDefaults.border(
-                    border = Border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), shape = CircleShape),
-                    focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = CircleShape)
-                ),
-                glow = ClickableSurfaceDefaults.glow(
-                    focusedGlow = Glow(elevationColor = FireOrange.copy(alpha = 0.7f), elevation = 14.dp)
-                ),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = DarkSurface.copy(alpha = 0.85f),
-                    focusedContainerColor = DarkSurfaceVariant
-                )
-            ) {
-                Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                    if (bitmap != null) {
-                        Image(bitmap = bitmap, contentDescription = app.label, modifier = Modifier.size(22.dp))
-                    } else {
-                        Text(app.label.take(1), color = TextPrimary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
 
 /**
  * Small "now playing" window: the playing app's icon and name, then what's playing, then
