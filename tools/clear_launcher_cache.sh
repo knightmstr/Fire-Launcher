@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # tools/clear_launcher_cache.sh
-# FireLauncher Memory & Cache Recovery Utility
+# Onyx TV Memory & Cache Recovery Utility
 #
 # Clears the launcher's runtime image cache and temporary application data
 # over ADB to immediately free up RAM and flash storage on low-end Fire TV sticks.
@@ -9,11 +9,11 @@
 
 set -e
 
-PACKAGE_NAME="com.knightmstr.firelauncher"
-MAIN_ACTIVITY="com.knightmstr.firelauncher/.MainActivity"
+PACKAGE_NAME="com.knightmstr.onyxtv"
+MAIN_ACTIVITY="com.knightmstr.onyxtv/.MainActivity"
 
 echo "=========================================================="
-echo "    🔥 FireLauncher Cache & Memory Wipe Utility 🔥        "
+echo "       Onyx TV Cache & Memory Wipe Utility           "
 echo "=========================================================="
 
 # 1. Verify ADB availability
@@ -69,10 +69,10 @@ else
     echo "[!] Warning: Command did not report explicit success ($CLEAR_RESULT)."
 fi
 
-# 5. Relaunch FireLauncher activity
-echo "[+] Relaunching FireLauncher on target TV display..."
+# 5. Relaunch Onyx TV activity
+echo "[+] Relaunching Onyx TV on target TV display..."
 $ADB_CMD shell am start -n "$MAIN_ACTIVITY" > /dev/null 2>&1 || true
 
 echo "=========================================================="
-echo "    ✓ FireLauncher is running fresh with clean cache!     "
+echo "    ✓ Onyx TV is running fresh with clean cache!     "
 echo "=========================================================="

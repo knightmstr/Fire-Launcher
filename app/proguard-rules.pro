@@ -1,5 +1,5 @@
-# ProGuard / R8 rules for FireLauncher
--keep class com.knightmstr.firelauncher.** { *; }
+# ProGuard / R8 rules for Onyx TV
+-keep class com.knightmstr.onyxtv.** { *; }
 -dontwarn androidx.tv.**
 -dontwarn kotlinx.coroutines.**
 

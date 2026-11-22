@@ -65,14 +65,14 @@ If it says `unauthorized` or `failed to authenticate`, accept the box on the TV 
 V=v1.5.0
 wget https://github.com/knightmstr/Onyx-TV/releases/download/$V/OnyxTV-$V-release.apk
 adb install -r OnyxTV-$V-release.apk
-adb shell am start -n com.knightmstr.firelauncher/.MainActivity
+adb shell am start -n com.knightmstr.onyxtv/.MainActivity
 ```
 
 *Windows:* on the [Releases page](https://github.com/knightmstr/Onyx-TV/releases/latest), click the file ending in `-release.apk` to download it. Then in PowerShell, in the `platform-tools` folder:
 
 ```powershell
 .\adb install -r "$HOME\Downloads\OnyxTV-v1.5.0-release.apk"
-.\adb shell am start -n com.knightmstr.firelauncher/.MainActivity
+.\adb shell am start -n com.knightmstr.onyxtv/.MainActivity
 ```
 
 Change `v1.4.0` to the version you downloaded. You can type `"$HOME\Downloads\Onyx` and press **Tab** to fill in the name.
@@ -97,6 +97,16 @@ Onyx TV is installed, but **pressing Home still opens Amazon's home** until you 
 - **Fill your dock:** open **All Apps** (the round button at the end of the dock), hold OK on an app and choose **Add to Favorites**. The dock is always showing in the default **Dock** layout. In the optional **Clean** layout, press any button first to bring it back.
 - **Make it your home screen:** turn on the **Home button**, **screensaver** and **keep awake**. You can do all of these on the TV. → [Extras](EXTRAS.md)
 - **Not for you?** See [Going back to Amazon's home](#going-back-to-amazons-home).
+
+## Coming from FireLauncher
+
+Onyx TV used to be called **FireLauncher**. It's now a separate app, so FireLauncher can't update itself to Onyx TV:
+
+1. In FireLauncher, go to **⚙ → Launcher settings** and turn off the Home button, screensaver and keep-awake options. This puts Amazon's settings back.
+2. Remove it: `adb uninstall com.knightmstr.firelauncher`
+3. Install Onyx TV as above, then set up the [extras](EXTRAS.md) again.
+
+Your FireLauncher favourites and settings don't carry over. Photos in a **FireLauncher** album still work.
 
 ## Updating
 
@@ -124,7 +134,7 @@ adb shell pm enable com.amazon.ftv.screensaver
    ```bash
    adb connect 192.168.1.50:5555    # your TV's IP
    adb shell pm enable com.amazon.ftv.screensaver    # only if you disabled it
-   adb uninstall com.knightmstr.firelauncher
+   adb uninstall com.knightmstr.onyxtv
    ```
 
 ## Installing other apps with adb

@@ -27,7 +27,7 @@ Your apps: open **All Apps** (the round button at the end of the dock), hold OK 
 
 - **Amazon's home may flash** for a moment when you press Home, before Onyx TV comes back. Fire OS doesn't allow avoiding this without rooting.
 - **Kids mode locks the launcher, not the device.** For device-wide limits, also use *Settings → Preferences → Parental Controls*.
-- **Forgot the Kids mode PIN?** Clear Onyx TV's data with adb: `adb connect 192.168.1.50:5555`, then `adb shell pm clear com.knightmstr.firelauncher`. This also resets Onyx TV's settings, favourites and wallpapers. Open Onyx TV afterwards and set it up again.
+- **Forgot the Kids mode PIN?** Clear Onyx TV's data with adb: `adb connect 192.168.1.50:5555`, then `adb shell pm clear com.knightmstr.onyxtv`. This also resets Onyx TV's settings, favourites and wallpapers. Open Onyx TV afterwards and set it up again.
 - **When the screensaver starts** inside other apps follows Fire TV's *Display & Sounds → Screensaver → Start Time*.
 - **Updates install over each other** only when they're signed with the same key, which is how the official releases are signed.
 

@@ -14,7 +14,7 @@
 The values used below:
 
 ```bash
-PKG=com.knightmstr.firelauncher
+PKG=com.knightmstr.onyxtv
 REPO=knightmstr/Onyx-TV
 ```
 
@@ -110,12 +110,21 @@ Use `adb -s $TV …` for every command from here on.
 ```bash
 adb -s $TV shell getprop ro.product.manufacturer   # Amazon
 adb -s $TV shell getprop ro.build.version.sdk       # 25 or higher (Fire OS 6+)
-adb -s $TV shell pm list packages | grep -i firelauncher
+adb -s $TV shell pm list packages | grep -iE "onyxtv|firelauncher"
 ```
 
 - An SDK below 25 isn't supported. Stop and tell the person.
+- If `package:com.knightmstr.onyxtv` is already there, this is an update. Go on; settings are kept.
+- `package:com.knightmstr.firelauncher` is **FireLauncher**, this app's old name. It's a separate app now, and it can't be updated to Onyx TV. Tell the person, then put Amazon's settings back and remove it:
+
+  ```bash
+  adb -s $TV shell am broadcast -a com.knightmstr.firelauncher.SETUP -n com.knightmstr.firelauncher/.home.AdbSetupReceiver \
+      --ez home_button false --ez screensaver false --ez keep_awake false   # only works on FireLauncher v1.4.1; fine if it does nothing
+  adb -s $TV uninstall com.knightmstr.firelauncher
+  ```
+
+  Older FireLauncher versions don't have that switch. If the Home button or screensaver still points to FireLauncher afterwards, Step 7 takes over both anyway.
 - `package:com.example.firelauncher` is an old test build. Offer to remove it: `adb -s $TV uninstall com.example.firelauncher`.
-- If `package:com.knightmstr.firelauncher` is already there, this is an update. Go on; settings are kept.
 
 ---
 
@@ -197,15 +206,15 @@ Tell the person the TV is restarting. Wait about a minute, then run `adb connect
 Then **check** (after a restart, or straight away if there wasn't one):
 
 ```bash
-adb -s $TV shell settings get secure enabled_accessibility_services   # contains com.knightmstr.firelauncher (Home button)
-adb -s $TV shell settings get secure screensaver_components           # com.knightmstr.firelauncher/... (screensaver)
+adb -s $TV shell settings get secure enabled_accessibility_services   # contains com.knightmstr.onyxtv (Home button)
+adb -s $TV shell settings get secure screensaver_components           # com.knightmstr.onyxtv/... (screensaver)
 adb -s $TV shell settings get secure sleep_timeout                    # -1 (keep awake)
 adb -s $TV shell pm list packages -d                                  # the debloated packages
 adb -s $TV shell input keyevent KEYCODE_HOME; sleep 3
 adb -s $TV shell dumpsys activity activities | grep -m1 -E "mResumedActivity|topResumedActivity"
 ```
 
-The last line should name `com.knightmstr.firelauncher` if the Home button was chosen. Amazon's home may show for a moment first.
+The last line should name `com.knightmstr.onyxtv` if the Home button was chosen. Amazon's home may show for a moment first.
 
 If an extra isn't on, open Onyx TV once (`am start` as in Step 7). It puts its settings back after updates and restarts. Then check again. If something still fails, say exactly what, and point to **Set up on this TV** in Onyx TV's *Launcher settings* as a fallback.
 

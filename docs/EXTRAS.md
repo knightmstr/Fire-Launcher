@@ -55,7 +55,7 @@ Many Fire TVs hide the screen where you'd allow this, so allow it once with adb 
 
 ```bash
 adb connect 192.168.1.50:5555    # your TV's IP
-adb shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
+adb shell cmd notification allow_listener com.knightmstr.onyxtv/com.knightmstr.onyxtv.media.MediaListenerService
 ```
 
 To undo it, run the same command with `disallow_listener` in place of `allow_listener`. Uninstalling Onyx TV also removes it.
@@ -66,13 +66,13 @@ Copy photos straight in, with no permission needed:
 
 ```bash
 adb connect 192.168.1.50:5555    # your TV's IP
-adb push ~/storage/dcim/Camera/IMG_1234.jpg /sdcard/Android/data/com.knightmstr.firelauncher/files/Pictures/
+adb push ~/storage/dcim/Camera/IMG_1234.jpg /sdcard/Android/data/com.knightmstr.onyxtv/files/Pictures/
 ```
 
 That path is for Termux on a phone (run `termux-setup-storage` once first). From a Windows computer, it looks like this (keep the quotes if the path has spaces):
 
 ```powershell
-.\adb push "C:\Users\You\Pictures\beach.jpg" /sdcard/Android/data/com.knightmstr.firelauncher/files/Pictures/
+.\adb push "C:\Users\You\Pictures\beach.jpg" /sdcard/Android/data/com.knightmstr.onyxtv/files/Pictures/
 ```
 
 Landscape photos look best.
@@ -97,7 +97,7 @@ The option turns on by itself. Onyx TV connects to the TV's own ADB, only to gra
 
 ```bash
 adb connect 192.168.1.50:5555    # your TV's IP
-adb shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
+adb shell pm grant com.knightmstr.onyxtv android.permission.WRITE_SECURE_SETTINGS
 ```
 
 This only gives the permission. **Then turn each option on in Launcher settings.** Nothing changes until you do.
@@ -110,7 +110,7 @@ This only gives the permission. **Then turn each option on in Launcher settings.
 
 ```bash
 adb shell settings get secure sleep_timeout             # -1 means keep awake is on
-adb shell settings get secure screensaver_components    # should name com.knightmstr.firelauncher
+adb shell settings get secure screensaver_components    # should name com.knightmstr.onyxtv
 ```
 
 If the option shows **On** in Launcher settings but these show Amazon's values, open Onyx TV once. It puts its settings back after updates and restarts.

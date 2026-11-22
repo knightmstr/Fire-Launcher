@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FireLauncher"
+rootProject.name = "OnyxTV"
 include(":app")
