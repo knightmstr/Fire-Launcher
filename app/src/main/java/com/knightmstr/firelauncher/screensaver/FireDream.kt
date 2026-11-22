@@ -16,8 +16,10 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.knightmstr.firelauncher.FireLauncherApp
 import com.knightmstr.firelauncher.data.LauncherPrefsStore
+import com.knightmstr.firelauncher.data.LauncherSettings
 import com.knightmstr.firelauncher.data.WeatherData
 import com.knightmstr.firelauncher.data.WeatherRepository
+import com.knightmstr.firelauncher.media.NowPlayingRepository
 import com.knightmstr.firelauncher.ui.components.Screensaver
 import com.knightmstr.firelauncher.ui.theme.FireLauncherTheme
 import kotlinx.coroutines.flow.first
@@ -31,6 +33,7 @@ import kotlinx.coroutines.launch
 class FireDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
 
     private val lifecycleRegistry = LifecycleRegistry(this)
+    private var nowPlaying: NowPlayingRepository? = null
     private val savedStateController = SavedStateRegistryController.create(this)
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
@@ -61,6 +64,9 @@ class FireDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
             }
         }
 
+        // What's playing, if Now playing has been allowed (only while the screensaver shows)
+        nowPlaying = NowPlayingRepository(this)
+
         val view = ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@FireDream)
             setViewTreeSavedStateRegistryOwner(this@FireDream)
@@ -68,10 +74,14 @@ class FireDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                 FireLauncherTheme {
                     val wallpaper by app.wallpapers.currentWallpaper.collectAsState()
                     val weather by app.latestWeather.collectAsState()
+                    val settings by app.prefs.settingsFlow.collectAsState(initial = LauncherSettings())
+                    val playing = nowPlaying?.nowPlaying?.collectAsState()
                     Screensaver(
                         wallpaper = wallpaper,
                         weather = weather ?: WeatherData.defaultSeattle(LauncherPrefsStore.defaultIsCelsius()),
-                        onNextWallpaper = app.wallpapers::nextWallpaper
+                        onNextWallpaper = app.wallpapers::nextWallpaper,
+                        nowPlaying = playing?.value,
+                        nightDim = settings.nightDim
                     )
                 }
             }
@@ -82,9 +92,11 @@ class FireDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
     override fun onDreamingStarted() {
         super.onDreamingStarted()
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+        nowPlaying?.start()
     }
 
     override fun onDreamingStopped() {
+        nowPlaying?.stop()
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         super.onDreamingStopped()
     }

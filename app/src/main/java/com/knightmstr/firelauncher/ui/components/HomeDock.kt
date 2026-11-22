@@ -93,7 +93,8 @@ fun HomeDock(
         Box(
             modifier = Modifier
                 .widthIn(max = maxWidth)
-                .background(Color(0x99090C14), RoundedCornerShape(26.dp))
+                // Barely-there bar: the tiles stand on the wallpaper, the bar just groups them
+                .background(Color(0x14000000), RoundedCornerShape(26.dp))
                 .padding(horizontal = 6.dp)
         ) {
             LazyRow(

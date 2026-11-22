@@ -56,15 +56,27 @@ Replace `<version>` with the latest tag, e.g. `v1.3.1`. After this, new versions
 
 ## One-time extras
 
-These are optional, and each is a single command.
+These are optional.
 
-**Home button, screensaver and keep-awake.** Lets FireLauncher change these Fire TV settings. Turning an option off puts Amazon's setting back.
+**Home button, screensaver and keep-awake.** FireLauncher needs a one-time permission to change these Fire TV settings. Turning an option off puts Amazon's setting back.
+
+*On the TV, no phone needed:*
+
+1. Turn on **ADB debugging**: Settings → My Fire TV → Developer options. If Developer options is missing, go to My Fire TV → About and press OK on your device name 7 times.
+2. In FireLauncher, open **⚙ → Launcher settings** and choose one of the three options (under *Screensaver* and *Fire TV*), then **Set up on this TV**.
+3. The TV asks *Allow USB debugging?* Tick **Always allow** and press **OK**. The option turns on.
+
+FireLauncher connects to the TV's own ADB, only to grant itself this permission. You can leave ADB debugging on or turn it off afterwards; the permission stays until you uninstall.
+
+*Or from a phone (Termux) or computer:*
 
 ```bash
 adb shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
 ```
 
-Then switch them on in **⚙ → Launcher settings**: *Home button opens FireLauncher*, *Use FireLauncher's screensaver* and *Keep Fire TV awake*. On Fire OS 8, restart once after turning on the screensaver.
+Either way, then switch them on in **⚙ → Launcher settings**: *Home button opens FireLauncher*, *Use as Fire TV screensaver* and *Keep Fire TV awake*. The grant alone changes nothing until you do. On Fire OS 8, restart once after turning on the screensaver.
+
+Check it worked: `adb shell settings get secure sleep_timeout` shows `-1` with keep-awake on, and `adb shell settings get secure screensaver_components` names FireLauncher. If the TV shows *No signal* when the screensaver should be on, keep-awake isn't on yet.
 
 **Now playing.** Many Fire TVs hide the notification-access screen:
 
@@ -113,7 +125,7 @@ In settings, sliders move with **◀ ▶**, and every other row changes with **O
 | Photos | Only for your **FireLauncher** album, if you allow it |
 | Install packages | Installing updates; Android asks you every time |
 | Start at boot | Re-applying your Home button and screensaver choices after a restart |
-| Secure settings | Only after you grant it with adb (see above); every change can be undone |
+| Secure settings | Only after you grant it, on the TV or with adb (see above); every change can be undone |
 | Accessibility (Home button) | Only sees which **Amazon launcher** screen opened, never screen content |
 | Notification access (Now playing) | Only reads what's playing; never reads notifications |
 
@@ -187,5 +199,6 @@ tools/             get_tv_ip.py, clear_launcher_cache.sh (used by AI_STEPS.md)
 
 - [couch-tv](https://github.com/Seagey/couch-tv) (MIT): home layout, Home button watcher and Fire TV settings approach
 - [CleanYourTV](https://github.com/Gathin23/cleanyourtv): debloat workflow inspiration
+- [dadb](https://github.com/mobile-dev-inc/dadb) (Apache 2.0): ADB key format and signing for on-TV setup
 - [Open-Meteo](https://open-meteo.com): weather and city search
 - [r/TVWallpapersSFW](https://www.reddit.com/r/TVWallpapersSFW): optional wallpapers

@@ -19,10 +19,18 @@ data class LauncherSettings(
     /** Corner style of app tiles. */
     val cardShape: CardShape = CardShape.ROUNDED,
     /** Show every app as a row on the home screen (off: use the All Apps tile instead). */
-    val showAllAppsRow: Boolean = false
+    val showAllAppsRow: Boolean = false,
+    /** Darken the screensaver between 10pm and 6am. */
+    val nightDim: Boolean = true
 ) {
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
+
+        /** Night dimming hours for the screensaver: from 22:00 until 06:00. */
+        const val NIGHT_START_HOUR = 22
+        const val NIGHT_END_HOUR = 6
+
+        fun isNight(hourOfDay: Int): Boolean = hourOfDay >= NIGHT_START_HOUR || hourOfDay < NIGHT_END_HOUR
         const val DEFAULT_SCREENSAVER_TIMEOUT = 10
 
         /** Tile size slider: 90dp (tiny) to 170dp, in 10dp steps; 140dp is the old "Small". */

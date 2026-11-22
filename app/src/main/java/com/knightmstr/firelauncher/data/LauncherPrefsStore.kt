@@ -61,6 +61,7 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_TILE_WIDTH = intPreferencesKey("settings_tile_width_dp")
         private val KEY_CARD_SHAPE = stringPreferencesKey("settings_card_shape")
         private val KEY_SHOW_ALL_APPS_ROW = booleanPreferencesKey("settings_show_all_apps_row")
+        private val KEY_NIGHT_DIM = booleanPreferencesKey("settings_screensaver_night_dim")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
         private val KEY_QUICK_BUTTONS = stringPreferencesKey("quick_buttons_order")
@@ -151,7 +152,8 @@ class LauncherPrefsStore(private val context: Context) {
             tileWidthDp = p[KEY_TILE_WIDTH]?.let { LauncherSettings.clampTileWidth(it) }
                 ?: LauncherSettings.tileWidthFromLegacySize(p[KEY_CARD_SIZE]),
             cardShape = CardShape.fromName(p[KEY_CARD_SHAPE]),
-            showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false
+            showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false,
+            nightDim = p[KEY_NIGHT_DIM] ?: true
         )
     }
 
@@ -165,6 +167,7 @@ class LauncherPrefsStore(private val context: Context) {
             p.remove(KEY_CARD_SIZE)
             p[KEY_CARD_SHAPE] = settings.cardShape.name
             p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
+            p[KEY_NIGHT_DIM] = settings.nightDim
         }
     }
 
