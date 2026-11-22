@@ -37,18 +37,18 @@ val resolvedVersionName = (project.findProperty("versionName") as String?)?.take
     ?: "1.0.0"
 
 android {
-    namespace = "com.knightmstr.firelauncher"
+    namespace = "com.knightmstr.onyxtv"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.knightmstr.firelauncher"
+        applicationId = "com.knightmstr.onyxtv"
         minSdk = 25
         targetSdk = 34
         versionCode = resolvedVersionCode
         versionName = resolvedVersionName
 
         // GitHub "owner/repo" checked for updates (change this if you fork the project)
-        buildConfigField("String", "UPDATE_REPO", "\"knightmstr/Fire-Launcher\"")
+        buildConfigField("String", "UPDATE_REPO", "\"knightmstr/Onyx-TV\"")
 
         vectorDrawables {
             useSupportLibrary = true

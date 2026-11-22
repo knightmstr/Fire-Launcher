@@ -23,14 +23,14 @@ JDK 17 and Android SDK 34.
 <summary>Project layout</summary>
 
 ```
-app/src/main/java/com/knightmstr/firelauncher/
+app/src/main/java/com/knightmstr/onyxtv/
 ├── data/          apps, preferences, wallpapers, weather, Kids-mode PIN
 ├── home/          Home button watcher (accessibility service)
 ├── screensaver/   system screensaver + Fire TV screensaver/sleep settings
 ├── media/         Now playing (media sessions)
 ├── update/        GitHub update check, download, verify, install
 └── ui/            Compose screens: home, dock, All Apps, dialogs, settings
-tools/             clear_launcher_cache.sh (clears FireLauncher's image cache on low-memory sticks)
+tools/             clear_launcher_cache.sh (clears Onyx TV's image cache on low-memory sticks)
 ```
 
 </details>

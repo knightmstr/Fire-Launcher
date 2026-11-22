@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">FireLauncher</string>
-    <string name="home_watch_label">FireLauncher Home button</string>
-    <string name="home_watch_desc">Brings FireLauncher back when the Home button opens Amazon\'s home. It only sees which Amazon launcher screen came forward and never reads what is on screen.</string>
+    <string name="app_name">Onyx TV</string>
+    <string name="home_watch_label">Onyx TV Home button</string>
+    <string name="home_watch_desc">Brings Onyx TV back when the Home button opens Amazon\'s home. It only sees which Amazon launcher screen came forward and never reads what is on screen.</string>
 </resources>

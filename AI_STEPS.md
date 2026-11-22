@@ -1,6 +1,6 @@
-# AI_STEPS: set up FireLauncher on a Fire TV, hands-free
+# AI_STEPS: set up Onyx TV on a Fire TV, hands-free
 
-**For AI coding agents** (Claude Code, Gemini CLI, Codex…). A person can hand you this file, or its URL, with something like *"set up FireLauncher on my Fire TV"*. You do the whole job: install adb, connect to the TV, install FireLauncher, switch on the extras, debloat, check everything works, and report back.
+**For AI coding agents** (Claude Code, Gemini CLI, Codex…). A person can hand you this file, or its URL, with something like *"set up Onyx TV on my Fire TV"*. You do the whole job: install adb, connect to the TV, install Onyx TV, switch on the extras, debloat, check everything works, and report back.
 
 **Ground rules**
 - **Do everything yourself.** Never ask the person to type commands.
@@ -14,8 +14,8 @@
 The values used below:
 
 ```bash
-PKG=com.knightmstr.firelauncher
-REPO=knightmstr/Fire-Launcher
+PKG=com.knightmstr.onyxtv
+REPO=knightmstr/Onyx-TV
 ```
 
 ---
@@ -24,8 +24,8 @@ REPO=knightmstr/Fire-Launcher
 
 Send **one** message with these choices. Recommended answers are marked. If the person says "just do it" or "defaults", use the recommended ones.
 
-1. **Home button opens FireLauncher** instead of Amazon's home. *(Recommended: yes)*
-2. **FireLauncher's screensaver** (wallpaper, clock and weather) instead of Amazon's. *(Recommended: yes)*
+1. **Home button opens Onyx TV** instead of Amazon's home. *(Recommended: yes)*
+2. **Onyx TV's screensaver** (wallpaper, clock and weather) instead of Amazon's. *(Recommended: yes)*
 3. **Keep the Fire TV awake**, so it doesn't sleep and show *No signal*. *(Recommended: yes)*
 4. **Now playing** on the home screen, for music and video controls. *(Recommended: yes)*
 5. **Debloat:** turn off Amazon's ad and usage-data services. *(Recommended: yes)*
@@ -110,12 +110,21 @@ Use `adb -s $TV …` for every command from here on.
 ```bash
 adb -s $TV shell getprop ro.product.manufacturer   # Amazon
 adb -s $TV shell getprop ro.build.version.sdk       # 25 or higher (Fire OS 6+)
-adb -s $TV shell pm list packages | grep -i firelauncher
+adb -s $TV shell pm list packages | grep -iE "onyxtv|firelauncher"
 ```
 
 - An SDK below 25 isn't supported. Stop and tell the person.
+- If `package:com.knightmstr.onyxtv` is already there, this is an update. Go on; settings are kept.
+- `package:com.knightmstr.firelauncher` is **FireLauncher**, this app's old name. It's a separate app now, and it can't be updated to Onyx TV. Tell the person, then put Amazon's settings back and remove it:
+
+  ```bash
+  adb -s $TV shell am broadcast -a com.knightmstr.firelauncher.SETUP -n com.knightmstr.firelauncher/.home.AdbSetupReceiver \
+      --ez home_button false --ez screensaver false --ez keep_awake false   # only works on FireLauncher v1.4.1; fine if it does nothing
+  adb -s $TV uninstall com.knightmstr.firelauncher
+  ```
+
+  Older FireLauncher versions don't have that switch. If the Home button or screensaver still points to FireLauncher afterwards, Step 7 takes over both anyway.
 - `package:com.example.firelauncher` is an old test build. Offer to remove it: `adb -s $TV uninstall com.example.firelauncher`.
-- If `package:com.knightmstr.firelauncher` is already there, this is an update. Go on; settings are kept.
 
 ---
 
@@ -125,24 +134,24 @@ adb -s $TV shell pm list packages | grep -i firelauncher
 API=https://api.github.com/repos/$REPO/releases/latest
 APK_URL=$(curl -fsSL $API | grep -o '"browser_download_url": *"[^"]*-release\.apk"' | sed 's/.*"\(https[^"]*\)"/\1/')
 SUM_URL=$(curl -fsSL $API | grep -o '"browser_download_url": *"[^"]*\.sha256"' | sed 's/.*"\(https[^"]*\)"/\1/')
-curl -fL -o FireLauncher-release.apk "$APK_URL"
-curl -fL -o FireLauncher-checksums.sha256 "$SUM_URL"
+curl -fL -o OnyxTV-release.apk "$APK_URL"
+curl -fL -o OnyxTV-checksums.sha256 "$SUM_URL"
 ```
 
-**Check the download** against the published checksum. The SHA-256 of `FireLauncher-release.apk` must match the line for the `-release.apk` file in `FireLauncher-checksums.sha256`. Use `sha256sum`, `shasum -a 256`, or `Get-FileHash` on Windows. If it doesn't match, delete it, download again once, and stop if it still fails.
+**Check the download** against the published checksum. The SHA-256 of `OnyxTV-release.apk` must match the line for the `-release.apk` file in `OnyxTV-checksums.sha256`. Use `sha256sum`, `shasum -a 256`, or `Get-FileHash` on Windows. If it doesn't match, delete it, download again once, and stop if it still fails.
 
 ```bash
-adb -s $TV install -r FireLauncher-release.apk      # prints: Success
+adb -s $TV install -r OnyxTV-release.apk      # prints: Success
 ```
 
-- `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: a FireLauncher signed with another key is installed. **Ask first.** Uninstalling resets its settings and favourites. If they agree, run `adb -s $TV uninstall $PKG` and install again.
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: a Onyx TV signed with another key is installed. **Ask first.** Uninstalling resets its settings and favourites. If they agree, run `adb -s $TV uninstall $PKG` and install again.
 - `INSTALL_FAILED_NO_MATCHING_ABIS` or other errors: stop and report the exact message.
 
 Always use the signed release APK, never a local build. In-app updates only install over the release signature.
 
 ---
 
-## Step 7: Start FireLauncher and switch on the extras
+## Step 7: Start Onyx TV and switch on the extras
 
 ```bash
 adb -s $TV shell am start -n $PKG/.MainActivity
@@ -159,7 +168,7 @@ adb -s $TV shell am broadcast -a $PKG.SETUP -n $PKG/.home.AdbSetupReceiver \
 
 The reply ends with something like `data="granted=true home_button=true screensaver=true keep_awake=true"`. Check that every extra they chose says `true`. `restart_needed=true` means Fire OS 8: the restart in Step 9 is then required, not optional.
 
-This does the same as the switches in FireLauncher's *Launcher settings*. The person can turn any of them off there later, and Amazon's setting comes back.
+This does the same as the switches in Onyx TV's *Launcher settings*. The person can turn any of them off there later, and Amazon's setting comes back.
 
 **Now playing** (choice 4):
 
@@ -176,7 +185,7 @@ for p in com.amazon.advertising.firetv com.amazon.device.sale.service \
          com.amazon.client.metrics com.amazon.device.crashmanager; do
   adb -s $TV shell pm disable-user --user 0 $p
 done
-# Only if they chose FireLauncher's screensaver (choice 2):
+# Only if they chose Onyx TV's screensaver (choice 2):
 adb -s $TV shell pm disable-user --user 0 com.amazon.ftv.screensaver
 ```
 
@@ -197,17 +206,17 @@ Tell the person the TV is restarting. Wait about a minute, then run `adb connect
 Then **check** (after a restart, or straight away if there wasn't one):
 
 ```bash
-adb -s $TV shell settings get secure enabled_accessibility_services   # contains com.knightmstr.firelauncher (Home button)
-adb -s $TV shell settings get secure screensaver_components           # com.knightmstr.firelauncher/... (screensaver)
+adb -s $TV shell settings get secure enabled_accessibility_services   # contains com.knightmstr.onyxtv (Home button)
+adb -s $TV shell settings get secure screensaver_components           # com.knightmstr.onyxtv/... (screensaver)
 adb -s $TV shell settings get secure sleep_timeout                    # -1 (keep awake)
 adb -s $TV shell pm list packages -d                                  # the debloated packages
 adb -s $TV shell input keyevent KEYCODE_HOME; sleep 3
 adb -s $TV shell dumpsys activity activities | grep -m1 -E "mResumedActivity|topResumedActivity"
 ```
 
-The last line should name `com.knightmstr.firelauncher` if the Home button was chosen. Amazon's home may show for a moment first.
+The last line should name `com.knightmstr.onyxtv` if the Home button was chosen. Amazon's home may show for a moment first.
 
-If an extra isn't on, open FireLauncher once (`am start` as in Step 7). It puts its settings back after updates and restarts. Then check again. If something still fails, say exactly what, and point to **Set up on this TV** in FireLauncher's *Launcher settings* as a fallback.
+If an extra isn't on, open Onyx TV once (`am start` as in Step 7). It puts its settings back after updates and restarts. Then check again. If something still fails, say exactly what, and point to **Set up on this TV** in Onyx TV's *Launcher settings* as a fallback.
 
 ---
 
@@ -217,10 +226,10 @@ Tell the person, briefly:
 - what's done: the version installed, each extra on or off, and the services turned off
 - anything that didn't work, and what to do about it
 - that updates now install from the TV: an **Update** button appears on the home screen when a new version is out
-- that they can turn ADB debugging off again if they like. FireLauncher keeps working, and its permissions stay
+- that they can turn ADB debugging off again if they like. Onyx TV keeps working, and its permissions stay
 - how to undo: switch the extras off in *⚙ → Launcher settings*. You can also undo everything for them (below)
 
-Delete the downloaded `FireLauncher-release.apk` and `FireLauncher-checksums.sha256`.
+Delete the downloaded `OnyxTV-release.apk` and `OnyxTV-checksums.sha256`.
 
 ---
 
@@ -240,7 +249,7 @@ for p in com.amazon.advertising.firetv com.amazon.device.sale.service com.amazon
   adb -s $TV shell pm enable $p
 done
 
-# Remove FireLauncher (only if asked; turn the extras off first, as above)
+# Remove Onyx TV (only if asked; turn the extras off first, as above)
 adb -s $TV uninstall $PKG
 adb -s $TV reboot
 ```
