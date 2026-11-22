@@ -81,7 +81,7 @@ jobs:
             echo "Release keystore decoded successfully."
           else
             echo "has_keystore=false" >> "$GITHUB_OUTPUT"
-            echo "NOTICE: KEYSTORE_BASE64 secret is not set. Building release APK with fallback debug signing."
+            echo "::error::KEYSTORE_BASE64 secret is not set. The release build will refuse to sign with the debug key and fail. Add the signing keystore secrets before releasing."
           fi
 
       - name: Grant execute permission for gradlew
