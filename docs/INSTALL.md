@@ -57,35 +57,32 @@ adb connect 192.168.1.50:5555
 A box appears on the TV: *Allow USB debugging?* Tick **Always allow from this computer** and press **OK**. adb should say `connected to 192.168.1.50:5555`.
 If it says `unauthorized` or `failed to authenticate`, accept the box on the TV and run `adb connect` again.
 
-**Download and install.**
+**Download and install.** This link always gives you the newest version, so copy the commands as they are.
 
-*Phone (Termux), Mac or Linux:* set `V` to the newest version on the [Releases page](https://github.com/knightmstr/Onyx-TV/releases/latest), then copy the rest as is (on Mac and Linux, use `./adb`):
+*Phone (Termux), Mac or Linux* (on Mac and Linux, use `./adb`):
 
 ```bash
-V=v1.5.0
-wget https://github.com/knightmstr/Onyx-TV/releases/download/$V/OnyxTV-$V-release.apk
-adb install -r OnyxTV-$V-release.apk
+wget -O OnyxTV.apk https://github.com/knightmstr/Onyx-TV/releases/latest/download/OnyxTV.apk
+adb install -r OnyxTV.apk
 adb shell am start -n com.knightmstr.onyxtv/.MainActivity
 ```
 
-*Windows:* on the [Releases page](https://github.com/knightmstr/Onyx-TV/releases/latest), click the file ending in `-release.apk` to download it. Then in PowerShell, in the `platform-tools` folder:
+*Windows:* open [this download link](https://github.com/knightmstr/Onyx-TV/releases/latest/download/OnyxTV.apk) in your browser. It saves `OnyxTV.apk` to Downloads. Then in PowerShell, in the `platform-tools` folder:
 
 ```powershell
-.\adb install -r "$HOME\Downloads\OnyxTV-v1.5.0-release.apk"
+.\adb install -r "$HOME\Downloads\OnyxTV.apk"
 .\adb shell am start -n com.knightmstr.onyxtv/.MainActivity
 ```
-
-Change `v1.4.0` to the version you downloaded. You can type `"$HOME\Downloads\Onyx` and press **Tab** to fill in the name.
 
 `adb install` prints `Success` when it's done, and Onyx TV opens on the TV.
 
 <details>
-<summary>Phone: or download the APK in your phone's browser</summary>
+<summary>Phone: or download it in your phone's browser</summary>
 
-On the [Releases page](https://github.com/knightmstr/Onyx-TV/releases/latest), tap the file ending in `-release.apk`. Then in Termux, type the start of the command and press **Tab** to fill in the file name:
+Open [this download link](https://github.com/knightmstr/Onyx-TV/releases/latest/download/OnyxTV.apk) on your phone. It saves `OnyxTV.apk` to Downloads. Then in Termux:
 
 ```bash
-adb install -r ~/storage/downloads/OnyxTV-
+adb install -r ~/storage/downloads/OnyxTV.apk
 ```
 
 </details>

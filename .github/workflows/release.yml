@@ -114,6 +114,8 @@ jobs:
           fi
 
           cp "$RELEASE_APK" "release-assets/OnyxTV-${VERSION_TAG}-release.apk"
+          # Same file under a fixed name, so .../releases/latest/download/OnyxTV.apk is always the newest
+          cp "$RELEASE_APK" "release-assets/OnyxTV.apk"
           if [ -n "$DEBUG_APK" ]; then
             cp "$DEBUG_APK" "release-assets/OnyxTV-${VERSION_TAG}-debug.apk"
           fi
