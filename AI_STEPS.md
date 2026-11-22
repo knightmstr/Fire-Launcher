@@ -1,10 +1,11 @@
 # AI_STEPS: set up FireLauncher on a Fire TV, hands-free
 
-**For AI coding agents** (Claude Code, Gemini CLI, Codex…). A person can hand you this file, or its URL, with something like *"set up FireLauncher on my Fire TV"*. You do the whole job: install adb, find the TV, install FireLauncher, switch on the extras, debloat, check everything works, and report back.
+**For AI coding agents** (Claude Code, Gemini CLI, Codex…). A person can hand you this file, or its URL, with something like *"set up FireLauncher on my Fire TV"*. You do the whole job: install adb, connect to the TV, install FireLauncher, switch on the extras, debloat, check everything works, and report back.
 
 **Ground rules**
 - **Do everything yourself.** Never ask the person to type commands.
-- **Only ask for what you can't do or know:** their choices (Step 0), the two physical actions on the TV (turning on ADB debugging, pressing OK on the *Allow USB debugging?* box), and the TV's IP address if you can't find it.
+- **Only ask for what you can't do or know:** their choices (Step 0), the TV's IP address (Step 3), and the two physical actions on the TV (turning on ADB debugging, pressing OK on the *Allow USB debugging?* box).
+- **Don't scan the network** or probe other devices. Only connect to the address the person gives you.
 - **Ask before anything that needs admin rights** (`sudo`, an installer), and before uninstalling anything.
 - **Keep the person informed** in plain words, one line per stage. No jargon.
 - Everything here can be undone (see [Undo](#undo)). Nothing needs root.
@@ -67,46 +68,29 @@ Tell the person (one message, plain words):
 > If there's no *Developer options*: go to **My Fire TV → About**, highlight the device name and press OK 7 times, until it says *You are now a developer*. Then go back and it's there.
 > Tell me when it's on.
 
-Skip this if adb already connects in Step 3.
+Skip this if adb already connects in Step 4.
 
 ---
 
-## Step 3: Find the Fire TV
+## Step 3: Get the Fire TV's IP address
 
-**3a. Already connected?**
+Don't scan the network or go looking for devices. Ask the person for the IP address.
 
-```bash
-adb devices
-```
+If `adb devices` already lists a connected Fire TV (a line ending in `device`, with `:5555`), you can confirm that one with them instead: "I can see a Fire TV at 192.168.1.50. Is that the one?"
 
-A line ending in `device` with `:5555` means you're connected. Use that address and go to Step 4.
+Otherwise, ask (you can include this in the Step 2 message):
 
-**3b. Look for it on the network.** Fire TVs with ADB debugging on listen on port 5555. Scan this computer's local network (/24) for that port with a short timeout, for example in Python:
+> On the Fire TV, go to **Settings → My Fire TV → About → Network** (on newer models *My Fire TV* is called **Device & Software**). Tell me the **IP address**, like 192.168.1.50.
+> Quick way: **Settings → Network**, highlight your Wi-Fi and press **▶⏸** on the remote.
 
-```python
-import socket, ipaddress, concurrent.futures as cf
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("8.8.8.8", 80)); me = s.getsockname()[0]; s.close()
-net = ipaddress.ip_network(me + "/24", strict=False)
-def probe(ip):
-    try:
-        with socket.create_connection((str(ip), 5555), timeout=0.4): return str(ip)
-    except OSError: return None
-with cf.ThreadPoolExecutor(128) as ex:
-    print("\n".join(ip for ip in ex.map(probe, net.hosts()) if ip))
-```
-
-If there's no Python, use any equivalent: `nmap -p 5555 --open <subnet>`, or a loop with `nc -z -w1`. For each address found, `adb connect <ip>:5555` and check that it's a Fire TV: `adb -s <ip>:5555 shell getprop ro.product.manufacturer` prints `Amazon`. If several are found, ask which TV, using `getprop ro.product.model` to name them.
-
-**3c. Not found?** Ask the person:
-
-> I couldn't find the Fire TV on the network. On the TV, go to **Settings → My Fire TV → About → Network** and tell me the **IP address** (like 192.168.1.50).
+Check that it looks like an IPv4 address (four numbers from 0 to 255, separated by dots) before using it. If it doesn't, ask again and show an example.
 
 ---
 
 ## Step 4: Connect and get approved
 
 ```bash
-TV=192.168.1.50:5555            # the address from Step 3
+TV=192.168.1.50:5555            # the IP the person gave you, plus :5555
 adb connect $TV
 adb devices
 ```
@@ -115,7 +99,7 @@ If the state is `unauthorized`, or this is the first connection, tell the person
 
 > A box saying **Allow USB debugging?** is on the TV. Tick **Always allow from this computer** and press **OK**.
 
-Then poll `adb devices` every few seconds for up to 2 minutes until `$TV` shows `device`. If it shows `offline`, run `adb disconnect $TV` and then `adb connect $TV` again. If it never connects, check that ADB debugging is on and both devices are on the same Wi-Fi, then ask once more before giving up.
+Then poll `adb devices` every few seconds for up to 2 minutes until `$TV` shows `device`. If it shows `offline`, run `adb disconnect $TV` and then `adb connect $TV` again. If it never connects, ask the person to check the IP address, that ADB debugging is on, and that both devices are on the same Wi-Fi. Try again once before giving up.
 
 Use `adb -s $TV …` for every command from here on.
 

@@ -6,11 +6,11 @@ Takes about 10 minutes. You need a phone or computer **once**, to put FireLaunch
 
 ## Let an AI agent do it
 
-If you use an AI coding agent on your computer (Claude Code, Gemini CLI, Codex…), it can do the whole setup for you. That covers installing adb, finding the TV, installing FireLauncher, the [extras](EXTRAS.md) and the [debloat](DEBLOAT.md). Tell it:
+If you use an AI coding agent on your computer (Claude Code, Gemini CLI, Codex…), it can do the whole setup for you. That covers installing adb, connecting to the TV, installing FireLauncher, the [extras](EXTRAS.md) and the [debloat](DEBLOAT.md). Tell it:
 
 > Set up FireLauncher on my Fire TV by following https://github.com/knightmstr/Fire-Launcher/blob/main/AI_STEPS.md
 
-It asks what you'd like, then only asks you to do what needs the remote: turn on ADB debugging, and press OK when the TV asks *Allow USB debugging?*. Prefer to do it yourself? Read on.
+It asks what you'd like and your TV's IP address, and tells you where to find it. You only do what needs the remote: turn on ADB debugging, and press OK when the TV asks *Allow USB debugging?*. It never scans your network. Prefer to do it yourself? Read on.
 
 ## 1. Get adb
 
