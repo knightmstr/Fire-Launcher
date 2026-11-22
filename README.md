@@ -6,6 +6,17 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1+).
 
 **[Download the latest release →](https://github.com/knightmstr/Fire-Launcher/releases/latest)**
 
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home-clean.jpg" alt="Clean layout: the clock, date and weather over the wallpaper"></td>
+    <td><img src="docs/screenshots/home-clean-dock.jpg" alt="Clean layout with the top bar and app dock showing"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The <b>Clean</b> layout: just the clock, date and weather over your wallpaper</sub></td>
+    <td align="center"><sub>Press any button and your apps and the top bar appear, then fade away again</sub></td>
+  </tr>
+</table>
+
 ---
 
 ## Features
