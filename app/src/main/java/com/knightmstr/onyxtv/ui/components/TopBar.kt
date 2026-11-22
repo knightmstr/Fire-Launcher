@@ -60,6 +60,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -114,12 +115,23 @@ fun TopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Just the small logo: the wallpaper credit sits quietly at the bottom right instead
-            Image(
-                painter = painterResource(R.drawable.ic_logo_mark),
-                contentDescription = "Onyx TV",
-                modifier = Modifier.size(26.dp)
-            )
+            // Logo and name; the wallpaper credit sits quietly at the bottom right instead
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    painter = painterResource(R.drawable.ic_logo_mark),
+                    contentDescription = null,
+                    // The mark fills the middle 30/48 of its box, so this shows a ~22dp "O"
+                    modifier = Modifier.size(36.dp)
+                )
+                Text(
+                    text = "Onyx TV",
+                    style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 12f)),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.4.sp,
+                    color = Color.White.copy(alpha = 0.92f)
+                )
+            }
 
             // Centre: the search field while searching (the clock and weather live mid-screen)
             if (isSearchActive) {
