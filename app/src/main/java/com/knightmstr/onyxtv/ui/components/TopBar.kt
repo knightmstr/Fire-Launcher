@@ -124,7 +124,7 @@ fun TopBar(
                     modifier = Modifier.size(36.dp)
                 )
                 Text(
-                    text = "Onyx TV",
+                    text = "OnyxTV",
                     style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 12f)),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
