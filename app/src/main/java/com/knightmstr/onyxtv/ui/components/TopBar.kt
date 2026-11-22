@@ -1,5 +1,17 @@
 package com.knightmstr.onyxtv.ui.components
 
+import kotlinx.coroutines.delay
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
@@ -60,6 +72,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -114,12 +127,24 @@ fun TopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Just the small logo: the wallpaper credit sits quietly at the bottom right instead
-            Image(
-                painter = painterResource(R.drawable.ic_logo_mark),
-                contentDescription = "Onyx TV",
-                modifier = Modifier.size(26.dp)
-            )
+            // Logo and name; the wallpaper credit sits quietly at the bottom right instead.
+            // A soft band of colour sweeps across them once each time the home screen appears.
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.logoShimmer()) {
+                Image(
+                    painter = painterResource(R.drawable.ic_logo_mark),
+                    contentDescription = null,
+                    // The mark fills the middle 30/48 of its box, so this shows a ~22dp "O"
+                    modifier = Modifier.size(36.dp)
+                )
+                Text(
+                    text = "OnyxTV",
+                    style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 12f)),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.4.sp,
+                    color = Color.White.copy(alpha = 0.92f)
+                )
+            }
 
             // Centre: the search field while searching (the clock and weather live mid-screen)
             if (isSearchActive) {
@@ -455,4 +480,47 @@ fun SortSelectionDialog(
             )
         }
     }
+}
+
+/** Colours of the one-time sweep across the logo and name. */
+private val ShimmerColors = listOf(Color(0xFF22D3EE), Color(0xFFA78BFA), Color(0xFFF472B6))
+
+/**
+ * Sweeps a soft band of colour across the content once each time the screen resumes (app start,
+ * returning home), then leaves it plain white. It only tints what's drawn (SrcAtop), so the
+ * wallpaper behind is untouched.
+ */
+@Composable
+private fun Modifier.logoShimmer(): Modifier {
+    val progress = remember { Animatable(1f) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            delay(400)
+            progress.snapTo(0f)
+            progress.animateTo(1f, tween(durationMillis = 1400, easing = FastOutSlowInEasing))
+        }
+    }
+    return this
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val p = progress.value
+            if (p < 1f) {
+                val band = size.width * 0.6f
+                val start = -band + (size.width + band) * p
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        0f to Color.Transparent,
+                        0.25f to ShimmerColors[0],
+                        0.5f to ShimmerColors[1],
+                        0.75f to ShimmerColors[2],
+                        1f to Color.Transparent,
+                        startX = start,
+                        endX = start + band
+                    ),
+                    blendMode = BlendMode.SrcAtop
+                )
+            }
+        }
 }
