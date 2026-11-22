@@ -20,7 +20,12 @@ adb is a small tool that sends commands to the Fire TV over Wi-Fi. Pick one:
 
 **On a computer (Windows, Mac or Linux)**
 
-Download Google's [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools), unzip it, and open a terminal in that folder. On Windows, type `.\adb` wherever this guide says `adb`.
+1. Download Google's [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) and unzip it. You get a folder called `platform-tools`.
+2. Open a terminal in that folder:
+   - **Windows:** open the folder in File Explorer, click the address bar, type `powershell` and press Enter.
+   - **Mac:** right-click the folder → **Services → New Terminal at Folder**.
+   - **Linux:** right-click inside the folder → **Open in Terminal**.
+3. Wherever this guide says `adb`, type `.\adb` on Windows or `./adb` on Mac and Linux.
 
 Either way, your phone or computer must be on the **same Wi-Fi** as the Fire TV.
 
@@ -44,7 +49,9 @@ adb connect 192.168.1.50:5555
 A box appears on the TV: *Allow USB debugging?* Tick **Always allow from this computer** and press **OK**. adb should say `connected to 192.168.1.50:5555`.
 If it says `unauthorized` or `failed to authenticate`, accept the box on the TV and run `adb connect` again.
 
-**Download and install.** Set `V` to the newest version on the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), then copy the rest as is:
+**Download and install.**
+
+*Phone (Termux), Mac or Linux:* set `V` to the newest version on the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), then copy the rest as is (on Mac and Linux, use `./adb`):
 
 ```bash
 V=v1.4.0
@@ -53,18 +60,25 @@ adb install -r FireLauncher-$V-release.apk
 adb shell am start -n com.knightmstr.firelauncher/.MainActivity
 ```
 
+*Windows:* on the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), click the file ending in `-release.apk` to download it. Then in PowerShell, in the `platform-tools` folder:
+
+```powershell
+.\adb install -r "$HOME\Downloads\FireLauncher-v1.4.0-release.apk"
+.\adb shell am start -n com.knightmstr.firelauncher/.MainActivity
+```
+
+Change `v1.4.0` to the version you downloaded. You can type `"$HOME\Downloads\Fire` and press **Tab** to fill in the name.
+
 `adb install` prints `Success` when it's done, and FireLauncher opens on the TV.
 
 <details>
-<summary>Or download the APK in your phone's browser</summary>
+<summary>Phone: or download the APK in your phone's browser</summary>
 
-On the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), tap the file ending in `-release.apk`. Then in Termux:
+On the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), tap the file ending in `-release.apk`. Then in Termux, type the start of the command and press **Tab** to fill in the file name:
 
 ```bash
-adb install -r ~/storage/downloads/FireLauncher-v1.4.0-release.apk
+adb install -r ~/storage/downloads/FireLauncher-
 ```
-
-Type `~/storage/downloads/Fire` and press **Tab** to fill in the name.
 
 </details>
 
@@ -72,7 +86,7 @@ Type `~/storage/downloads/Fire` and press **Tab** to fill in the name.
 
 FireLauncher is installed, but **pressing Home still opens Amazon's home** until you turn on the *Home button* extra. Until then, open FireLauncher from **Your Apps & Channels** on Amazon's home.
 
-- **Fill your dock:** open **All Apps** (the round button at the end of the dock), hold OK on an app and choose **Add to Favorites**.
+- **Fill your dock:** open **All Apps** (the round button at the end of the dock), hold OK on an app and choose **Add to Favorites**. The dock is always showing in the default **Dock** layout. In the optional **Clean** layout, press any button first to bring it back.
 - **Make it your home screen:** turn on the **Home button**, **screensaver** and **keep awake**. You can do all of these on the TV. → [Extras](EXTRAS.md)
 - **Not for you?** See [Going back to Amazon's home](#going-back-to-amazons-home).
 
@@ -86,19 +100,28 @@ The first time, the Fire TV may ask you to let FireLauncher install apps. Choose
 
 Go to **⚙ → Launcher settings** and turn off **Home button opens FireLauncher**, **Use as Fire TV screensaver** and **Keep Fire TV awake**. Home opens Amazon's home again, and Amazon's screensaver and sleep settings come back. FireLauncher stays installed, and you can open it from *Your Apps & Channels* whenever you like.
 
+If you turned off Amazon's screensaver while [debloating](DEBLOAT.md), turn it back on, or you'll have no screensaver at all:
+
+```bash
+adb connect 192.168.1.50:5555    # your TV's IP
+adb shell pm enable com.amazon.ftv.screensaver
+```
+
 ## Removing FireLauncher
 
 1. Turn off the three options above first, so Amazon's own settings are put back.
-2. If you disabled Amazon's screensaver while [debloating](DEBLOAT.md), turn it back on: `adb shell pm enable com.amazon.ftv.screensaver`.
+2. If you disabled Amazon's screensaver while [debloating](DEBLOAT.md), turn it back on (below).
 3. Uninstall:
 
    ```bash
+   adb connect 192.168.1.50:5555    # your TV's IP
+   adb shell pm enable com.amazon.ftv.screensaver    # only if you disabled it
    adb uninstall com.knightmstr.firelauncher
    ```
 
 ## Installing other apps with adb
 
-The same steps work for any APK:
+The same steps work for any APK (connect first, as above):
 
 ```bash
 adb install -r ~/storage/downloads/SomeApp.apk

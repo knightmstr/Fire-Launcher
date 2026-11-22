@@ -51,7 +51,7 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 1. **Install FireLauncher.** It takes about 10 minutes and needs a phone or computer once. → **[Install guide](docs/INSTALL.md)**
 2. **Make it your home screen** (optional): the Home button, screensaver and keep-awake. You can set these up on the TV itself. → **[Extras](docs/EXTRAS.md)**
 
-After that, updates install from the TV. Not for you? [Going back to Amazon's home](docs/INSTALL.md#going-back-to-amazons-home) is two switches.
+After that, updates install from the TV. Not for you? [Going back to Amazon's home](docs/INSTALL.md#going-back-to-amazons-home) takes three switches.
 
 ## More
 

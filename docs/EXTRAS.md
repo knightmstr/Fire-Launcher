@@ -14,6 +14,9 @@ These are optional. FireLauncher works without them, but they make it feel like 
 
 The first three need a [one-time permission](#the-one-time-permission). You set it up once, and it covers all three.
 
+> **On a computer:** run these in the `platform-tools` folder and type `.\adb` (Windows) or `./adb` (Mac, Linux) instead of `adb`. See [Get adb](INSTALL.md#1-get-adb).
+
+
 ---
 
 ## Home button
@@ -55,6 +58,8 @@ adb connect 192.168.1.50:5555    # your TV's IP
 adb shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
 ```
 
+To undo it, run the same command with `disallow_listener` in place of `allow_listener`. Uninstalling FireLauncher also removes it.
+
 ## Your own wallpapers
 
 Copy photos straight in, with no permission needed:
@@ -64,9 +69,15 @@ adb connect 192.168.1.50:5555    # your TV's IP
 adb push ~/storage/dcim/Camera/IMG_1234.jpg /sdcard/Android/data/com.knightmstr.firelauncher/files/Pictures/
 ```
 
-That path is for Termux on a phone (run `termux-setup-storage` once first). From a computer, use the photo's path on your computer. Landscape photos look best.
+That path is for Termux on a phone (run `termux-setup-storage` once first). From a Windows computer, it looks like this (keep the quotes if the path has spaces):
 
-Photos in an album called **FireLauncher** also work, after **Allow photo access** in Launcher settings. Choose which wallpapers to use under **Launcher settings → Wallpaper → Wallpapers from**.
+```powershell
+.\adb push "C:\Users\You\Pictures\beach.jpg" /sdcard/Android/data/com.knightmstr.firelauncher/files/Pictures/
+```
+
+Landscape photos look best.
+
+Photos in an album called **FireLauncher** also work. Turn on **⚙ → Launcher settings → Wallpaper → Allow photo access** (it shows when *Wallpapers from* is set to your photos). Choose which wallpapers to use under **Launcher settings → Wallpaper → Wallpapers from**.
 
 ---
 
@@ -76,7 +87,7 @@ The Home button, screensaver and keep-awake options change Fire TV settings, so 
 
 ### On the TV (no phone needed)
 
-1. Turn on **ADB debugging**: **Settings → My Fire TV** (called **Device & Software** on newer models) **→ Developer options**. If Developer options is missing, go to **My Fire TV → About** and press OK on your device name 7 times.
+1. Turn on **ADB debugging** (it's already on if you installed with adb): **Settings → My Fire TV** (called **Device & Software** on newer models) **→ Developer options**. If Developer options is missing, go to **My Fire TV → About** and press OK on your device name 7 times.
 2. In FireLauncher, go to **⚙ → Launcher settings** and choose any of the three options. The setup screen opens.
 3. Choose **Set up on this TV**. When the TV asks *Allow USB debugging?*, tick **Always allow** and press **OK**.
 
@@ -85,7 +96,7 @@ The option turns on by itself. FireLauncher connects to the TV's own ADB, only t
 ### Or from a phone (Termux) or computer
 
 ```bash
-adb connect <TV-IP>:5555
+adb connect 192.168.1.50:5555    # your TV's IP
 adb shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
 ```
 

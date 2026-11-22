@@ -16,7 +16,7 @@ This document is a sequential, machine-readable execution manifest intended for 
 
 ## Target Debloat Package Registry
 
-The following 5 Amazon packages are targeted for user-space disabling (`pm disable-user --user 0`). Disabling these stops background telemetry, metric collection daemons, crash reporting services, and home screen video ads without affecting streaming apps (Netflix, Prime Video, YouTube, etc.):
+The following Amazon packages are targeted (the screensaver only if the user opts in) for user-space disabling (`pm disable-user --user 0`). Disabling these stops background telemetry, metric collection daemons, crash reporting services, and home screen video ads without affecting streaming apps (Netflix, Prime Video, YouTube, etc.):
 
 | Package Identifier | Description | Purpose |
 |---|---|---|
@@ -24,7 +24,7 @@ The following 5 Amazon packages are targeted for user-space disabling (`pm disab
 | `com.amazon.device.sale.service` | Commercial deal & promotional checking service | Disables periodic rental and sales notification pings |
 | `com.amazon.client.metrics` | Device metrics, clickstream, & analytics logger | Stops continuous network reporting and logging |
 | `com.amazon.device.crashmanager` | Crash logging daemon & dump collection service | Eliminates continuous crash collection CPU cycles |
-| `com.amazon.ftv.screensaver` | Sponsored commercial video screensaver | Replaces commercial screensavers |
+| `com.amazon.ftv.screensaver` | Sponsored commercial video screensaver | Optional: only if FireLauncher's screensaver will be used |
 
 ---
 
@@ -144,7 +144,7 @@ If `adb install` fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, an older FireL
 ---
 
 ### STEP 5: Execute Amazon Package Disable Routine (Debloating)
-Execute the non-root safe package disabling commands for user 0 across all 5 specified packages.
+Execute the non-root safe package disabling commands for user 0 across the 4 ad and telemetry packages. Disable `com.amazon.ftv.screensaver` only if the user confirms they'll use FireLauncher's screensaver, since otherwise they'd have none.
 
 ```bash
 DEBLOAT_PACKAGES=(
@@ -152,8 +152,9 @@ DEBLOAT_PACKAGES=(
     "com.amazon.device.sale.service"
     "com.amazon.client.metrics"
     "com.amazon.device.crashmanager"
-    "com.amazon.ftv.screensaver"
 )
+# Only if the user will use FireLauncher's screensaver (ask first; see STEP 6b):
+# DEBLOAT_PACKAGES+=("com.amazon.ftv.screensaver")
 
 echo "Executing safe non-root debloat routine on Fire TV..."
 
@@ -168,7 +169,7 @@ done
 ---
 
 ### STEP 6: Verify Debloat Success
-Inspect the list of disabled packages on the device to confirm that all 5 target packages are deactivated.
+Inspect the list of disabled packages on the device to confirm that the target packages are deactivated.
 
 ```bash
 echo "Verifying disabled packages on target device..."
@@ -185,7 +186,7 @@ for PKG in "${DEBLOAT_PACKAGES[@]}"; do
 done
 
 if [ $ALL_DISABLED -eq 1 ]; then
-    echo "SUCCESS: All 5 Amazon packages successfully disabled."
+    echo "SUCCESS: All targeted Amazon packages disabled."
 else
     echo "NOTE: Some packages were not reported in disabled state. They may already be inactive or restricted by this Fire OS build."
 fi
@@ -236,10 +237,10 @@ echo "=========================================================="
 
 ## Rollback Command Reference
 
-If the user ever wishes to re-enable any or all of the 5 packages, the agent can execute:
+If the user ever wishes to re-enable any or all of the packages, the agent can execute:
 
 ```bash
-# Re-enable all 5 packages
+# Re-enable all packages (the screensaver line is harmless if it was never disabled)
 adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.advertising.firetv
 adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.device.sale.service
 adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.client.metrics
