@@ -1,249 +1,262 @@
-# AI Automation Manifest: Fire TV Deployment & Safe Debloating
+# AI_STEPS: set up FireLauncher on a Fire TV, hands-free
 
-This document is a sequential, machine-readable execution manifest intended for terminal-based AI agents (such as Gemini CLI, Claude Code, or automated CI/CD runners) to connect to an Amazon Fire TV device over Wi-Fi, deploy the FireLauncher APK, and execute the CleanYourTV debloat routine.
+**For AI coding agents** (Claude Code, Gemini CLI, Codex…). A person can hand you this file, or its URL, with something like *"set up FireLauncher on my Fire TV"*. You do the whole job: install adb, find the TV, install FireLauncher, switch on the extras, debloat, check everything works, and report back.
 
----
+**Ground rules**
+- **Do everything yourself.** Never ask the person to type commands.
+- **Only ask for what you can't do or know:** their choices (Step 0), the two physical actions on the TV (turning on ADB debugging, pressing OK on the *Allow USB debugging?* box), and the TV's IP address if you can't find it.
+- **Ask before anything that needs admin rights** (`sudo`, an installer), and before uninstalling anything.
+- **Keep the person informed** in plain words, one line per stage. No jargon.
+- Everything here can be undone (see [Undo](#undo)). Nothing needs root.
+- Commands are bash. On Windows, use PowerShell equivalents (noted where they differ) or Git Bash if it's installed. This file doesn't depend on the repo: don't clone it.
 
-## Pre-Flight Requirements & Context
-
-- **Target Architecture**: Fire OS 6, 7 and 8 (Android 7.1 and later)
-- **Target Device**: Amazon Fire TV Stick / Fire TV Cube / Fire TV Edition
-- **Default ADB Port**: `5555`
-- **Target Package Name**: `com.knightmstr.firelauncher`
-- **APK**: the signed `FireLauncher-vX.Y.Z-release.apk` from the latest GitHub Release (`knightmstr/Fire-Launcher`). Use the release APK, not a local debug build: releases are signed with the project key, so in-app updates install over them. A debug build is signed differently and can't be installed over a release (or updated by one) without uninstalling first.
-
----
-
-## Target Debloat Package Registry
-
-The following Amazon packages are targeted (the screensaver only if the user opts in) for user-space disabling (`pm disable-user --user 0`). Disabling these stops background telemetry, metric collection daemons, crash reporting services, and home screen video ads without affecting streaming apps (Netflix, Prime Video, YouTube, etc.):
-
-| Package Identifier | Description | Purpose |
-|---|---|---|
-| `com.amazon.advertising.firetv` | Home banner & commercial video ad engine | Frees RAM, removes autoplay video banners |
-| `com.amazon.device.sale.service` | Commercial deal & promotional checking service | Disables periodic rental and sales notification pings |
-| `com.amazon.client.metrics` | Device metrics, clickstream, & analytics logger | Stops continuous network reporting and logging |
-| `com.amazon.device.crashmanager` | Crash logging daemon & dump collection service | Eliminates continuous crash collection CPU cycles |
-| `com.amazon.ftv.screensaver` | Sponsored commercial video screensaver | Optional: only if FireLauncher's screensaver will be used |
-
----
-
-## Sequential Execution Steps
-
-### STEP 1: Verify Host Environment Dependencies
-The agent must verify that the Android Debug Bridge (`adb`), Python 3 and `curl` are installed and reachable in `PATH`.
+The values used below:
 
 ```bash
-# Check ADB installation
-adb version || { echo "ERROR: ADB is not installed or not in PATH"; exit 1; }
-
-# Check Python 3 installation
-python3 --version || { echo "ERROR: Python 3 is not installed or not in PATH"; exit 1; }
-
-# Check curl (downloads the release APK)
-curl --version > /dev/null || { echo "ERROR: curl is not installed or not in PATH"; exit 1; }
-```
-
-Expected output: Valid version strings for `adb`, `python3` and `curl`.
-
----
-
-### STEP 2: Obtain and Validate Fire TV IP Address
-Execute the CLI input helper script. The script prompts the user with instructions, validates the IPv4 regex pattern with octet range verification (0–255), and outputs the token `SUCCESS:<IP_ADDRESS>`.
-
-```bash
-# Execute Python IP collector and capture result
-IP_OUTPUT=$(python3 tools/get_tv_ip.py)
-FIRETV_IP=$(echo "$IP_OUTPUT" | grep "^SUCCESS:" | cut -d':' -f2 | tr -d ' \r\n')
-
-if [ -z "$FIRETV_IP" ]; then
-    echo "ERROR: Failed to retrieve a valid Fire TV IP address."
-    exit 1
-fi
-
-echo "Target Fire TV IP: $FIRETV_IP"
+PKG=com.knightmstr.firelauncher
+REPO=knightmstr/Fire-Launcher
 ```
 
 ---
 
-### STEP 3: Establish Authenticated ADB Connection
-Connect over TCP/IP to port `5555`. If this is the first time connecting, the Fire TV screen will show an authorization prompt: *"Allow USB debugging?"* or *"Allow network debugging?"*. The agent must pause and notify the user to accept this on-screen prompt using their physical TV remote.
+## Step 0: Ask once, up front
 
-```bash
-# Terminate any stale daemon instances
-adb kill-server
-adb start-server
+Send **one** message with these choices. Recommended answers are marked. If the person says "just do it" or "defaults", use the recommended ones.
 
-# Initiate TCP/IP connection to Fire TV
-echo "Connecting to $FIRETV_IP:5555..."
-adb connect "$FIRETV_IP:5555"
+1. **Home button opens FireLauncher** instead of Amazon's home. *(Recommended: yes)*
+2. **FireLauncher's screensaver** (wallpaper, clock and weather) instead of Amazon's. *(Recommended: yes)*
+3. **Keep the Fire TV awake**, so it doesn't sleep and show *No signal*. *(Recommended: yes)*
+4. **Now playing** on the home screen, for music and video controls. *(Recommended: yes)*
+5. **Debloat:** turn off Amazon's ad and usage-data services. *(Recommended: yes)*
+   - If 2 is yes, also turn off Amazon's own screensaver app. If 2 is no, leave it alone, or they'd have no screensaver at all.
+6. **Restart the Fire TV at the end** to finish cleanly. *(Recommended: yes)*
 
-# Verification loop for device authorization
-echo "=========================================================="
-echo "ACTION REQUIRED: Look at your Fire TV screen."
-echo "If prompted, check 'Always allow from this computer' and"
-echo "press 'OK' using your Fire TV remote control."
-echo "=========================================================="
-
-# Poll device status until state changes to 'device'
-MAX_RETRIES=12
-RETRY_COUNT=0
-AUTH_SUCCESS=0
-
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    DEVICE_STATE=$(adb devices | grep "$FIRETV_IP:5555" | awk '{print $2}')
-    
-    if [ "$DEVICE_STATE" = "device" ]; then
-        echo "SUCCESS: Authenticated and connected to Fire TV ($FIRETV_IP:5555)."
-        AUTH_SUCCESS=1
-        break
-    elif [ "$DEVICE_STATE" = "unauthorized" ]; then
-        echo "Waiting for user to accept the authorization dialog on TV screen (Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-        sleep 5
-    else
-        echo "Connecting... State: ${DEVICE_STATE:-connecting} (Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-        adb connect "$FIRETV_IP:5555"
-        sleep 4
-    fi
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-done
-
-if [ $AUTH_SUCCESS -ne 1 ]; then
-    echo "ERROR: Device not authenticated or unreachable at $FIRETV_IP:5555."
-    exit 1
-fi
-```
+In the same message, tell them what you'll need from them: to have the TV on and the remote nearby, and that their computer or phone must be on the **same Wi-Fi** as the Fire TV.
 
 ---
 
-### STEP 4: Download the Latest Release APK & Deploy FireLauncher
-Download the signed release APK from the latest GitHub Release, then install it with `adb install -r`.
+## Step 1: Make sure adb is available
 
 ```bash
-APK_URL=$(curl -fsSL https://api.github.com/repos/knightmstr/Fire-Launcher/releases/latest \
-  | grep -o '"browser_download_url": *"[^"]*-release\.apk"' | sed 's/.*"\(https[^"]*\)"/\1/')
-[ -n "$APK_URL" ] || { echo "ERROR: could not find the latest release APK"; exit 1; }
-APK_PATH="FireLauncher-release.apk"
-curl -fL -o "$APK_PATH" "$APK_URL" || { echo "ERROR: download failed"; exit 1; }
-
-# Install APK onto Fire TV
-echo "Installing FireLauncher ($APK_URL) onto Fire TV..."
-adb -s "$FIRETV_IP:5555" install -r "$APK_PATH"
-
-# Verify successful installation
-adb -s "$FIRETV_IP:5555" shell pm list packages | grep "com.knightmstr.firelauncher" || {
-    echo "ERROR: FireLauncher installation verification failed."
-    exit 1
-}
-
-echo "SUCCESS: FireLauncher installed successfully."
+adb version
 ```
 
-If `adb install` fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, an older FireLauncher signed with a different key is installed. Ask the user before running `adb -s "$FIRETV_IP:5555" uninstall com.knightmstr.firelauncher` (this resets their FireLauncher settings), then install again. Also check for the pre-rename package with `pm list packages | grep com.example.firelauncher`, and offer to uninstall it.
+If that fails, install it. Pick the line for this system and ask first if it needs admin rights:
+
+| System | Command |
+|---|---|
+| macOS (Homebrew) | `brew install android-platform-tools` |
+| Debian / Ubuntu | `sudo apt-get install -y adb` |
+| Fedora | `sudo dnf install -y android-tools` |
+| Arch | `sudo pacman -S android-tools` |
+| Windows | `winget install --id Google.PlatformTools -e` (open a new terminal afterwards) |
+| Android (Termux) | `pkg update -y && pkg install -y android-tools` |
+
+**No package manager?** Download Google's Platform-Tools zip into a folder you create, unzip it, and use that `adb` by its full path:
+`https://dl.google.com/android/repository/platform-tools-latest-{windows|darwin|linux}.zip`
+
+You also need a way to download files: `curl` (built into macOS, Windows 10+ as `curl.exe`, and most Linux). On Termux, `pkg install -y curl`.
 
 ---
 
-### STEP 5: Execute Amazon Package Disable Routine (Debloating)
-Execute the non-root safe package disabling commands for user 0 across the 4 ad and telemetry packages. Disable `com.amazon.ftv.screensaver` only if the user confirms they'll use FireLauncher's screensaver, since otherwise they'd have none.
+## Step 2: Ask for ADB debugging on the TV
 
-```bash
-DEBLOAT_PACKAGES=(
-    "com.amazon.advertising.firetv"
-    "com.amazon.device.sale.service"
-    "com.amazon.client.metrics"
-    "com.amazon.device.crashmanager"
-)
-# Only if the user will use FireLauncher's screensaver (ask first; see STEP 6b):
-# DEBLOAT_PACKAGES+=("com.amazon.ftv.screensaver")
+Tell the person (one message, plain words):
 
-echo "Executing safe non-root debloat routine on Fire TV..."
+> On the Fire TV, go to **Settings → My Fire TV → Developer options** and turn on **ADB debugging**. On newer models *My Fire TV* is called **Device & Software**.
+> If there's no *Developer options*: go to **My Fire TV → About**, highlight the device name and press OK 7 times, until it says *You are now a developer*. Then go back and it's there.
+> Tell me when it's on.
 
-for PKG in "${DEBLOAT_PACKAGES[@]}"; do
-    echo "Disabling package: $PKG"
-    # Execute user-0 package disable
-    RESULT=$(adb -s "$FIRETV_IP:5555" shell pm disable-user --user 0 "$PKG" 2>&1)
-    echo "  -> Result: $RESULT"
-done
-```
+Skip this if adb already connects in Step 3.
 
 ---
 
-### STEP 6: Verify Debloat Success
-Inspect the list of disabled packages on the device to confirm that the target packages are deactivated.
+## Step 3: Find the Fire TV
+
+**3a. Already connected?**
 
 ```bash
-echo "Verifying disabled packages on target device..."
-DISABLED_LIST=$(adb -s "$FIRETV_IP:5555" shell pm list packages -d)
-
-ALL_DISABLED=1
-for PKG in "${DEBLOAT_PACKAGES[@]}"; do
-    if echo "$DISABLED_LIST" | grep -q "$PKG"; then
-        echo "  [VERIFIED DISABLED] $PKG"
-    else
-        echo "  [WARNING: NOT LISTED DISABLED] $PKG"
-        ALL_DISABLED=0
-    fi
-done
-
-if [ $ALL_DISABLED -eq 1 ]; then
-    echo "SUCCESS: All targeted Amazon packages disabled."
-else
-    echo "NOTE: Some packages were not reported in disabled state. They may already be inactive or restricted by this Fire OS build."
-fi
+adb devices
 ```
+
+A line ending in `device` with `:5555` means you're connected. Use that address and go to Step 4.
+
+**3b. Look for it on the network.** Fire TVs with ADB debugging on listen on port 5555. Scan this computer's local network (/24) for that port with a short timeout, for example in Python:
+
+```python
+import socket, ipaddress, concurrent.futures as cf
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("8.8.8.8", 80)); me = s.getsockname()[0]; s.close()
+net = ipaddress.ip_network(me + "/24", strict=False)
+def probe(ip):
+    try:
+        with socket.create_connection((str(ip), 5555), timeout=0.4): return str(ip)
+    except OSError: return None
+with cf.ThreadPoolExecutor(128) as ex:
+    print("\n".join(ip for ip in ex.map(probe, net.hosts()) if ip))
+```
+
+If there's no Python, use any equivalent: `nmap -p 5555 --open <subnet>`, or a loop with `nc -z -w1`. For each address found, `adb connect <ip>:5555` and check that it's a Fire TV: `adb -s <ip>:5555 shell getprop ro.product.manufacturer` prints `Amazon`. If several are found, ask which TV, using `getprop ro.product.model` to name them.
+
+**3c. Not found?** Ask the person:
+
+> I couldn't find the Fire TV on the network. On the TV, go to **Settings → My Fire TV → About → Network** and tell me the **IP address** (like 192.168.1.50).
 
 ---
 
-### STEP 6b (Optional, ask first): Fire TV Extras
-Only if the user wants them. Explain each in one line and wait for a yes:
-
-- **Home button opens FireLauncher, FireLauncher screensaver, keep awake**: lets FireLauncher change these Fire TV settings; each is then switched on in FireLauncher's *Launcher settings*, and turning it off restores Amazon's setting.
-- **Now playing**: lets FireLauncher see what's playing (it never reads notifications).
-
-The grant can also be done on the TV without adb (Launcher settings → Screensaver or Fire TV section → any of the three options → *Set up on this TV*). Since adb is already connected here, use the command. Afterwards, remind the user that the grant alone changes nothing: they must switch each option on in *Launcher settings*. Verify with `adb -s "$FIRETV_IP:5555" shell settings get secure sleep_timeout` (`-1` once keep-awake is on).
+## Step 4: Connect and get approved
 
 ```bash
-# Home button / screensaver / keep awake
-adb -s "$FIRETV_IP:5555" shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
-
-# Now playing
-adb -s "$FIRETV_IP:5555" shell cmd notification allow_listener com.knightmstr.firelauncher/com.knightmstr.firelauncher.media.MediaListenerService
+TV=192.168.1.50:5555            # the address from Step 3
+adb connect $TV
+adb devices
 ```
+
+If the state is `unauthorized`, or this is the first connection, tell the person:
+
+> A box saying **Allow USB debugging?** is on the TV. Tick **Always allow from this computer** and press **OK**.
+
+Then poll `adb devices` every few seconds for up to 2 minutes until `$TV` shows `device`. If it shows `offline`, run `adb disconnect $TV` and then `adb connect $TV` again. If it never connects, check that ADB debugging is on and both devices are on the same Wi-Fi, then ask once more before giving up.
+
+Use `adb -s $TV …` for every command from here on.
 
 ---
 
-### STEP 7: Launch FireLauncher & Reboot Device
-Start FireLauncher once to register the leanback activity, then initiate a clean system reboot to flush RAM, terminate any cached Amazon ad services, and apply all modifications cleanly.
+## Step 5: Check the TV
 
 ```bash
-# Launch FireLauncher activity
-echo "Launching FireLauncher activity..."
-adb -s "$FIRETV_IP:5555" shell am start -n com.knightmstr.firelauncher/.MainActivity
+adb -s $TV shell getprop ro.product.manufacturer   # Amazon
+adb -s $TV shell getprop ro.build.version.sdk       # 25 or higher (Fire OS 6+)
+adb -s $TV shell pm list packages | grep -i firelauncher
+```
 
+- An SDK below 25 isn't supported. Stop and tell the person.
+- `package:com.example.firelauncher` is an old test build. Offer to remove it: `adb -s $TV uninstall com.example.firelauncher`.
+- If `package:com.knightmstr.firelauncher` is already there, this is an update. Go on; settings are kept.
+
+---
+
+## Step 6: Download and install the latest release
+
+```bash
+API=https://api.github.com/repos/$REPO/releases/latest
+APK_URL=$(curl -fsSL $API | grep -o '"browser_download_url": *"[^"]*-release\.apk"' | sed 's/.*"\(https[^"]*\)"/\1/')
+SUM_URL=$(curl -fsSL $API | grep -o '"browser_download_url": *"[^"]*\.sha256"' | sed 's/.*"\(https[^"]*\)"/\1/')
+curl -fL -o FireLauncher-release.apk "$APK_URL"
+curl -fL -o FireLauncher-checksums.sha256 "$SUM_URL"
+```
+
+**Check the download** against the published checksum. The SHA-256 of `FireLauncher-release.apk` must match the line for the `-release.apk` file in `FireLauncher-checksums.sha256`. Use `sha256sum`, `shasum -a 256`, or `Get-FileHash` on Windows. If it doesn't match, delete it, download again once, and stop if it still fails.
+
+```bash
+adb -s $TV install -r FireLauncher-release.apk      # prints: Success
+```
+
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: a FireLauncher signed with another key is installed. **Ask first.** Uninstalling resets its settings and favourites. If they agree, run `adb -s $TV uninstall $PKG` and install again.
+- `INSTALL_FAILED_NO_MATCHING_ABIS` or other errors: stop and report the exact message.
+
+Always use the signed release APK, never a local build. In-app updates only install over the release signature.
+
+---
+
+## Step 7: Start FireLauncher and switch on the extras
+
+```bash
+adb -s $TV shell am start -n $PKG/.MainActivity
 sleep 3
+```
 
-# Reboot device to apply system service shutdowns
-echo "Initiating Fire TV reboot..."
-adb -s "$FIRETV_IP:5555" reboot
+**Home button, screensaver and keep awake** (choices 1–3). Grant the permission once, then switch on only what they chose. Use `false` for any they declined, or leave that extra out.
 
-echo "=========================================================="
-echo "DEPLOYMENT & DEBLOAT COMPLETE!"
-echo "Your Fire TV is now rebooting."
-echo "FireLauncher is ready to use upon startup."
-echo "=========================================================="
+```bash
+adb -s $TV shell pm grant $PKG android.permission.WRITE_SECURE_SETTINGS
+adb -s $TV shell am broadcast -a $PKG.SETUP -n $PKG/.home.AdbSetupReceiver \
+    --ez home_button true --ez screensaver true --ez keep_awake true
+```
+
+The reply ends with something like `data="granted=true home_button=true screensaver=true keep_awake=true"`. Check that every extra they chose says `true`. `restart_needed=true` means Fire OS 8: the restart in Step 9 is then required, not optional.
+
+This does the same as the switches in FireLauncher's *Launcher settings*. The person can turn any of them off there later, and Amazon's setting comes back.
+
+**Now playing** (choice 4):
+
+```bash
+adb -s $TV shell cmd notification allow_listener $PKG/$PKG.media.MediaListenerService
 ```
 
 ---
 
-## Rollback Command Reference
-
-If the user ever wishes to re-enable any or all of the packages, the agent can execute:
+## Step 8: Debloat (choice 5)
 
 ```bash
-# Re-enable all packages (the screensaver line is harmless if it was never disabled)
-adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.advertising.firetv
-adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.device.sale.service
-adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.client.metrics
-adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.device.crashmanager
-adb -s "$FIRETV_IP:5555" shell pm enable com.amazon.ftv.screensaver
+for p in com.amazon.advertising.firetv com.amazon.device.sale.service \
+         com.amazon.client.metrics com.amazon.device.crashmanager; do
+  adb -s $TV shell pm disable-user --user 0 $p
+done
+# Only if they chose FireLauncher's screensaver (choice 2):
+adb -s $TV shell pm disable-user --user 0 com.amazon.ftv.screensaver
+```
+
+Each prints `new state: disabled-user`. If a package isn't found or can't be disabled on this Fire OS, that's fine. Note it in the report and go on.
+
+---
+
+## Step 9: Restart and check it works
+
+If they chose to restart (choice 6), or `restart_needed=true`:
+
+```bash
+adb -s $TV reboot
+```
+
+Tell the person the TV is restarting. Wait about a minute, then run `adb connect $TV` until it shows `device` again; it can take up to 2 minutes.
+
+Then **check** (after a restart, or straight away if there wasn't one):
+
+```bash
+adb -s $TV shell settings get secure enabled_accessibility_services   # contains com.knightmstr.firelauncher (Home button)
+adb -s $TV shell settings get secure screensaver_components           # com.knightmstr.firelauncher/... (screensaver)
+adb -s $TV shell settings get secure sleep_timeout                    # -1 (keep awake)
+adb -s $TV shell pm list packages -d                                  # the debloated packages
+adb -s $TV shell input keyevent KEYCODE_HOME; sleep 3
+adb -s $TV shell dumpsys activity activities | grep -m1 -E "mResumedActivity|topResumedActivity"
+```
+
+The last line should name `com.knightmstr.firelauncher` if the Home button was chosen. Amazon's home may show for a moment first.
+
+If an extra isn't on, open FireLauncher once (`am start` as in Step 7). It puts its settings back after updates and restarts. Then check again. If something still fails, say exactly what, and point to **Set up on this TV** in FireLauncher's *Launcher settings* as a fallback.
+
+---
+
+## Step 10: Report back
+
+Tell the person, briefly:
+- what's done: the version installed, each extra on or off, and the services turned off
+- anything that didn't work, and what to do about it
+- that updates now install from the TV: an **Update** button appears on the home screen when a new version is out
+- that they can turn ADB debugging off again if they like. FireLauncher keeps working, and its permissions stay
+- how to undo: switch the extras off in *⚙ → Launcher settings*. You can also undo everything for them (below)
+
+Delete the downloaded `FireLauncher-release.apk` and `FireLauncher-checksums.sha256`.
+
+---
+
+## Undo
+
+Run these when the person asks. Connect first, as in Steps 3–4.
+
+```bash
+# Extras off: puts Amazon's Home, screensaver and sleep settings back
+adb -s $TV shell am broadcast -a $PKG.SETUP -n $PKG/.home.AdbSetupReceiver \
+    --ez home_button false --ez screensaver false --ez keep_awake false
+adb -s $TV shell cmd notification disallow_listener $PKG/$PKG.media.MediaListenerService
+
+# Debloat undone
+for p in com.amazon.advertising.firetv com.amazon.device.sale.service com.amazon.client.metrics \
+         com.amazon.device.crashmanager com.amazon.ftv.screensaver; do
+  adb -s $TV shell pm enable $p
+done
+
+# Remove FireLauncher (only if asked; turn the extras off first, as above)
+adb -s $TV uninstall $PKG
+adb -s $TV reboot
 ```
