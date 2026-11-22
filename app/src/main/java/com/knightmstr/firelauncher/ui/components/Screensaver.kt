@@ -1,47 +1,61 @@
 package com.knightmstr.firelauncher.ui.components
 
-import android.text.format.DateFormat
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.knightmstr.firelauncher.data.LauncherSettings
 import com.knightmstr.firelauncher.data.WallpaperModel
 import com.knightmstr.firelauncher.data.WeatherData
-import com.knightmstr.firelauncher.ui.theme.TextSecondary
+import com.knightmstr.firelauncher.media.NowPlaying
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.Calendar
 import kotlin.random.Random
 
-/** The screensaver shows a new wallpaper every 5 minutes. */
+/** A new wallpaper every 5 minutes. */
 private const val WALLPAPER_CHANGE_MS = 5 * 60 * 1000L
 
+/** The clock block moves to the next spot every 30 minutes (burn-in protection). */
+private const val SPOT_CHANGE_MS = 30 * 60 * 1000L
+
+/** Spots across the lower part of the screen, as fractions of the free width. */
+private val SPOTS = listOf(0.5f, 0.12f, 0.88f)
+
 /**
- * Idle screensaver: dimmed wallpaper slideshow with a large clock, date and temperature.
- * The clock drifts to a new spot every minute to avoid burn-in on OLED/plasma TVs.
+ * The screensaver: the home screen with the apps faded away. The wallpaper shows properly (light
+ * dim, slow zoom), with the home's clock, date and weather centred in one block and a soft shade
+ * only behind it. The block sits low on screen, drifts a few pixels each minute and changes spot
+ * every 30 minutes so nothing burns in. Darker at night if [nightDim] is on.
+ *
  * Used on the home screen (any key dismisses it, see MainActivity) and as the Fire TV's
  * system screensaver (FireDream).
  */
@@ -50,14 +64,14 @@ fun Screensaver(
     wallpaper: WallpaperModel?,
     weather: WeatherData,
     onNextWallpaper: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    nowPlaying: NowPlaying? = null,
+    nightDim: Boolean = true
 ) {
-    val context = LocalContext.current
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-
     LaunchedEffect(Unit) {
         while (true) {
-            delay(1000L - (System.currentTimeMillis() % 1000L))
+            delay(60_000L - (System.currentTimeMillis() % 60_000L))
             now = System.currentTimeMillis()
         }
     }
@@ -68,51 +82,102 @@ fun Screensaver(
         }
     }
 
-    // New random position once per minute (fractions of the free space)
-    val minute = now / 60_000L
-    val position = remember(minute) { Random(minute).nextFloat() to Random(minute + 7).nextFloat() }
-    val fx by animateFloatAsState(position.first, tween(2500), label = "clockX")
-    val fy by animateFloatAsState(position.second, tween(2500), label = "clockY")
+    // Night: darker picture and a dimmer clock
+    val hour = remember(now) { Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY) }
+    val night = nightDim && LauncherSettings.isNight(hour)
+    val nightShade by animateFloatAsState(if (night) 0.55f else 0f, tween(4000), label = "nightShade")
+    val textAlpha by animateFloatAsState(if (night) 0.6f else 1f, tween(4000), label = "nightText")
 
-    val timePattern = if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm"
-    val time = SimpleDateFormat(timePattern, Locale.getDefault()).format(Date(now))
-    val date = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date(now))
+    // Spot (every 30 min) and a small drift (every minute)
+    val spotIndex = ((now / SPOT_CHANGE_MS) % SPOTS.size).toInt()
+    val spot by animateFloatAsState(SPOTS[spotIndex], tween(6000), label = "clockSpot")
+    val minute = now / 60_000L
+    val driftX by animateFloatAsState(Random(minute).nextInt(-12, 13).toFloat(), tween(3000), label = "driftX")
+    val driftY by animateFloatAsState(Random(minute + 7).nextInt(-8, 9).toFloat(), tween(3000), label = "driftY")
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
-        Crossfade(targetState = wallpaper?.url, animationSpec = tween(1500), label = "ScreensaverFade") { url ->
-            if (url != null) {
-                AsyncImage(
-                    model = url,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+        Crossfade(targetState = wallpaper?.url, animationSpec = tween(2500), label = "ScreensaverFade") { url ->
+            if (url != null) KenBurnsImage(url)
         }
-        Box(modifier = Modifier.fillMaxSize().background(Color(0x99000000)))
 
-        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(64.dp)) {
-            val clockWidth = 360.dp
-            val clockHeight = 170.dp
-            val freeX = (maxWidth - clockWidth).coerceAtLeast(0.dp)
-            val freeY = (maxHeight - clockHeight).coerceAtLeast(0.dp)
+        // Light overall dim, and a soft shade rising from the bottom behind the clock
+        Box(modifier = Modifier.fillMaxSize().background(Color(0x1F000000)))
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0.45f to Color.Transparent,
+                    1f to Color(0x8C000000)
+                )
+            )
+        )
+        if (nightShade > 0f) Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = nightShade)))
+
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 56.dp)) {
+            var blockWidth by remember { mutableIntStateOf(0) }
+            val freeX = (constraints.maxWidth - blockWidth).coerceAtLeast(0)
 
             Column(
-                horizontalAlignment = Alignment.Start,
-                modifier = Modifier.offset(x = freeX * fx, y = freeY * fy)
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .onSizeChanged { blockWidth = it.width }
+                    .graphicsLayer {
+                        translationX = freeX * spot + driftX.dp.toPx()
+                        translationY = driftY.dp.toPx()
+                        alpha = textAlpha
+                    }
             ) {
-                Text(
-                    text = time,
-                    fontSize = 96.sp,
-                    fontWeight = FontWeight.Light,
-                    color = Color.White
-                )
-                Text(
-                    text = "$date  ·  ${weather.displayTemperature} ${weather.condition} · ${weather.city}",
-                    fontSize = 18.sp,
-                    color = TextSecondary
-                )
+                HomeClock(weather = weather, onWeatherClick = {}, interactive = false)
+                nowPlaying?.let { np ->
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "${if (np.isPlaying) "▶" else "❚❚"}  ${np.title} · ${np.appLabel}",
+                        fontSize = 15.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 520.dp)
+                    )
+                }
             }
         }
+
+        // Photo credit, small and faint
+        wallpaper?.let { wp ->
+            Text(
+                text = if (wp.isLocal) "Your photo · ${wp.title}" else "${wp.title} · r/TVWallpapersSFW",
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.4f * textAlpha),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 32.dp, bottom = 14.dp)
+                    .widthIn(max = 320.dp)
+            )
+        }
     }
+}
+
+/** Wallpaper with a very slow zoom and pan, restarting with each new picture. */
+@Composable
+private fun KenBurnsImage(url: String) {
+    val progress = remember(url) { Animatable(0f) }
+    val direction = remember(url) { if (Random.nextBoolean()) 1f else -1f }
+    LaunchedEffect(url) {
+        progress.animateTo(1f, tween(WALLPAPER_CHANGE_MS.toInt(), easing = LinearEasing))
+    }
+    AsyncImage(
+        model = url,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val p = progress.value
+                scaleX = 1.04f + 0.06f * p
+                scaleY = scaleX
+                translationX = direction * size.width * 0.02f * (p - 0.5f)
+            }
+    )
 }

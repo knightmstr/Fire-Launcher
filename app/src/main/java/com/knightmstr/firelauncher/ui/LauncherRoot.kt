@@ -333,7 +333,9 @@ fun LauncherRoot(
         Screensaver(
             wallpaper = currentWallpaper,
             weather = weather,
-            onNextWallpaper = viewModel::nextWallpaper
+            onNextWallpaper = viewModel::nextWallpaper,
+            nowPlaying = nowPlaying,
+            nightDim = settings.nightDim
         )
     }
 }

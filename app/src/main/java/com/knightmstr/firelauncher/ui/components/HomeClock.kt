@@ -57,7 +57,9 @@ private val Mist = Color.White.copy(alpha = 0.72f)
 fun HomeClock(
     weather: WeatherData,
     onWeatherClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** False in the screensaver: the weather is plain text, not a button. */
+    interactive: Boolean = true
 ) {
     val context = LocalContext.current
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -80,7 +82,8 @@ fun HomeClock(
         ) {
             Text(text = date, style = Soft, fontSize = 19.sp, fontWeight = FontWeight.Normal, color = Mist)
             Text(text = "·", style = Soft, fontSize = 19.sp, color = Mist.copy(alpha = 0.6f))
-            WeatherText(weather = weather, onClick = onWeatherClick)
+            if (interactive) WeatherText(weather = weather, onClick = onWeatherClick)
+            else WeatherLine(weather = weather, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
         }
         Row {
             Text(
@@ -123,25 +126,27 @@ private fun WeatherText(weather: WeatherData, onClick: () -> Unit) {
             focusedContainerColor = Color.White.copy(alpha = 0.14f)
         )
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-        ) {
-            Icon(
-                imageVector = weatherIcon(weather.iconType),
-                contentDescription = weather.condition,
-                tint = Mist,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "${weather.displayTemperature} ${weather.condition} · ${weather.city}",
-                style = Soft,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Normal,
-                color = Mist
-            )
-        }
+        WeatherLine(weather = weather, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+    }
+}
+
+@Composable
+private fun WeatherLine(weather: WeatherData, modifier: Modifier = Modifier) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+        Icon(
+            imageVector = weatherIcon(weather.iconType),
+            contentDescription = weather.condition,
+            tint = Mist,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "${weather.displayTemperature} ${weather.condition} · ${weather.city}",
+            style = Soft,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Normal,
+            color = Mist
+        )
     }
 }
 

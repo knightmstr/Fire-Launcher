@@ -145,6 +145,15 @@ fun LauncherSettingsDialog(
         )
 
         TvMenuItem(
+            title = "Dim screensaver at night",
+            subtitle = "Darker picture and clock from 10pm to 6am",
+            icon = Icons.Rounded.Bedtime,
+            iconTint = Color(0xFFA78BFA),
+            trailing = if (settings.nightDim) "On" else "Off",
+            onClick = { onUpdate { it.copy(nightDim = !it.nightDim) } }
+        )
+
+        TvMenuItem(
             title = "Keep Fire TV awake",
             subtitle = if (status.keepAwake) "Never sleeps on a timer; the screensaver keeps showing"
             else "Off: Fire TV sleeps after its sleep timer",
