@@ -50,4 +50,4 @@ Each line prints `Package … new state: enabled`. The screensaver line is harml
 
 ## Using an AI agent instead
 
-[`AI_STEPS.md`](../AI_STEPS.md) does all of this, and installs FireLauncher, for an AI coding agent such as Claude Code or Gemini CLI. It's written for the agent, not for following by hand. It needs a full copy of this repo, Python 3 and adb on a computer, and it restarts the TV.
+If you use an AI coding agent such as Claude Code or Gemini CLI, it can do all of this for you, along with the install and extras. See [Let an AI agent do it](INSTALL.md#let-an-ai-agent-do-it).
