@@ -1,5 +1,13 @@
 package com.knightmstr.firelauncher.ui.components
 
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -13,7 +21,6 @@ import com.knightmstr.firelauncher.R
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +45,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.automirrored.rounded.Sort
@@ -78,7 +84,7 @@ import com.knightmstr.firelauncher.ui.theme.TextSecondary
  * Top bar:
  * - Left: logo, name and the current wallpaper (your photo or r/TVWallpapersSFW)
  * - Centre: the search field while searching (clock and weather are mid-screen, see HomeClock)
- * - Right: update chip, Quick buttons, then icon buttons (next wallpaper, search, Wi-Fi, settings).
+ * - Right: update chip, then icon buttons (next wallpaper, search, Wi-Fi, settings).
  *   The settings gear asks Launcher or Fire TV settings; in Kids mode Wi-Fi is hidden and the
  *   gear asks for the PIN.
  */
@@ -89,13 +95,12 @@ fun TopBar(
     isSearchActive: Boolean = false,
     onSearchQueryChange: (String) -> Unit = {},
     onToggleSearch: (Boolean) -> Unit = {},
-    onRequestVoiceSearch: () -> Unit = {},
     onNextWallpaper: () -> Unit = {},
     kidsMode: Boolean = false,
     onOpenWifi: () -> Unit = {},
     onOpenSystemSettings: () -> Unit = {},
     onOpenLauncherSettings: () -> Unit = {},
-    /** Extra items before the icon buttons (update chip, Quick buttons). */
+    /** Extra items before the icon buttons (the update chip). */
     leadingActions: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -121,13 +126,12 @@ fun TopBar(
                 GlobalSearchBar(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange,
-                    onRequestVoiceSearch = onRequestVoiceSearch,
                     onClose = { onToggleSearch(false) },
                     modifier = Modifier.weight(1f, fill = false).padding(horizontal = 24.dp)
                 )
             }
 
-            // Right: update chip and Quick buttons, then the round icon buttons
+            // Right: update chip, then the round icon buttons
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -193,95 +197,72 @@ fun TopIconButton(
 }
 
 /**
- * Expanded Search Bar with real-time text input and clear button.
+ * Search field shown while searching apps. It takes focus as soon as it opens and pops up the
+ * on-screen keyboard; OK on it brings the keyboard back. Down moves to the results.
+ * (Was a clickable Surface wrapping the field, which kept focus itself so OK did nothing.)
  */
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun GlobalSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onRequestVoiceSearch: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(20.dp)
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    var focused by remember { mutableStateOf(false) }
 
-    Surface(
-        onClick = {},
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = DarkSurfaceVariant
-        ),
-        border = ClickableSurfaceDefaults.border(
-            border = Border(
-                border = BorderStroke(1.5.dp, FireOrange.copy(alpha = 0.7f)),
-                shape = shape
+    LaunchedEffect(Unit) {
+        runCatching { focus.requestFocus() }
+        keyboard?.show()
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .width(360.dp)
+            .height(40.dp)
+            .background(DarkSurfaceVariant, shape)
+            .border(
+                BorderStroke(if (focused) 2.dp else 1.5.dp, if (focused) Color.White else FireOrange.copy(alpha = 0.7f)),
+                shape
             )
-        ),
-        modifier = modifier.width(360.dp).height(40.dp)
+            .padding(horizontal = 14.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Search,
-                contentDescription = "Search",
-                tint = FireOrange,
-                modifier = Modifier.size(18.dp)
-            )
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (query.isEmpty()) {
-                    Text(
-                        text = "Search installed apps...",
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
-                }
-                BasicTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    singleLine = true,
-                    textStyle = TextStyle(
-                        color = TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    cursorBrush = SolidColor(FireOrange),
-                    modifier = Modifier.fillMaxWidth()
-                )
+        Icon(
+            imageVector = Icons.Rounded.Search,
+            contentDescription = null,
+            tint = FireOrange,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) {
+                Text(text = "Search installed apps…", color = TextSecondary, fontSize = 13.sp)
             }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
-            Icon(
-                imageVector = Icons.Rounded.Mic,
-                contentDescription = "Voice search",
-                tint = FireAmber,
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                cursorBrush = SolidColor(FireOrange),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    keyboard?.hide()
+                    focusManager.moveFocus(FocusDirection.Down)
+                }),
                 modifier = Modifier
-                    .size(18.dp)
-                    .clickable { onRequestVoiceSearch() }
+                    .fillMaxWidth()
+                    .focusRequester(focus)
+                    .onFocusChanged { focused = it.isFocused }
+                    .onPreviewKeyEvent { e ->
+                        // OK on the field (keyboard closed): open the keyboard again
+                        val ok = e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter
+                        if (ok && e.type == KeyEventType.KeyUp) { keyboard?.show(); true } else ok
+                    }
             )
-
-            if (query.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = "Clear search",
-                    tint = TextSecondary,
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clickable { onQueryChange("") }
-                )
-            }
         }
     }
 }

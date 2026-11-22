@@ -1,5 +1,15 @@
 package com.knightmstr.firelauncher.ui
 
+import com.knightmstr.firelauncher.data.HomeLayout
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.animation.core.animateFloatAsState
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -47,7 +57,6 @@ import com.knightmstr.firelauncher.data.AppSortOrder
 import com.knightmstr.firelauncher.data.CityLocationModel
 import com.knightmstr.firelauncher.data.WallpaperModel
 import com.knightmstr.firelauncher.data.WeatherData
-import com.knightmstr.firelauncher.data.LauncherPrefsStore
 import com.knightmstr.firelauncher.media.NowPlaying
 import com.knightmstr.firelauncher.ui.components.AllAppsScreen
 import androidx.compose.foundation.layout.offset
@@ -66,7 +75,6 @@ import com.knightmstr.firelauncher.ui.components.CreatePinDialog
 import com.knightmstr.firelauncher.ui.components.NowPlayingCard
 import com.knightmstr.firelauncher.ui.components.NowPlayingHelpDialog
 import com.knightmstr.firelauncher.ui.components.PinEntryDialog
-import com.knightmstr.firelauncher.ui.components.QuickButtonsBar
 import com.knightmstr.firelauncher.ui.components.SettingsStatus
 import com.knightmstr.firelauncher.ui.components.UpdateChip
 import com.knightmstr.firelauncher.ui.components.UpdateDialog
@@ -91,7 +99,6 @@ import kotlinx.coroutines.delay
 @Composable
 fun LauncherRoot(
     viewModel: LauncherViewModel,
-    onRequestVoiceSearch: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val apps by viewModel.apps.collectAsStateWithLifecycle()
@@ -115,8 +122,6 @@ fun LauncherRoot(
     val contextMenuApp by viewModel.contextMenuApp.collectAsStateWithLifecycle()
     val renameTarget by viewModel.renameTarget.collectAsStateWithLifecycle()
     val screensaverVisible by viewModel.screensaverVisible.collectAsStateWithLifecycle()
-    val quickButtonApps by viewModel.quickButtonApps.collectAsStateWithLifecycle()
-    val quickButtonKeys by viewModel.quickButtonKeys.collectAsStateWithLifecycle()
     val nowPlaying by viewModel.nowPlaying.collectAsStateWithLifecycle()
     val kidsMode by viewModel.kidsModeEnabled.collectAsStateWithLifecycle()
     val pinDialog by viewModel.pinDialog.collectAsStateWithLifecycle()
@@ -156,6 +161,7 @@ fun LauncherRoot(
             favoriteApps = favoriteApps,
             allAppsTile = viewModel.allAppsTile,
             showAllAppsRow = settings.showAllAppsRow,
+            cleanLayout = settings.homeLayout == HomeLayout.CLEAN,
             onOpenWifi = { viewModel.openWifiSettings() },
             onOpenSystemSettings = { viewModel.openSystemSettings() },
             onOpenLauncherSettings = viewModel::onLauncherSettingsPressed,
@@ -170,7 +176,6 @@ fun LauncherRoot(
             searchQuery = searchQuery,
             isSearchActive = isSearchActive,
             filteredApps = filteredApps,
-            quickButtonApps = quickButtonApps,
             nowPlaying = nowPlaying,
             kidsMode = kidsMode,
             updateState = if (kidsMode) UpdateState.Idle else updateState,
@@ -187,7 +192,6 @@ fun LauncherRoot(
             onSelectSort = viewModel::setSortOrder,
             onSearchQueryChange = viewModel::setSearchQuery,
             onToggleSearch = viewModel::setSearchActive,
-            onRequestVoiceSearch = onRequestVoiceSearch,
             onAppFocused = viewModel::setFocusedApp,
             onAppClicked = { viewModel.launchApp(it) },
             onAppLongClicked = viewModel::openContextMenu,
@@ -203,13 +207,10 @@ fun LauncherRoot(
             favoriteCount = favoriteApps.size,
             allAppsIndex = apps.indexOfFirst { it.packageName == app.packageName },
             allAppsCount = apps.size,
-            isQuickButton = app.packageName in quickButtonKeys,
-            quickButtonsFull = quickButtonKeys.size >= LauncherPrefsStore.MAX_QUICK_BUTTONS,
             onLaunchApp = { viewModel.launchApp(app) },
             onToggleFavorite = { viewModel.toggleFavorite(app) },
             onMoveFavorite = { delta -> viewModel.moveFavorite(app, delta) },
             onMoveInAllApps = { delta -> viewModel.moveInAllApps(app, delta) },
-            onToggleQuickButton = { viewModel.toggleQuickButton(app) },
             onToggleKidsAllowed = { viewModel.setKidsAllowed(app, !app.isKidsAllowed) },
             onRename = { viewModel.startRename(app) },
             onToggleHidden = { viewModel.setHidden(app, !app.isHidden) },
@@ -340,6 +341,9 @@ fun LauncherRoot(
     }
 }
 
+/** Clean layout: how long the top bar and dock stay after the last button press. */
+private const val CLEAN_HIDE_MS = 6_000L
+
 /**
  * Pure stateless Composable rendering the complete Fire TV launcher interface.
  */
@@ -352,6 +356,7 @@ fun LauncherContent(
     favoriteApps: List<AppModel>,
     allAppsTile: AppModel,
     showAllAppsRow: Boolean,
+    cleanLayout: Boolean,
     onOpenWifi: () -> Unit,
     onOpenSystemSettings: () -> Unit,
     onOpenLauncherSettings: () -> Unit,
@@ -366,7 +371,6 @@ fun LauncherContent(
     searchQuery: String,
     isSearchActive: Boolean,
     filteredApps: List<AppModel>,
-    quickButtonApps: List<AppModel>,
     nowPlaying: NowPlaying?,
     kidsMode: Boolean,
     updateState: UpdateState,
@@ -383,7 +387,6 @@ fun LauncherContent(
     onSelectSort: (AppSortOrder) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onToggleSearch: (Boolean) -> Unit,
-    onRequestVoiceSearch: () -> Unit,
     onAppFocused: (AppModel) -> Unit,
     onAppClicked: (AppModel) -> Unit,
     onAppLongClicked: (AppModel) -> Unit,
@@ -400,6 +403,23 @@ fun LauncherContent(
         animationSpec = tween(durationMillis = 450),
         label = "BackgroundAccentAnimation"
     )
+
+    // Clean layout: the top bar and dock fade away after a few seconds without a button press, and
+    // the first press only brings them back (so OK never opens an app you can't see)
+    val clean = cleanLayout && !isSearchActive && searchQuery.isBlank()
+    var chromeShown by remember { mutableStateOf(true) }
+    var lastKeyAt by remember { mutableLongStateOf(0L) }
+    var swallowKeyUp by remember { mutableStateOf<Key?>(null) }
+    LaunchedEffect(clean, lastKeyAt) {
+        if (!clean) {
+            chromeShown = true
+        } else {
+            delay(if (lastKeyAt == 0L) 1500L else CLEAN_HIDE_MS)
+            chromeShown = false
+        }
+    }
+    val chromeAlpha by animateFloatAsState(if (chromeShown) 1f else 0f, tween(500), label = "chromeAlpha")
+    val chromeModifier = Modifier.graphicsLayer { alpha = chromeAlpha }
 
     // Request initial focus on the first card once apps are loaded
     LaunchedEffect(apps.isNotEmpty()) {
@@ -488,6 +508,21 @@ fun LauncherContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .onPreviewKeyEvent { e ->
+                    if (!clean || e.key == Key.Back) return@onPreviewKeyEvent false
+                    when (e.type) {
+                        KeyEventType.KeyDown -> {
+                            lastKeyAt = SystemClock.uptimeMillis()
+                            if (!chromeShown) {
+                                chromeShown = true
+                                swallowKeyUp = e.key
+                                true
+                            } else swallowKeyUp == e.key // held key that woke it: keep swallowing
+                        }
+                        KeyEventType.KeyUp -> if (swallowKeyUp == e.key) { swallowKeyUp = null; true } else false
+                        else -> false
+                    }
+                }
                 .padding(top = 26.dp, bottom = 14.dp)
         ) {
             TopBar(
@@ -495,17 +530,13 @@ fun LauncherContent(
                 isSearchActive = isSearchActive,
                 onSearchQueryChange = onSearchQueryChange,
                 onToggleSearch = onToggleSearch,
-                onRequestVoiceSearch = onRequestVoiceSearch,
                 onNextWallpaper = onNextWallpaper,
                 kidsMode = kidsMode,
                 onOpenWifi = onOpenWifi,
                 onOpenSystemSettings = onOpenSystemSettings,
                 onOpenLauncherSettings = onOpenLauncherSettings,
-                leadingActions = {
-                    UpdateChip(state = updateState, onClick = onOpenUpdates)
-                    QuickButtonsBar(apps = quickButtonApps, onClick = onAppClicked, onLongClick = onAppLongClicked)
-                },
-                modifier = Modifier.padding(horizontal = edge)
+                leadingActions = { UpdateChip(state = updateState, onClick = onOpenUpdates) },
+                modifier = chromeModifier.padding(horizontal = edge)
             )
 
             if (isSearchActive || searchQuery.isNotBlank()) {
@@ -581,6 +612,7 @@ fun LauncherContent(
                 // Optional rows from Launcher Settings sit just above the dock
                 if (showAllAppsRow) {
                     AppRow(
+                        modifier = chromeModifier,
                         title = "All Apps",
                         apps = apps,
                         favorites = favorites,
@@ -593,6 +625,7 @@ fun LauncherContent(
                 }
                 if (hiddenApps.isNotEmpty()) {
                     AppRow(
+                        modifier = chromeModifier,
                         title = "Hidden Apps (hold OK to unhide)",
                         apps = hiddenApps,
                         favorites = favorites,
@@ -617,7 +650,8 @@ fun LauncherContent(
                     firstItemFocusRequester = firstItemFocusRequester,
                     onAppFocused = onAppFocused,
                     onAppClicked = onAppClicked,
-                    onAppLongClicked = onAppLongClicked
+                    onAppLongClicked = onAppLongClicked,
+                    modifier = chromeModifier
                 )
             }
         }

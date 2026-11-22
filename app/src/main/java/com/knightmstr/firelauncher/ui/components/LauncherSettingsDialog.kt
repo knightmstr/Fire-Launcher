@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.RoundedCorner
@@ -81,6 +82,15 @@ fun LauncherSettingsDialog(
         width = 540.dp
     ) {
         SettingsSection("Home screen", first = true)
+        TvMenuItem(
+            title = "Home layout",
+            subtitle = settings.homeLayout.description,
+            icon = Icons.Rounded.Dashboard,
+            iconTint = Color(0xFF34D399),
+            trailing = settings.homeLayout.title,
+            modifier = Modifier.focusRequester(firstItem),
+            onClick = { onUpdate { it.copy(homeLayout = it.homeLayout.next()) } }
+        )
         TvSliderItem(
             title = "App tile size",
             subtitle = "Smaller tiles fit more apps on screen",
@@ -94,7 +104,6 @@ fun LauncherSettingsDialog(
                 "${(settings.tileWidthDp - r.first) / LauncherSettings.TILE_WIDTH_STEP + 1} / " +
                     "${(r.last - r.first) / LauncherSettings.TILE_WIDTH_STEP + 1}"
             },
-            modifier = Modifier.focusRequester(firstItem),
             onValueChange = { w -> onUpdate { it.copy(tileWidthDp = w) } }
         )
         TvMenuItem(

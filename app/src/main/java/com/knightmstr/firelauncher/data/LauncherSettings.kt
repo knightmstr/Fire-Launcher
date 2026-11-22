@@ -21,7 +21,9 @@ data class LauncherSettings(
     /** Show every app as a row on the home screen (off: use the All Apps tile instead). */
     val showAllAppsRow: Boolean = false,
     /** Darken the screensaver between 10pm and 6am. */
-    val nightDim: Boolean = true
+    val nightDim: Boolean = true,
+    /** Dock: apps always at the bottom. Clean: only the clock until you press a button. */
+    val homeLayout: HomeLayout = HomeLayout.DOCK
 ) {
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
@@ -75,6 +77,18 @@ enum class CardShape(val title: String) {
     companion object {
         fun fromName(name: String?): CardShape =
             entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: ROUNDED
+    }
+}
+
+enum class HomeLayout(val title: String, val description: String) {
+    DOCK("Dock", "Your favourite apps always along the bottom"),
+    CLEAN("Clean", "Just the clock and wallpaper; any button brings the apps back");
+
+    fun next(): HomeLayout = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun fromName(name: String?): HomeLayout =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: DOCK
     }
 }
 

@@ -12,13 +12,13 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1+).
 
 **Home**
 - Wallpaper-first layout: date, weather and a big clock in the middle, a dock of favourites at the bottom
+- Two home layouts: **Dock** (favourites always at the bottom) or **Clean** (only the clock and wallpaper; any button brings the apps back, and they fade away after a few seconds)
 - Wallpapers from your own photos (default) or r/TVWallpapersSFW, changing on a timer you choose
 - Live weather for any city (Open-Meteo, no account), °C / °F
 - Now playing: app, title and ⏮ ⏯ ⏭ for whatever's playing in Spotify, YouTube, Plex…
-- Up to 5 Quick buttons: one-press shortcuts at the top right
 
 **Apps**
-- All Apps grid with search and voice search
+- All Apps grid with search (the on-screen keyboard opens straight away) and voice search from the remote's mic button
 - Sort A–Z, most recent, most used, or your own order
 - Hold OK (or ☰) on any app to favourite, reorder, rename, hide, or open App info
 - Tile size slider and tile shapes (rounded, square, extra rounded, pill)
@@ -99,7 +99,7 @@ Photos in an album called **FireLauncher** also work, after *Allow photo access*
 | Button | What it does |
 |---|---|
 | **OK** | Open the app |
-| **Hold OK** or **☰** | App options: favourite, move, rename, hide, Quick button, Kids mode, App info |
+| **Hold OK** or **☰** | App options: favourite, move, rename, hide, Kids mode, App info |
 | **Mic** | Voice search |
 | **Back** | Closes menus and search (never leaves the launcher) |
 | **⚙** (top right) | Launcher settings or Fire TV settings |

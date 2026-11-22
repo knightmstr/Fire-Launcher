@@ -86,10 +86,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             FireLauncherTheme {
-                LauncherRoot(
-                    viewModel = viewModel,
-                    onRequestVoiceSearch = { launchVoiceSearch() }
-                )
+                LauncherRoot(viewModel = viewModel)
             }
         }
     }
