@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
- * Main Application class for FireLauncher.
+ * Main Application class for Onyx TV.
  * Configures strict memory and disk cache limits for low-end Fire TV hardware
  * to prevent r/TVWallpapersSFW automatic downloads from bloating limited flash storage.
  */

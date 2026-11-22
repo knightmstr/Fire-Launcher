@@ -93,7 +93,7 @@ enum class HomeLayout(val title: String, val description: String) {
 }
 
 enum class WallpaperSource(val title: String) {
-    /** Photos in Pictures/FireLauncher (or the app's own folder); falls back to Reddit if none. */
+    /** Photos in Pictures/Onyx TV (or the app's own folder); falls back to Reddit if none. */
     MY_PHOTOS("My photos"),
     REDDIT("r/TVWallpapersSFW");
 

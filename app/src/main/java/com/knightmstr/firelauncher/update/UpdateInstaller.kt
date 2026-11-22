@@ -12,7 +12,7 @@ import java.io.File
 /**
  * Installs a downloaded APK with Android's PackageInstaller session API.
  *
- * Android always shows its own "Do you want to update this app?" screen; FireLauncher can't
+ * Android always shows its own "Do you want to update this app?" screen; Onyx TV can't
  * install silently. The result comes back to [InstallResultReceiver].
  */
 object UpdateInstaller {
@@ -22,7 +22,7 @@ object UpdateInstaller {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()
 
     /**
-     * Opens the "Install unknown apps" screen for FireLauncher. Returns false if this Fire OS
+     * Opens the "Install unknown apps" screen for Onyx TV. Returns false if this Fire OS
      * build doesn't have it (then: Settings → My Fire TV → Developer options → Install unknown apps).
      */
     fun openInstallPermissionSettings(context: Context): Boolean {

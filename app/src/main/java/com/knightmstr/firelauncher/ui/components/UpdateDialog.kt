@@ -45,7 +45,7 @@ import com.knightmstr.firelauncher.ui.theme.TextSecondary
 
 private val UpdateBlue = Color(0xFF38BDF8)
 
-/** Check / download / install flow for new FireLauncher releases. */
+/** Check / download / install flow for new Onyx TV releases. */
 @Composable
 fun UpdateDialog(
     state: UpdateState,
@@ -61,7 +61,7 @@ fun UpdateDialog(
     var showNotes by remember { mutableStateOf(false) }
 
     TvDialogFrame(
-        title = "FireLauncher updates",
+        title = "Onyx TV updates",
         subtitle = "Installed: v$installedVersion",
         accentColor = UpdateBlue,
         onDismiss = onDismiss,
@@ -119,14 +119,14 @@ fun UpdateDialog(
 
             is UpdateState.NeedsInstallPermission -> {
                 StatusText(
-                    "One-time step: allow FireLauncher to install updates. " +
+                    "One-time step: allow Onyx TV to install updates. " +
                         "Turn it on, press Back to return here, then choose Try again."
                 )
                 TvMenuItem(
                     title = "Open \"Install unknown apps\"",
                     subtitle = if (permissionScreenMissing)
                         "Not available here: Settings → My Fire TV → Developer options → Install unknown apps"
-                    else "Switch FireLauncher on",
+                    else "Switch Onyx TV on",
                     icon = Icons.Rounded.Lock,
                     iconTint = UpdateBlue,
                     modifier = Modifier.focusRequester(first),
@@ -142,7 +142,7 @@ fun UpdateDialog(
 
             is UpdateState.Installing -> {
                 ReleaseHeader(state.release)
-                StatusText("Confirm on the install screen. FireLauncher will restart on the new version.")
+                StatusText("Confirm on the install screen. Onyx TV will restart on the new version.")
                 TvMenuItem(
                     title = "Close",
                     icon = Icons.Rounded.SystemUpdate,

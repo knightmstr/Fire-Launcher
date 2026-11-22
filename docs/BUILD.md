@@ -30,7 +30,7 @@ app/src/main/java/com/knightmstr/firelauncher/
 ├── media/         Now playing (media sessions)
 ├── update/        GitHub update check, download, verify, install
 └── ui/            Compose screens: home, dock, All Apps, dialogs, settings
-tools/             clear_launcher_cache.sh (clears FireLauncher's image cache on low-memory sticks)
+tools/             clear_launcher_cache.sh (clears Onyx TV's image cache on low-memory sticks)
 ```
 
 </details>

@@ -10,7 +10,7 @@ import com.knightmstr.firelauncher.MainActivity
 import com.knightmstr.firelauncher.home.HomeWatch
 import com.knightmstr.firelauncher.screensaver.ScreensaverTakeover
 
-/** Receives PackageInstaller results, and relaunches FireLauncher after it updates itself. */
+/** Receives PackageInstaller results, and relaunches Onyx TV after it updates itself. */
 class InstallResultReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -31,7 +31,7 @@ class InstallResultReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_SUCCESS -> repository.onInstallResult(true, null)
             PackageInstaller.STATUS_FAILURE_ABORTED -> repository.onInstallResult(false, "Update cancelled")
             PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, PackageInstaller.STATUS_FAILURE_CONFLICT ->
-                repository.onInstallResult(false, "Update is signed with a different key. Uninstall FireLauncher and install it manually once.")
+                repository.onInstallResult(false, "Update is signed with a different key. Uninstall Onyx TV and install it manually once.")
             else -> repository.onInstallResult(
                 false,
                 intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "Install failed"

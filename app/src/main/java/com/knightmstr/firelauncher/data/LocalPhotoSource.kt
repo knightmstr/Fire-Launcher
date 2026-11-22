@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
 /**
  * Loads the user's own photos for wallpapers from two places:
  *
- * 1. Any photo album named **FireLauncher** (e.g. `Pictures/FireLauncher`) via MediaStore —
+ * 1. Any photo album named **OnyxTV** (e.g. `Pictures/OnyxTV`; the old **FireLauncher** name works too) via MediaStore —
  *    needs the photo permission.
  * 2. The app's own folder `Android/data/<package>/files/Pictures` — no permission needed;
  *    fill it with `adb push photo.jpg /sdcard/Android/data/<package>/files/Pictures/`.
@@ -23,7 +23,9 @@ import kotlinx.coroutines.withContext
 class LocalPhotoSource(private val context: Context) {
 
     companion object {
-        const val ALBUM_NAME = "FireLauncher"
+        const val ALBUM_NAME = "OnyxTV"
+        /** Album name before the rename to Onyx TV; still read so existing albums keep working. */
+        const val LEGACY_ALBUM_NAME = "FireLauncher"
         private const val MAX_PHOTOS = 200
         private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp")
 
@@ -48,8 +50,8 @@ class LocalPhotoSource(private val context: Context) {
             context.contentResolver.query(
                 collection,
                 projection,
-                "${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} = ?",
-                arrayOf(ALBUM_NAME),
+                "${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} IN (?, ?)",
+                arrayOf(ALBUM_NAME, LEGACY_ALBUM_NAME),
                 "${MediaStore.Images.Media.DATE_ADDED} DESC"
             )?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)

@@ -27,8 +27,8 @@ import javax.crypto.Cipher
 
 /**
  * One-time setup without a phone or computer: with ADB debugging on, the Fire TV accepts ADB
- * connections on port 5555, including from itself. FireLauncher connects to 127.0.0.1:5555, the TV
- * asks "Allow USB debugging?", and once allowed FireLauncher grants itself WRITE_SECURE_SETTINGS
+ * connections on port 5555, including from itself. Onyx TV connects to 127.0.0.1:5555, the TV
+ * asks "Allow USB debugging?", and once allowed Onyx TV grants itself WRITE_SECURE_SETTINGS
  * (the same `pm grant` the phone method runs).
  *
  * A minimal ADB client: connect, sign in with an RSA key kept in the app's files, run one shell

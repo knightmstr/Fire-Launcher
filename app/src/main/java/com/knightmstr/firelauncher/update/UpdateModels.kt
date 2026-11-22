@@ -20,7 +20,7 @@ sealed interface UpdateState {
     data class Available(val release: ReleaseInfo) : UpdateState
     /** [progress] is 0f..1f, or null when the server didn't send a size. */
     data class Downloading(val release: ReleaseInfo, val progress: Float?) : UpdateState
-    /** Android needs the user to allow FireLauncher to install apps first. */
+    /** Android needs the user to allow Onyx TV to install apps first. */
     data class NeedsInstallPermission(val release: ReleaseInfo) : UpdateState
     /** Handed to Android's installer; the confirmation screen is showing. */
     data class Installing(val release: ReleaseInfo) : UpdateState

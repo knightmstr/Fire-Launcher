@@ -5,7 +5,7 @@ import android.provider.Settings
 import com.knightmstr.firelauncher.home.HomeWatch
 
 /**
- * Makes FireLauncher's screensaver ([FireDream]) the Fire TV's own screensaver, and optionally
+ * Makes Onyx TV's screensaver ([FireDream]) the Fire TV's own screensaver, and optionally
  * stops the Fire TV from going to sleep. Uses the same one-time ADB grant as the Home button
  * watcher (WRITE_SECURE_SETTINGS). Every value changed is remembered and put back when turned off.
  *

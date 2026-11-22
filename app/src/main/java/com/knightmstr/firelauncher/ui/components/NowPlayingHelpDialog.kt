@@ -46,7 +46,7 @@ fun NowPlayingHelpDialog(
         TvMenuItem(
             title = "Open notification access settings",
             subtitle = if (settingsMissing) "This Fire TV doesn't have that screen — use the command below"
-            else "Then switch FireLauncher on",
+            else "Then switch Onyx TV on",
             icon = Icons.AutoMirrored.Rounded.OpenInNew,
             iconTint = FireAmber,
             modifier = Modifier.focusRequester(first),
@@ -68,7 +68,7 @@ fun NowPlayingHelpDialog(
                 .padding(10.dp)
         )
         Text(
-            text = "FireLauncher never reads your notifications; Android just requires this permission to see media sessions.",
+            text = "Onyx TV never reads your notifications; Android just requires this permission to see media sessions.",
             fontSize = 11.sp,
             color = Color(0xFF9CA3AF)
         )

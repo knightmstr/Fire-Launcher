@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * When the user presses the Home key while FireLauncher is already running,
+     * When the user presses the Home key while Onyx TV is already running,
      * the system delivers an Intent to onNewIntent (due to launchMode="singleTask").
      * We catch this and scroll to the top of the launcher and refocus the first item.
      */
@@ -174,7 +174,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        /** True while FireLauncher is on screen (read by the Home button watcher). */
+        /** True while Onyx TV is on screen (read by the Home button watcher). */
         @Volatile var isInFront = false
     }
 }

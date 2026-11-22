@@ -13,7 +13,7 @@ import com.knightmstr.firelauncher.MainActivity
 /**
  * The Home button watcher. It is told only when one of Amazon's launcher windows comes forward
  * (res/xml/home_watch.xml limits events to that package) and reads nothing on screen: when the
- * window is Amazon's home itself, FireLauncher is brought back on top.
+ * window is Amazon's home itself, Onyx TV is brought back on top.
  *
  * Based on couch-tv's FireWatch (github.com/Seagey/couch-tv, MIT).
  */
@@ -27,14 +27,14 @@ class HomeWatchService : AccessibilityService() {
     private val recheck = Runnable {
         recheckPending = false
         // A quick second Home press inside the debounce: if Amazon's home is still the last thing
-        // we saw and FireLauncher isn't in front, jump once more. One re-check, never a loop.
+        // we saw and Onyx TV isn't in front, jump once more. One re-check, never a loop.
         if (amazonHomeLastSeen && !MainActivity.isInFront) bringBack()
     }
 
     override fun onServiceConnected() {
         HomeWatch.connected = true
         // Bound shortly after a restart: Amazon's home came up before we could see it, so put
-        // FireLauncher in front once.
+        // Onyx TV in front once.
         if (SystemClock.elapsedRealtime() < BOOT_WINDOW_MS && !MainActivity.isInFront) bringBack()
     }
 

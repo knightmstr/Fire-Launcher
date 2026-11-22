@@ -48,7 +48,7 @@ android {
         versionName = resolvedVersionName
 
         // GitHub "owner/repo" checked for updates (change this if you fork the project)
-        buildConfigField("String", "UPDATE_REPO", "\"knightmstr/Fire-Launcher\"")
+        buildConfigField("String", "UPDATE_REPO", "\"knightmstr/Onyx-TV\"")
 
         vectorDrawables {
             useSupportLibrary = true

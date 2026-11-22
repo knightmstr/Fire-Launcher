@@ -117,7 +117,7 @@ fun TopBar(
             // Just the small logo: the wallpaper credit sits quietly at the bottom right instead
             Image(
                 painter = painterResource(R.drawable.ic_logo_mark),
-                contentDescription = "FireLauncher",
+                contentDescription = "Onyx TV",
                 modifier = Modifier.size(26.dp)
             )
 
@@ -383,7 +383,7 @@ fun CitySelectionDialog(
 }
 
 /**
- * Small menu that drops down from the settings gear: FireLauncher's own settings or the Fire TV's.
+ * Small menu that drops down from the settings gear: Onyx TV's own settings or the Fire TV's.
  * A focusable popup, so the remote moves inside it and Back closes it.
  */
 @Composable

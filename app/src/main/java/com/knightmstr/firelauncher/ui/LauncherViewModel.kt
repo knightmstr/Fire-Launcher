@@ -745,7 +745,7 @@ data class PinDialogState(val purpose: PinPurpose, val error: String? = null)
 
 /** Fire TV features that need the one-time ADB grant (WRITE_SECURE_SETTINGS). */
 enum class GrantFeature(val title: String) {
-    HOME_BUTTON("Make Home open FireLauncher"),
+    HOME_BUTTON("Make Home open Onyx TV"),
     SCREENSAVER("Use as Fire TV screensaver"),
     KEEP_AWAKE("Keep Fire TV awake")
 }

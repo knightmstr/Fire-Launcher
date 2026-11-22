@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * FireLauncher's screensaver as a system screensaver (Android "dream"), so it can replace Amazon's
+ * Onyx TV's screensaver as a system screensaver (Android "dream"), so it can replace Amazon's
  * everywhere, not just on the home screen. Same wallpaper, clock and temperature as the home.
  * Made the Fire TV's screensaver by [ScreensaverTakeover]. Any remote button ends it.
  */

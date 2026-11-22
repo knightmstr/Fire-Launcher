@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 
 /**
  * One-time setup shared by the Fire TV features that change system settings (Home button,
- * screensaver, keep awake). Easiest: set up on the TV itself (FireLauncher connects to the TV's own
+ * screensaver, keep awake). Easiest: set up on the TV itself (Onyx TV connects to the TV's own
  * ADB and you press Allow). Otherwise the same grant from a phone (Termux) or computer.
  */
 @Composable
@@ -110,13 +110,13 @@ fun GrantSetupDialog(
         TvMenuItem(
             title = "Turn on",
             subtitle = if (stillMissing) "Not granted yet: run the command above first"
-            else "After the phone method. FireLauncher keeps it set after updates and restarts",
+            else "After the phone method. Onyx TV keeps it set after updates and restarts",
             icon = Icons.Rounded.Home,
             iconTint = FireAmber,
             onClick = { stillMissing = !onEnable() }
         )
         Text(
-            text = "This lets FireLauncher change the Home button, screensaver and sleep settings. " +
+            text = "This lets Onyx TV change the Home button, screensaver and sleep settings. " +
                 "Turning an option off puts Amazon's setting back.",
             fontSize = 11.sp,
             color = Color(0xFF9CA3AF)

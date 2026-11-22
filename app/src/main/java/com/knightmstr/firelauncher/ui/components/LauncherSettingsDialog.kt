@@ -243,9 +243,9 @@ fun LauncherSettingsDialog(
 
         SettingsSection("Fire TV")
         TvMenuItem(
-            title = "Home button opens FireLauncher",
+            title = "Home button opens Onyx TV",
             subtitle = when (status.homeWatch) {
-                HomeWatch.Status.ON -> "Brings FireLauncher back when Home opens Amazon's home"
+                HomeWatch.Status.ON -> "Brings Onyx TV back when Home opens Amazon's home"
                 HomeWatch.Status.OFF -> "Off: Home shows Amazon's home"
                 HomeWatch.Status.NEEDS_PERMISSION -> "Needs a one-time setup with adb"
             },

@@ -113,14 +113,14 @@ jobs:
             exit 1
           fi
 
-          cp "$RELEASE_APK" "release-assets/FireLauncher-${VERSION_TAG}-release.apk"
+          cp "$RELEASE_APK" "release-assets/OnyxTV-${VERSION_TAG}-release.apk"
           if [ -n "$DEBUG_APK" ]; then
-            cp "$DEBUG_APK" "release-assets/FireLauncher-${VERSION_TAG}-debug.apk"
+            cp "$DEBUG_APK" "release-assets/OnyxTV-${VERSION_TAG}-debug.apk"
           fi
 
           (
             cd release-assets
-            sha256sum *.apk > "FireLauncher-${VERSION_TAG}-checksums.sha256"
+            sha256sum *.apk > "OnyxTV-${VERSION_TAG}-checksums.sha256"
           )
           ls -lh release-assets/
 
@@ -132,7 +132,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag_name }}
-          name: FireLauncher ${{ steps.meta.outputs.tag_name }}
+          name: Onyx TV ${{ steps.meta.outputs.tag_name }}
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(steps.meta.outputs.tag_name, '-') }}

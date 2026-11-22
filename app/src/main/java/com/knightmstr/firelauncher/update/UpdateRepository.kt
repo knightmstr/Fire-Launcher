@@ -17,7 +17,7 @@ import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
 
 /**
- * Checks GitHub Releases for a newer FireLauncher, downloads the APK, verifies it, and hands it
+ * Checks GitHub Releases for a newer Onyx TV, downloads the APK, verifies it, and hands it
  * to [UpdateInstaller].
  *
  * Flow:  check() → Available → download() → (verify SHA-256 + package) → install → Installing
@@ -154,9 +154,9 @@ class UpdateRepository(private val context: Context) {
     /**
      * Two checks before installing:
      *  1. SHA-256 matches the checksum file published with the release (catches corrupt downloads).
-     *  2. The APK really is FireLauncher and really is newer.
+     *  2. The APK really is Onyx TV and really is newer.
      * Android itself then refuses the install unless it's signed with the same key as the
-     * installed app, so a tampered APK can't replace FireLauncher.
+     * installed app, so a tampered APK can't replace Onyx TV.
      */
     private suspend fun verify(release: ReleaseInfo, apk: File) = withContext(Dispatchers.IO) {
         if (apk.length() != release.apkSizeBytes) error("Download incomplete, please try again")
@@ -172,7 +172,7 @@ class UpdateRepository(private val context: Context) {
 
         val info = context.packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
             ?: error("Downloaded file isn't a valid app")
-        if (info.packageName != context.packageName) error("Downloaded app isn't FireLauncher")
+        if (info.packageName != context.packageName) error("Downloaded app isn't Onyx TV")
         @Suppress("DEPRECATION")
         val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode.toInt() else info.versionCode
         if (code <= installedVersionCode) error("Downloaded version isn't newer than this one")
@@ -209,7 +209,7 @@ class UpdateRepository(private val context: Context) {
             connectTimeout = 10_000
             readTimeout = 20_000
             instanceFollowRedirects = true // GitHub redirects downloads to its CDN
-            setRequestProperty("User-Agent", "FireLauncher/${BuildConfig.VERSION_NAME} (Fire TV)")
+            setRequestProperty("User-Agent", "OnyxTV/${BuildConfig.VERSION_NAME} (Fire TV)")
             setRequestProperty("Accept", "application/vnd.github+json, application/octet-stream")
         }
 

@@ -1,10 +1,10 @@
-# FireLauncher
+# Onyx TV
 
 A clean, ad-free home screen for **Amazon Fire TV**. Your wallpaper fills the screen, with a big clock, the weather and a dock of your favourite apps. No sponsored rows.
 
 Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 and later).
 
-**[Download the latest release →](https://github.com/knightmstr/Fire-Launcher/releases/latest)**
+**[Download the latest release →](https://github.com/knightmstr/Onyx-TV/releases/latest)**
 
 <table>
   <tr>
@@ -35,8 +35,8 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 - Tile size slider and tile shapes (rounded, square, extra rounded, pill)
 
 **Fire TV**
-- Home button opens FireLauncher instead of Amazon's home ([Extras](docs/EXTRAS.md))
-- FireLauncher's screensaver replaces Amazon's, with the same wallpaper, clock and weather
+- Home button opens Onyx TV instead of Amazon's home ([Extras](docs/EXTRAS.md))
+- Onyx TV's screensaver replaces Amazon's, with the same wallpaper, clock and weather
 - Optional keep-awake, so the Fire TV doesn't sleep on a timer
 - Wi-Fi and Fire TV settings one press away, opening Fire OS's own screens
 
@@ -48,7 +48,7 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 
 ## Get started
 
-1. **Install FireLauncher.** It takes about 10 minutes and needs a phone or computer once. → **[Install guide](docs/INSTALL.md)**
+1. **Install Onyx TV.** It takes about 10 minutes and needs a phone or computer once. → **[Install guide](docs/INSTALL.md)**
 2. **Make it your home screen** (optional): the Home button, screensaver and keep-awake. You can set these up on the TV itself. → **[Extras](docs/EXTRAS.md)**
 
 Use an AI coding agent? It can [do the whole setup for you](docs/INSTALL.md#let-an-ai-agent-do-it).
@@ -57,7 +57,7 @@ After that, updates install from the TV. Not for you? [Going back to Amazon's ho
 
 ## More
 
-- **[Using FireLauncher](docs/USING.md)**: remote buttons, Dock and Clean layouts, good to know
+- **[Using Onyx TV](docs/USING.md)**: remote buttons, Dock and Clean layouts, good to know
 - **[Extras](docs/EXTRAS.md)**: Home button, screensaver, keep awake, Now playing, your own wallpapers
 - **[Debloat](docs/DEBLOAT.md)**: turn off Amazon's ad and telemetry services (optional, can be undone)
 - **[Permissions & privacy](docs/PRIVACY.md)**: what each permission is for. No tracking, no accounts

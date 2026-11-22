@@ -28,7 +28,7 @@ adb reboot
 
 Each line prints `Package … new state: disabled-user`. If one says it can't be disabled or isn't found, your Fire OS doesn't have it or doesn't allow it. That's fine; the others still work.
 
-**Optional:** if you use [FireLauncher's screensaver](EXTRAS.md#screensaver), you can also turn off Amazon's sponsored screensaver. Skip this if you use Amazon's.
+**Optional:** if you use [Onyx TV's screensaver](EXTRAS.md#screensaver), you can also turn off Amazon's sponsored screensaver. Skip this if you use Amazon's.
 
 ```bash
 adb shell pm disable-user --user 0 com.amazon.ftv.screensaver

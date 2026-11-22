@@ -2,13 +2,13 @@
 
 [← Back to README](../README.md)
 
-Takes about 10 minutes. You need a phone or computer **once**, to put FireLauncher on the Fire TV. After that it updates itself.
+Takes about 10 minutes. You need a phone or computer **once**, to put Onyx TV on the Fire TV. After that it updates itself.
 
 ## Let an AI agent do it
 
-If you use an AI coding agent on your computer (Claude Code, Gemini CLI, Codex…), it can do the whole setup for you. That covers installing adb, connecting to the TV, installing FireLauncher, the [extras](EXTRAS.md) and the [debloat](DEBLOAT.md). Tell it:
+If you use an AI coding agent on your computer (Claude Code, Gemini CLI, Codex…), it can do the whole setup for you. That covers installing adb, connecting to the TV, installing Onyx TV, the [extras](EXTRAS.md) and the [debloat](DEBLOAT.md). Tell it:
 
-> Set up FireLauncher on my Fire TV by following https://github.com/knightmstr/Fire-Launcher/blob/main/AI_STEPS.md
+> Set up Onyx TV on my Fire TV by following https://github.com/knightmstr/Onyx-TV/blob/main/AI_STEPS.md
 
 It asks what you'd like and your TV's IP address, and tells you where to find it. You only do what needs the remote: turn on ADB debugging, and press OK when the TV asks *Allow USB debugging?*. It never scans your network. Prefer to do it yourself? Read on.
 
@@ -46,7 +46,7 @@ On newer Fire TVs, **My Fire TV** is called **Device & Software**.
 2. Find the TV's IP address under **Settings → My Fire TV → About → Network**, for example `192.168.1.50`.
    - Or: **Settings → Network**, highlight your Wi-Fi and press **▶⏸** on the remote.
 
-## 3. Install FireLauncher
+## 3. Install Onyx TV
 
 **Connect to the TV** (use your TV's IP):
 
@@ -59,40 +59,40 @@ If it says `unauthorized` or `failed to authenticate`, accept the box on the TV 
 
 **Download and install.**
 
-*Phone (Termux), Mac or Linux:* set `V` to the newest version on the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), then copy the rest as is (on Mac and Linux, use `./adb`):
+*Phone (Termux), Mac or Linux:* set `V` to the newest version on the [Releases page](https://github.com/knightmstr/Onyx-TV/releases/latest), then copy the rest as is (on Mac and Linux, use `./adb`):
 
 ```bash
-V=v1.4.0
-wget https://github.com/knightmstr/Fire-Launcher/releases/download/$V/FireLauncher-$V-release.apk
-adb install -r FireLauncher-$V-release.apk
+V=v1.5.0
+wget https://github.com/knightmstr/Onyx-TV/releases/download/$V/OnyxTV-$V-release.apk
+adb install -r OnyxTV-$V-release.apk
 adb shell am start -n com.knightmstr.firelauncher/.MainActivity
 ```
 
-*Windows:* on the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), click the file ending in `-release.apk` to download it. Then in PowerShell, in the `platform-tools` folder:
+*Windows:* on the [Releases page](https://github.com/knightmstr/Onyx-TV/releases/latest), click the file ending in `-release.apk` to download it. Then in PowerShell, in the `platform-tools` folder:
 
 ```powershell
-.\adb install -r "$HOME\Downloads\FireLauncher-v1.4.0-release.apk"
+.\adb install -r "$HOME\Downloads\OnyxTV-v1.5.0-release.apk"
 .\adb shell am start -n com.knightmstr.firelauncher/.MainActivity
 ```
 
-Change `v1.4.0` to the version you downloaded. You can type `"$HOME\Downloads\Fire` and press **Tab** to fill in the name.
+Change `v1.4.0` to the version you downloaded. You can type `"$HOME\Downloads\Onyx` and press **Tab** to fill in the name.
 
-`adb install` prints `Success` when it's done, and FireLauncher opens on the TV.
+`adb install` prints `Success` when it's done, and Onyx TV opens on the TV.
 
 <details>
 <summary>Phone: or download the APK in your phone's browser</summary>
 
-On the [Releases page](https://github.com/knightmstr/Fire-Launcher/releases/latest), tap the file ending in `-release.apk`. Then in Termux, type the start of the command and press **Tab** to fill in the file name:
+On the [Releases page](https://github.com/knightmstr/Onyx-TV/releases/latest), tap the file ending in `-release.apk`. Then in Termux, type the start of the command and press **Tab** to fill in the file name:
 
 ```bash
-adb install -r ~/storage/downloads/FireLauncher-
+adb install -r ~/storage/downloads/OnyxTV-
 ```
 
 </details>
 
 ## 4. After installing
 
-FireLauncher is installed, but **pressing Home still opens Amazon's home** until you turn on the *Home button* extra. Until then, open FireLauncher from **Your Apps & Channels** on Amazon's home.
+Onyx TV is installed, but **pressing Home still opens Amazon's home** until you turn on the *Home button* extra. Until then, open Onyx TV from **Your Apps & Channels** on Amazon's home.
 
 - **Fill your dock:** open **All Apps** (the round button at the end of the dock), hold OK on an app and choose **Add to Favorites**. The dock is always showing in the default **Dock** layout. In the optional **Clean** layout, press any button first to bring it back.
 - **Make it your home screen:** turn on the **Home button**, **screensaver** and **keep awake**. You can do all of these on the TV. → [Extras](EXTRAS.md)
@@ -102,11 +102,11 @@ FireLauncher is installed, but **pressing Home still opens Amazon's home** until
 
 You only need adb once. After that, an **Update** button appears at the top of the home screen when a new version is out, or go to **⚙ → Launcher settings → About → App updates**. Every download is checked against its published checksum.
 
-The first time, the Fire TV may ask you to let FireLauncher install apps. Choose **Open "Install unknown apps"** and switch FireLauncher on. If that screen doesn't open, go to **Settings → My Fire TV → Developer options → Install unknown apps**. Android then asks you to confirm each update.
+The first time, the Fire TV may ask you to let Onyx TV install apps. Choose **Open "Install unknown apps"** and switch Onyx TV on. If that screen doesn't open, go to **Settings → My Fire TV → Developer options → Install unknown apps**. Android then asks you to confirm each update.
 
 ## Going back to Amazon's home
 
-Go to **⚙ → Launcher settings** and turn off **Home button opens FireLauncher**, **Use as Fire TV screensaver** and **Keep Fire TV awake**. Home opens Amazon's home again, and Amazon's screensaver and sleep settings come back. FireLauncher stays installed, and you can open it from *Your Apps & Channels* whenever you like.
+Go to **⚙ → Launcher settings** and turn off **Home button opens Onyx TV**, **Use as Fire TV screensaver** and **Keep Fire TV awake**. Home opens Amazon's home again, and Amazon's screensaver and sleep settings come back. Onyx TV stays installed, and you can open it from *Your Apps & Channels* whenever you like.
 
 If you turned off Amazon's screensaver while [debloating](DEBLOAT.md), turn it back on, or you'll have no screensaver at all:
 
@@ -115,7 +115,7 @@ adb connect 192.168.1.50:5555    # your TV's IP
 adb shell pm enable com.amazon.ftv.screensaver
 ```
 
-## Removing FireLauncher
+## Removing Onyx TV
 
 1. Turn off the three options above first, so Amazon's own settings are put back.
 2. If you disabled Amazon's screensaver while [debloating](DEBLOAT.md), turn it back on (below).

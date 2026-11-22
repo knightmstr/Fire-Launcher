@@ -12,10 +12,10 @@ import com.knightmstr.firelauncher.screensaver.ScreensaverTakeover
  * Switches the Home button watcher ([HomeWatchService]) on and off, and keeps it on.
  *
  * Fire OS has no "default home" choice: the Home key always opens Amazon's launcher. The watcher
- * sees Amazon's home come to the front and brings FireLauncher back. Amazon's home may flash for
+ * sees Amazon's home come to the front and brings Onyx TV back. Amazon's home may flash for
  * a moment first; nothing short of rooting the TV avoids that.
  *
- * FireLauncher can switch the watcher on by itself only after one grant over ADB:
+ * Onyx TV can switch the watcher on by itself only after one grant over ADB:
  *   adb shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
  * With that grant it also puts the watcher back after updates and restarts, when Android drops it.
  *
@@ -48,7 +48,7 @@ object HomeWatch {
     @Volatile private var declaredHomes: Set<String>? = null
 
     /**
-     * FireLauncher is about to open one of Amazon's own screens (Fire TV settings): for a few
+     * Onyx TV is about to open one of Amazon's own screens (Fire TV settings): for a few
      * seconds Amazon's windows coming forward are that, not a Home press.
      */
     fun allowAmazonBriefly() {
