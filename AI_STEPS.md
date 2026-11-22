@@ -199,7 +199,7 @@ Only if the user wants them. Explain each in one line and wait for a yes:
 - **Home button opens FireLauncher, FireLauncher screensaver, keep awake**: lets FireLauncher change these Fire TV settings; each is then switched on in FireLauncher's *Launcher settings*, and turning it off restores Amazon's setting.
 - **Now playing**: lets FireLauncher see what's playing (it never reads notifications).
 
-The grant can also be done on the TV without adb (Launcher settings → any of the three options → *Set up on this TV*). Since adb is already connected here, use the command. Afterwards, remind the user that the grant alone changes nothing: they must switch each option on in *Launcher settings*. Verify with `adb -s "$FIRETV_IP:5555" shell settings get secure sleep_timeout` (`-1` once keep-awake is on).
+The grant can also be done on the TV without adb (Launcher settings → Screensaver or Fire TV section → any of the three options → *Set up on this TV*). Since adb is already connected here, use the command. Afterwards, remind the user that the grant alone changes nothing: they must switch each option on in *Launcher settings*. Verify with `adb -s "$FIRETV_IP:5555" shell settings get secure sleep_timeout` (`-1` once keep-awake is on).
 
 ```bash
 # Home button / screensaver / keep awake

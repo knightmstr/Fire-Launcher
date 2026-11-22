@@ -63,7 +63,7 @@ These are optional.
 *On the TV, no phone needed:*
 
 1. Turn on **ADB debugging**: Settings → My Fire TV → Developer options. If Developer options is missing, go to My Fire TV → About and press OK on your device name 7 times.
-2. In FireLauncher, open **⚙ → Launcher settings** and choose any of the three options, then **Set up on this TV**.
+2. In FireLauncher, open **⚙ → Launcher settings** and choose one of the three options (under *Screensaver* and *Fire TV*), then **Set up on this TV**.
 3. The TV asks *Allow USB debugging?* Tick **Always allow** and press **OK**. The option turns on.
 
 FireLauncher connects to the TV's own ADB, only to grant itself this permission. You can leave ADB debugging on or turn it off afterwards; the permission stays until you uninstall.
@@ -74,7 +74,7 @@ FireLauncher connects to the TV's own ADB, only to grant itself this permission.
 adb shell pm grant com.knightmstr.firelauncher android.permission.WRITE_SECURE_SETTINGS
 ```
 
-Either way, then switch them on in **⚙ → Launcher settings**: *Home button opens FireLauncher*, *Use FireLauncher's screensaver* and *Keep Fire TV awake*. The grant alone changes nothing until you do. On Fire OS 8, restart once after turning on the screensaver.
+Either way, then switch them on in **⚙ → Launcher settings**: *Home button opens FireLauncher*, *Use as Fire TV screensaver* and *Keep Fire TV awake*. The grant alone changes nothing until you do. On Fire OS 8, restart once after turning on the screensaver.
 
 Check it worked: `adb shell settings get secure sleep_timeout` shows `-1` with keep-awake on, and `adb shell settings get secure screensaver_components` names FireLauncher. If the TV shows *No signal* when the screensaver should be on, keep-awake isn't on yet.
 
