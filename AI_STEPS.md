@@ -6,7 +6,7 @@ This document is a sequential, machine-readable execution manifest intended for 
 
 ## Pre-Flight Requirements & Context
 
-- **Target Architecture**: Android 7.1+ / 9.0 (Fire OS 6, 7, 8)
+- **Target Architecture**: Fire OS 6, 7 and 8 (Android 7.1 and later)
 - **Target Device**: Amazon Fire TV Stick / Fire TV Cube / Fire TV Edition
 - **Default ADB Port**: `5555`
 - **Target Package Name**: `com.knightmstr.firelauncher`
