@@ -13,16 +13,16 @@ Turns off four Amazon services that show ads and send usage data. They're disabl
 
 ## Do it
 
-You need adb connected to the Fire TV, as in the [Install guide](INSTALL.md):
+You need adb, as in the [Install guide](INSTALL.md). Copy the whole block; each line is one package:
+
+> **On a computer:** run these in the `platform-tools` folder and type `.\adb` (Windows) or `./adb` (Mac, Linux) instead of `adb`. See [Get adb](INSTALL.md#1-get-adb).
 
 ```bash
 adb connect 192.168.1.50:5555    # your TV's IP
-
-for p in com.amazon.advertising.firetv com.amazon.device.sale.service \
-         com.amazon.client.metrics com.amazon.device.crashmanager; do
-  adb shell pm disable-user --user 0 "$p"
-done
-
+adb shell pm disable-user --user 0 com.amazon.advertising.firetv
+adb shell pm disable-user --user 0 com.amazon.device.sale.service
+adb shell pm disable-user --user 0 com.amazon.client.metrics
+adb shell pm disable-user --user 0 com.amazon.device.crashmanager
 adb reboot
 ```
 
@@ -37,13 +37,16 @@ adb shell pm disable-user --user 0 com.amazon.ftv.screensaver
 ## Undo
 
 ```bash
-for p in com.amazon.advertising.firetv com.amazon.device.sale.service \
-         com.amazon.client.metrics com.amazon.device.crashmanager com.amazon.ftv.screensaver; do
-  adb shell pm enable "$p"
-done
-
+adb connect 192.168.1.50:5555    # your TV's IP
+adb shell pm enable com.amazon.advertising.firetv
+adb shell pm enable com.amazon.device.sale.service
+adb shell pm enable com.amazon.client.metrics
+adb shell pm enable com.amazon.device.crashmanager
+adb shell pm enable com.amazon.ftv.screensaver
 adb reboot
 ```
+
+Each line prints `Package … new state: enabled`. The screensaver line is harmless if you never disabled it.
 
 ## Using an AI agent instead
 

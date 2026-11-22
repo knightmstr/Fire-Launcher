@@ -16,7 +16,7 @@ In settings, sliders move with **◀ ▶**, and every other row changes with **O
 
 ## Home layouts
 
-Choose under **⚙ → Launcher settings → Home screen → Home layout**:
+**Dock** is the default. Choose under **⚙ → Launcher settings → Home screen → Home layout**:
 
 - **Dock**: your favourite apps are always along the bottom.
 - **Clean**: just the clock, date and weather over your wallpaper. Press any button and your apps and the top bar appear, then fade away after a few seconds. That first press only brings them back, so it never opens an app by accident.
@@ -27,6 +27,7 @@ Your apps: open **All Apps** (the round button at the end of the dock), hold OK 
 
 - **Amazon's home may flash** for a moment when you press Home, before FireLauncher comes back. Fire OS doesn't allow avoiding this without rooting.
 - **Kids mode locks the launcher, not the device.** For device-wide limits, also use *Settings → Preferences → Parental Controls*.
+- **Forgot the Kids mode PIN?** Clear FireLauncher's data with adb: `adb connect 192.168.1.50:5555`, then `adb shell pm clear com.knightmstr.firelauncher`. This also resets FireLauncher's settings, favourites and wallpapers. Open FireLauncher afterwards and set it up again.
 - **When the screensaver starts** inside other apps follows Fire TV's *Display & Sounds → Screensaver → Start Time*.
 - **Updates install over each other** only when they're signed with the same key, which is how the official releases are signed.
 
