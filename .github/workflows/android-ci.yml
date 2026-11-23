@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Test, Lint & Build APK
+    name: Test, Lint & Build Debug APK
     runs-on: ubuntu-latest
 
     steps:
@@ -34,19 +34,15 @@ jobs:
       - name: Run Android Lint
         run: ./gradlew lintDebug --no-daemon
 
-      - name: Build Debug & Release APKs
-        run: ./gradlew assembleDebug assembleRelease --no-daemon
+      # Debug build only: release signing is validated and published by release.yml, which holds
+      # the keystore. PR/branch CI has no signing secret, and the build now refuses to produce a
+      # debug-signed release, so there's nothing for this workflow to sign.
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: OnyxTV-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-
-      - name: Upload Release APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: OnyxTV-release-apk
-          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error

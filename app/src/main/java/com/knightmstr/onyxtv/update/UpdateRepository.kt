@@ -161,13 +161,15 @@ class UpdateRepository(private val context: Context) {
     private suspend fun verify(release: ReleaseInfo, apk: File) = withContext(Dispatchers.IO) {
         if (apk.length() != release.apkSizeBytes) error("Download incomplete, please try again")
 
-        release.checksumsUrl?.let { url ->
-            val expected = UpdateVersions.checksumFor(httpGetText(url), release.apkName)
-                ?: error("Release has no checksum for ${release.apkName}")
-            if (sha256(apk) != expected) {
-                apk.delete()
-                error("Downloaded file is corrupted, please try again")
-            }
+        // A checksum is required: without one there's no way to confirm the download is intact,
+        // so refuse rather than install an unverified APK.
+        val checksumsUrl = release.checksumsUrl
+            ?: error("This release has no checksum file, can't verify the download")
+        val expected = UpdateVersions.checksumFor(httpGetText(checksumsUrl), release.apkName)
+            ?: error("Release has no checksum for ${release.apkName}")
+        if (sha256(apk) != expected) {
+            apk.delete()
+            error("Downloaded file is corrupted, please try again")
         }
 
         val info = context.packageManager.getPackageArchiveInfo(apk.absolutePath, 0)

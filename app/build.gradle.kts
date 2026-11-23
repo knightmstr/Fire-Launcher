@@ -74,11 +74,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = if (hasReleaseKeystore) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Sign release builds only with the real upload keystore. Never fall back to the
+            // debug key: a debug-signed release carries the universally-known Android debug
+            // certificate, which breaks the same-signature guarantee the in-app updater relies
+            // on (a tampered APK could then replace Onyx TV). When no keystore is configured the
+            // task-graph check below fails the build instead of producing a mis-signed APK.
+            signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release") else null
         }
         debug {
             applicationIdSuffix = ""
@@ -114,6 +115,23 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+// Refuse to build a release without a signing keystore rather than shipping an unsigned or
+// debug-signed APK. Only fires when a release task is actually requested, so debug builds
+// (assembleDebug, unit tests) are unaffected and need no keystore.
+gradle.taskGraph.whenReady {
+    val buildingRelease = allTasks.any {
+        it.name.contains("assembleRelease") || it.name.contains("bundleRelease")
+    }
+    if (buildingRelease && !hasReleaseKeystore) {
+        throw GradleException(
+            "Release signing keystore is not configured, refusing to sign a release with the " +
+                "debug key. Set ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD, " +
+                "ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD (or a keystore.properties file) " +
+                "before building a release."
+        )
     }
 }
 
