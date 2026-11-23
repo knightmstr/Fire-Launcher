@@ -16,3 +16,7 @@
 # NanoHTTPD embedded server (photo uploader)
 -keep class fi.iki.elonen.** { *; }
 -dontwarn fi.iki.elonen.**
+
+# ZXing QR generation (uploader address)
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**

@@ -1,21 +1,31 @@
 package com.knightmstr.onyxtv.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.knightmstr.onyxtv.ui.PhotoUploadUi
+import com.knightmstr.onyxtv.upload.QrCode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.knightmstr.onyxtv.ui.theme.DarkSurface
 import com.knightmstr.onyxtv.ui.theme.TextPrimary
 import com.knightmstr.onyxtv.ui.theme.TextSecondary
@@ -47,14 +57,30 @@ fun PhotoUploadDialog(
             )
 
             ui.running && ui.url != null -> {
+                val url = ui.url
+                val qr by produceState<ImageBitmap?>(initialValue = null, url) {
+                    value = withContext(Dispatchers.Default) { QrCode.generate(url, 480) }
+                }
+                qr?.let { bitmap ->
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = "QR code for the upload address",
+                            modifier = Modifier
+                                .background(Color.White, RoundedCornerShape(12.dp))
+                                .padding(12.dp)
+                                .size(200.dp)
+                        )
+                    }
+                }
                 Text(
-                    text = "On your phone's browser, go to:",
+                    text = "Scan this with your phone's camera — or open the address below:",
                     fontSize = 12.sp,
                     color = TextSecondary
                 )
                 Text(
-                    text = ui.url,
-                    fontSize = 18.sp,
+                    text = url,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace,
                     color = TextPrimary,
