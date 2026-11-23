@@ -111,7 +111,11 @@ enum class UpdateChannel(val title: String, val description: String) {
 enum class WallpaperSource(val title: String) {
     /** Photos in Pictures/Onyx TV (or the app's own folder); falls back to Reddit if none. */
     MY_PHOTOS("My photos"),
-    REDDIT("r/TVWallpapersSFW");
+    REDDIT("r/TVWallpapersSFW"),
+    /** Image URLs the user added; falls back to Reddit if none. */
+    CUSTOM_URL("My links");
+
+    fun next(): WallpaperSource = entries[(ordinal + 1) % entries.size]
 
     companion object {
         fun fromName(name: String?): WallpaperSource =

@@ -66,6 +66,10 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_UPDATE_CHANNEL = stringPreferencesKey("settings_update_channel")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
+        private val KEY_CUSTOM_WALLPAPER_URLS = stringPreferencesKey("wallpaper_custom_urls")
+
+        /** Most custom wallpaper URLs the user can store. */
+        const val MAX_CUSTOM_WALLPAPER_URLS = 50
 
         private val KEY_KIDS_ENABLED = booleanPreferencesKey("kids_mode_enabled")
         private val KEY_KIDS_APPS = stringSetPreferencesKey("kids_allowed_packages")
@@ -172,6 +176,30 @@ class LauncherPrefsStore(private val context: Context) {
             p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
             p[KEY_NIGHT_DIM] = settings.nightDim
             p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
+        }
+    }
+
+    // ---------------------------------------------------------------- Custom wallpaper URLs
+
+    /** Image URLs the user added as a wallpaper source, in the order added. */
+    val customWallpaperUrlsFlow: Flow<List<String>> =
+        pref { PrefsCodec.decodeList(it[KEY_CUSTOM_WALLPAPER_URLS]) }
+
+    /** Appends a (already-validated) URL if not present and under the cap. */
+    suspend fun addCustomWallpaperUrl(url: String) {
+        val clean = url.trim()
+        if (clean.isEmpty()) return
+        context.dataStore.edit { p ->
+            val current = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])
+            if (clean in current || current.size >= MAX_CUSTOM_WALLPAPER_URLS) return@edit
+            p[KEY_CUSTOM_WALLPAPER_URLS] = PrefsCodec.encodeList(current + clean)
+        }
+    }
+
+    suspend fun removeCustomWallpaperUrl(url: String) {
+        context.dataStore.edit { p ->
+            val current = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])
+            p[KEY_CUSTOM_WALLPAPER_URLS] = PrefsCodec.encodeList(current - url)
         }
     }
 

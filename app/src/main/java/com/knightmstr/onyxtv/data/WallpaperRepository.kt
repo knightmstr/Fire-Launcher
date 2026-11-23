@@ -27,7 +27,9 @@ class WallpaperRepository(
     /** Minutes between automatic changes; 0 disables rotation. */
     private val rotationIntervalMinutes: Flow<Int>,
     private val source: Flow<WallpaperSource>,
-    private val localPhotos: LocalPhotoSource
+    private val localPhotos: LocalPhotoSource,
+    /** Image URLs the user added, used when the source is [WallpaperSource.CUSTOM_URL]. */
+    private val customUrls: Flow<List<String>>
 ) {
     companion object {
 
@@ -103,12 +105,18 @@ class WallpaperRepository(
         // Load from the chosen source; My photos falls back to Reddit only when no photos exist,
         // so with local photos the launcher makes no wallpaper network requests at all.
         scope.launch {
-            combine(source, reloadTick) { src, _ -> src }.collectLatest { src ->
-                val local = if (src == WallpaperSource.MY_PHOTOS) localPhotos.load() else emptyList()
-                _localPhotoCount.value = local.size
-                val list = local.ifEmpty { redditWallpapers() }
-                applyList(list)
-            }
+            combine(source, customUrls, reloadTick) { src, urls, _ -> src to urls }
+                .collectLatest { (src, urls) ->
+                    val chosen = when (src) {
+                        WallpaperSource.MY_PHOTOS -> localPhotos.load()
+                        WallpaperSource.CUSTOM_URL -> customWallpapers(urls)
+                        WallpaperSource.REDDIT -> emptyList()
+                    }
+                    _localPhotoCount.value = if (src == WallpaperSource.MY_PHOTOS) chosen.size else 0
+                    // Any chosen source falls back to Reddit/curated when it's empty.
+                    val list = chosen.ifEmpty { redditWallpapers() }
+                    applyList(list)
+                }
         }
 
         // Auto-rotation timer; restarts whenever the interval setting changes
@@ -134,6 +142,18 @@ class WallpaperRepository(
         _currentIndex.value = 0
         _currentWallpaper.value = list.first()
     }
+
+    private fun customWallpapers(urls: List<String>): List<WallpaperModel> =
+        urls.map { url ->
+            WallpaperModel(
+                id = "custom_${url.hashCode()}",
+                title = "My link",
+                url = url,
+                author = "Added by you",
+                permalink = url,
+                source = WallpaperModel.SOURCE_CUSTOM
+            )
+        }
 
     private suspend fun redditWallpapers(): List<WallpaperModel> =
         redditCache ?: fetchRedditWallpapers().ifEmpty { FALLBACK_WALLPAPERS }.also { redditCache = it }

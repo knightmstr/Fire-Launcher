@@ -44,6 +44,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.knightmstr.onyxtv.data.WallpaperUrlValidator
 import com.knightmstr.onyxtv.upload.LanAddress
 import com.knightmstr.onyxtv.upload.PhotoUploadServer
 
@@ -494,6 +495,46 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return (1..8).map { alphabet[random.nextInt(alphabet.length)] }.joinToString("")
     }
 
+    // ------------------------------------------------------------------ Custom wallpaper URLs
+
+    val customWallpaperUrls: StateFlow<List<String>> =
+        prefs.customWallpaperUrlsFlow.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _wallpaperUrlDialogOpen = MutableStateFlow(false)
+    val wallpaperUrlDialogOpen: StateFlow<Boolean> = _wallpaperUrlDialogOpen.asStateFlow()
+
+    private val _wallpaperUrlStatus = MutableStateFlow<WallpaperUrlStatus>(WallpaperUrlStatus.Idle)
+    val wallpaperUrlStatus: StateFlow<WallpaperUrlStatus> = _wallpaperUrlStatus.asStateFlow()
+
+    fun openWallpaperUrls() {
+        _wallpaperUrlStatus.value = WallpaperUrlStatus.Idle
+        _wallpaperUrlDialogOpen.value = true
+    }
+
+    fun closeWallpaperUrls() {
+        _wallpaperUrlDialogOpen.value = false
+    }
+
+    /** Validates a pasted URL (reachable + a real image) before saving it. */
+    fun addWallpaperUrl(raw: String) {
+        val url = raw.trim()
+        if (url.isEmpty()) return
+        viewModelScope.launch {
+            _wallpaperUrlStatus.value = WallpaperUrlStatus.Checking
+            _wallpaperUrlStatus.value = when (val result = WallpaperUrlValidator.validate(url)) {
+                is WallpaperUrlValidator.Result.Ok -> {
+                    prefs.addCustomWallpaperUrl(url) // repo observes the flow, so wallpapers refresh
+                    WallpaperUrlStatus.Added
+                }
+                is WallpaperUrlValidator.Result.Error -> WallpaperUrlStatus.Failed(result.message)
+            }
+        }
+    }
+
+    fun removeWallpaperUrl(url: String) {
+        viewModelScope.launch { prefs.removeCustomWallpaperUrl(url) }
+    }
+
     val nowPlaying: StateFlow<NowPlaying?> = nowPlayingRepository.nowPlaying
     val hasNowPlayingAccess: StateFlow<Boolean> = nowPlayingRepository.hasAccess
 
@@ -827,6 +868,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         runCatching { context.startActivity(details) }
             .recoverCatching { context.startActivity(fallback) }
     }
+}
+
+/** Result of validating/adding a custom wallpaper URL. */
+sealed interface WallpaperUrlStatus {
+    data object Idle : WallpaperUrlStatus
+    data object Checking : WallpaperUrlStatus
+    data object Added : WallpaperUrlStatus
+    data class Failed(val message: String) : WallpaperUrlStatus
 }
 
 /** State for the Wi-Fi photo upload screen. */

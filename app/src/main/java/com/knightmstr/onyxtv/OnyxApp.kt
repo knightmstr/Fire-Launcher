@@ -39,7 +39,8 @@ class OnyxApp : Application(), ImageLoaderFactory {
             scope = appScope,
             rotationIntervalMinutes = prefs.settingsFlow.map { it.wallpaperIntervalMinutes }.distinctUntilChanged(),
             source = prefs.settingsFlow.map { it.wallpaperSource }.distinctUntilChanged(),
-            localPhotos = localPhotos
+            localPhotos = localPhotos,
+            customUrls = prefs.customWallpaperUrlsFlow
         )
     }
 

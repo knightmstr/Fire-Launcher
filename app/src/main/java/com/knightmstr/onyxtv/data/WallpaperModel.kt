@@ -16,5 +16,6 @@ data class WallpaperModel(
     companion object {
         const val SOURCE_REDDIT = "reddit"
         const val SOURCE_LOCAL = "local"
+        const val SOURCE_CUSTOM = "custom"
     }
 }
