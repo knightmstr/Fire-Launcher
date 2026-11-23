@@ -100,17 +100,20 @@ class UpdateRepository(private val context: Context) {
         val versionCode = UpdateVersions.versionCodeFromTag(tag) ?: return null
 
         val assets = json.optJSONArray("assets") ?: return null
-        var apk: JSONObject? = null
+        // Prefer the fixed-name OnyxTV.apk; fall back to an older -release.apk asset.
+        var preferredApk: JSONObject? = null
+        var fallbackApk: JSONObject? = null
         var checksums: JSONObject? = null
         for (i in 0 until assets.length()) {
             val a = assets.getJSONObject(i)
             val name = a.optString("name")
             when {
-                name.endsWith("-release.apk") -> apk = a
+                name.equals("OnyxTV.apk", ignoreCase = true) -> preferredApk = a
+                name.endsWith("-release.apk") -> fallbackApk = a
                 name.endsWith(".sha256") -> checksums = a
             }
         }
-        val apkAsset = apk ?: return null
+        val apkAsset = preferredApk ?: fallbackApk ?: return null
 
         return ReleaseInfo(
             tag = tag,
