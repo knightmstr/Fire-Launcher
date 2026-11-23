@@ -50,6 +50,7 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 
 1. **Install Onyx TV.** It takes about 10 minutes and needs a phone or computer once. → **[Install guide](docs/INSTALL.md)**
 2. **Make it your home screen** (optional): the Home button, screensaver and keep-awake. You can set these up on the TV itself. → **[Extras](docs/EXTRAS.md)**
+3. **Debloat** (optional): turn off Amazon's ad and telemetry services. Disabled, not deleted — undo any time. → **[Debloat](docs/DEBLOAT.md)**
 
 Use an AI coding agent? It can [do the whole setup for you](docs/INSTALL.md#let-an-ai-agent-do-it).
 
