@@ -25,7 +25,9 @@ data class LauncherSettings(
     /** Dock: apps always at the bottom. Clean: only the clock until you press a button. */
     val homeLayout: HomeLayout = HomeLayout.DOCK,
     /** Which release channel app updates come from. Stable by default. */
-    val updateChannel: UpdateChannel = UpdateChannel.STABLE
+    val updateChannel: UpdateChannel = UpdateChannel.STABLE,
+    /** How a wallpaper photo is scaled to the screen. */
+    val wallpaperFit: WallpaperFit = WallpaperFit.FILL
 ) {
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
@@ -91,6 +93,22 @@ enum class HomeLayout(val title: String, val description: String) {
     companion object {
         fun fromName(name: String?): HomeLayout =
             entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: DOCK
+    }
+}
+
+enum class WallpaperFit(val title: String, val description: String) {
+    /** Cover the whole screen, cropping edges of off-ratio photos. */
+    FILL("Fill screen", "Covers the screen, trims the edges"),
+    /** Show the whole photo with bars, nothing cropped. */
+    FIT("Fit whole photo", "Shows all of the photo, may leave bars"),
+    /** Stretch to fill exactly, distorting off-ratio photos. */
+    STRETCH("Stretch", "Fills exactly, may distort the photo");
+
+    fun next(): WallpaperFit = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun fromName(name: String?): WallpaperFit =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: FILL
     }
 }
 

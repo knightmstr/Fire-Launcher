@@ -66,7 +66,8 @@ fun Screensaver(
     onNextWallpaper: () -> Unit,
     modifier: Modifier = Modifier,
     nowPlaying: NowPlaying? = null,
-    nightDim: Boolean = true
+    nightDim: Boolean = true,
+    contentScale: ContentScale = ContentScale.Crop
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -97,7 +98,7 @@ fun Screensaver(
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         Crossfade(targetState = wallpaper?.url, animationSpec = tween(2500), label = "ScreensaverFade") { url ->
-            if (url != null) KenBurnsImage(url)
+            if (url != null) KenBurnsImage(url, contentScale)
         }
 
         // Light overall dim, and a soft shade rising from the bottom behind the clock
@@ -161,7 +162,7 @@ fun Screensaver(
 
 /** Wallpaper with a very slow zoom and pan, restarting with each new picture. */
 @Composable
-private fun KenBurnsImage(url: String) {
+private fun KenBurnsImage(url: String, contentScale: ContentScale = ContentScale.Crop) {
     val progress = remember(url) { Animatable(0f) }
     val direction = remember(url) { if (Random.nextBoolean()) 1f else -1f }
     LaunchedEffect(url) {
@@ -170,7 +171,7 @@ private fun KenBurnsImage(url: String) {
     AsyncImage(
         model = url,
         contentDescription = null,
-        contentScale = ContentScale.Crop,
+        contentScale = contentScale,
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {

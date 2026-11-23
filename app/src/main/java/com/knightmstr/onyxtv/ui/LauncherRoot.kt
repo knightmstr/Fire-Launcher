@@ -82,6 +82,7 @@ import com.knightmstr.onyxtv.update.UpdateState
 import com.knightmstr.onyxtv.ui.components.LauncherSettingsDialog
 import com.knightmstr.onyxtv.ui.components.PhotoUploadDialog
 import com.knightmstr.onyxtv.ui.components.WallpaperUrlsDialog
+import com.knightmstr.onyxtv.ui.components.toContentScale
 import com.knightmstr.onyxtv.ui.components.RenameAppDialog
 import com.knightmstr.onyxtv.ui.components.Screensaver
 import com.knightmstr.onyxtv.ui.components.AppRow
@@ -266,6 +267,7 @@ fun LauncherRoot(
             onUploadPhotos = viewModel::openPhotoUpload,
             onClearUploads = viewModel::clearUploadedPhotos,
             onManageWallpaperUrls = viewModel::openWallpaperUrls,
+            wallpaperPreviewUrl = currentWallpaper?.url,
             onEnableKidsMode = { viewModel.setKidsModeEnabled(true) },
             onChangeKidsPin = viewModel::changeKidsPin,
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
@@ -366,7 +368,8 @@ fun LauncherRoot(
             weather = weather,
             onNextWallpaper = viewModel::nextWallpaper,
             nowPlaying = nowPlaying,
-            nightDim = settings.nightDim
+            nightDim = settings.nightDim,
+            contentScale = settings.wallpaperFit.toContentScale()
         )
     }
 }
@@ -492,7 +495,7 @@ fun LauncherContent(
                         .crossfade(true)
                         .build(),
                     contentDescription = wp.title,
-                    contentScale = ContentScale.Crop,
+                    contentScale = settings.wallpaperFit.toContentScale(),
                     modifier = Modifier.fillMaxSize()
                 )
             }

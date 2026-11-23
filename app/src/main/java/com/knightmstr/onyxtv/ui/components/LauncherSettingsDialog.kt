@@ -28,6 +28,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.rounded.Crop
+import coil.compose.AsyncImage
+import com.knightmstr.onyxtv.data.WallpaperFit
 import androidx.tv.material3.Text
 import com.knightmstr.onyxtv.data.LauncherSettings
 import com.knightmstr.onyxtv.home.HomeWatch
@@ -71,6 +80,7 @@ fun LauncherSettingsDialog(
     onUploadPhotos: () -> Unit,
     onClearUploads: () -> Unit,
     onManageWallpaperUrls: () -> Unit,
+    wallpaperPreviewUrl: String?,
     onEnableKidsMode: () -> Unit,
     onChangeKidsPin: () -> Unit,
     onOpenNowPlayingHelp: () -> Unit,
@@ -176,6 +186,27 @@ fun LauncherSettingsDialog(
                 iconTint = Color(0xFF34D399),
                 trailing = if (status.customUrlCount > 0) "${status.customUrlCount}" else null,
                 onClick = onManageWallpaperUrls
+            )
+        }
+        TvMenuItem(
+            title = "Photo fit",
+            subtitle = settings.wallpaperFit.description,
+            icon = Icons.Rounded.Crop,
+            iconTint = Color(0xFF34D399),
+            trailing = settings.wallpaperFit.title,
+            onClick = { onUpdate { it.copy(wallpaperFit = it.wallpaperFit.next()) } }
+        )
+        if (wallpaperPreviewUrl != null) {
+            // Live preview of the current wallpaper in the chosen fit.
+            AsyncImage(
+                model = wallpaperPreviewUrl,
+                contentDescription = "Wallpaper fit preview",
+                contentScale = settings.wallpaperFit.toContentScale(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF000000))
             )
         }
         if (usingPhotos && !status.hasPhotoPermission) {
@@ -354,4 +385,11 @@ private fun SettingsSection(title: String, first: Boolean = false) {
         color = TextSecondary,
         modifier = Modifier.padding(start = 6.dp, top = if (first) 0.dp else 14.dp, bottom = 2.dp)
     )
+}
+
+/** Maps the user's wallpaper fit choice to a Compose [ContentScale]. */
+fun WallpaperFit.toContentScale(): ContentScale = when (this) {
+    WallpaperFit.FILL -> ContentScale.Crop
+    WallpaperFit.FIT -> ContentScale.Fit
+    WallpaperFit.STRETCH -> ContentScale.FillBounds
 }
