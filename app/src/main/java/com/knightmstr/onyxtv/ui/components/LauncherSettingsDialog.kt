@@ -29,8 +29,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import com.knightmstr.onyxtv.data.CardShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -133,6 +138,23 @@ fun LauncherSettingsDialog(
             trailing = settings.cardShape.title,
             onClick = { onUpdate { it.copy(cardShape = it.cardShape.next()) } }
         )
+        // Live preview: two sample tiles at the chosen size and shape.
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(top = 2.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            repeat(2) {
+                Box(
+                    modifier = Modifier
+                        .width(settings.tileWidthDp.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(tilePreviewCorner(settings.cardShape, settings.tileWidthDp))
+                        .background(Color(0xFF2A3140))
+                )
+            }
+        }
         TvMenuItem(
             title = "Show All Apps row on home",
             subtitle = "Off: open the All Apps tile for a full-screen grid",
@@ -203,9 +225,10 @@ fun LauncherSettingsDialog(
                 contentDescription = "Wallpaper fit preview",
                 contentScale = settings.wallpaperFit.toContentScale(),
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .align(Alignment.CenterHorizontally)
+                    .width(220.dp)
                     .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFF000000))
             )
         }
@@ -392,4 +415,12 @@ fun WallpaperFit.toContentScale(): ContentScale = when (this) {
     WallpaperFit.FILL -> ContentScale.Crop
     WallpaperFit.FIT -> ContentScale.Fit
     WallpaperFit.STRETCH -> ContentScale.FillBounds
+}
+
+/** Corner shape for a tile-size preview, matching AppCard's shape scaling (DESIGN_WIDTH = 200). */
+private fun tilePreviewCorner(shape: CardShape, widthDp: Int): RoundedCornerShape = when (shape) {
+    CardShape.ROUNDED -> RoundedCornerShape((12 * widthDp / 200f).dp)
+    CardShape.SQUARE -> RoundedCornerShape((2 * widthDp / 200f).dp)
+    CardShape.SOFT -> RoundedCornerShape((26 * widthDp / 200f).dp)
+    CardShape.PILL -> RoundedCornerShape(percent = 50)
 }
