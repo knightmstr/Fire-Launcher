@@ -180,6 +180,7 @@ fun LauncherRoot(
             searchResults = searchResults,
             isSearchingCities = isSearchingCities,
             currentWallpaper = currentWallpaper,
+            wallpaperContentScale = settings.wallpaperFit.toContentScale(),
             sortOrder = sortOrder,
             searchQuery = searchQuery,
             isSearchActive = isSearchActive,
@@ -400,6 +401,7 @@ fun LauncherContent(
     searchResults: List<CityLocationModel>,
     isSearchingCities: Boolean,
     currentWallpaper: WallpaperModel?,
+    wallpaperContentScale: ContentScale,
     sortOrder: AppSortOrder,
     searchQuery: String,
     isSearchActive: Boolean,
@@ -495,7 +497,7 @@ fun LauncherContent(
                         .crossfade(true)
                         .build(),
                     contentDescription = wp.title,
-                    contentScale = settings.wallpaperFit.toContentScale(),
+                    contentScale = wallpaperContentScale,
                     modifier = Modifier.fillMaxSize()
                 )
             }
