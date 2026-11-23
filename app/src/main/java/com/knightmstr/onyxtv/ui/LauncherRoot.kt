@@ -82,6 +82,7 @@ import com.knightmstr.onyxtv.update.UpdateState
 import com.knightmstr.onyxtv.ui.components.LauncherSettingsDialog
 import com.knightmstr.onyxtv.ui.components.PhotoUploadDialog
 import com.knightmstr.onyxtv.ui.components.WallpaperUrlsDialog
+import com.knightmstr.onyxtv.ui.components.toContentScale
 import com.knightmstr.onyxtv.ui.components.RenameAppDialog
 import com.knightmstr.onyxtv.ui.components.Screensaver
 import com.knightmstr.onyxtv.ui.components.AppRow
@@ -179,6 +180,7 @@ fun LauncherRoot(
             searchResults = searchResults,
             isSearchingCities = isSearchingCities,
             currentWallpaper = currentWallpaper,
+            wallpaperContentScale = settings.wallpaperFit.toContentScale(),
             sortOrder = sortOrder,
             searchQuery = searchQuery,
             isSearchActive = isSearchActive,
@@ -266,6 +268,7 @@ fun LauncherRoot(
             onUploadPhotos = viewModel::openPhotoUpload,
             onClearUploads = viewModel::clearUploadedPhotos,
             onManageWallpaperUrls = viewModel::openWallpaperUrls,
+            wallpaperPreviewUrl = currentWallpaper?.url,
             onEnableKidsMode = { viewModel.setKidsModeEnabled(true) },
             onChangeKidsPin = viewModel::changeKidsPin,
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
@@ -366,7 +369,8 @@ fun LauncherRoot(
             weather = weather,
             onNextWallpaper = viewModel::nextWallpaper,
             nowPlaying = nowPlaying,
-            nightDim = settings.nightDim
+            nightDim = settings.nightDim,
+            contentScale = settings.wallpaperFit.toContentScale()
         )
     }
 }
@@ -397,6 +401,7 @@ fun LauncherContent(
     searchResults: List<CityLocationModel>,
     isSearchingCities: Boolean,
     currentWallpaper: WallpaperModel?,
+    wallpaperContentScale: ContentScale,
     sortOrder: AppSortOrder,
     searchQuery: String,
     isSearchActive: Boolean,
@@ -492,7 +497,7 @@ fun LauncherContent(
                         .crossfade(true)
                         .build(),
                     contentDescription = wp.title,
-                    contentScale = ContentScale.Crop,
+                    contentScale = wallpaperContentScale,
                     modifier = Modifier.fillMaxSize()
                 )
             }

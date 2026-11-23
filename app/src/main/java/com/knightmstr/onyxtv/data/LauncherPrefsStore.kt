@@ -64,6 +64,7 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_SHOW_ALL_APPS_ROW = booleanPreferencesKey("settings_show_all_apps_row")
         private val KEY_NIGHT_DIM = booleanPreferencesKey("settings_screensaver_night_dim")
         private val KEY_UPDATE_CHANNEL = stringPreferencesKey("settings_update_channel")
+        private val KEY_WALLPAPER_FIT = stringPreferencesKey("settings_wallpaper_fit")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
         private val KEY_CUSTOM_WALLPAPER_URLS = stringPreferencesKey("wallpaper_custom_urls")
@@ -159,7 +160,8 @@ class LauncherPrefsStore(private val context: Context) {
             showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false,
             nightDim = p[KEY_NIGHT_DIM] ?: true,
             homeLayout = HomeLayout.fromName(p[KEY_HOME_LAYOUT]),
-            updateChannel = UpdateChannel.fromName(p[KEY_UPDATE_CHANNEL])
+            updateChannel = UpdateChannel.fromName(p[KEY_UPDATE_CHANNEL]),
+            wallpaperFit = WallpaperFit.fromName(p[KEY_WALLPAPER_FIT])
         )
     }
 
@@ -176,6 +178,7 @@ class LauncherPrefsStore(private val context: Context) {
             p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
             p[KEY_NIGHT_DIM] = settings.nightDim
             p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
+            p[KEY_WALLPAPER_FIT] = settings.wallpaperFit.name
         }
     }
 
