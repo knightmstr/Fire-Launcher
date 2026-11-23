@@ -39,8 +39,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.knightmstr.onyxtv.upload.LanAddress
+import com.knightmstr.onyxtv.upload.PhotoUploadServer
 
 /**
  * Main MVVM coordinator. Exposes StateFlows for the app library (sorted, renamed, hidden),
@@ -409,6 +414,86 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         wallpaperRepository.reload()
     }
 
+    // ------------------------------------------------------------------ Photo upload (Wi-Fi)
+
+    /** Number of photos in the app's own upload folder (what adb push / the uploader write to). */
+    private val _uploadedPhotoCount = MutableStateFlow(0)
+    val uploadedPhotoCount: StateFlow<Int> = _uploadedPhotoCount.asStateFlow()
+
+    private val _uploadUi = MutableStateFlow(PhotoUploadUi())
+    val uploadUi: StateFlow<PhotoUploadUi> = _uploadUi.asStateFlow()
+
+    private var uploadServer: PhotoUploadServer? = null
+
+    init {
+        viewModelScope.launch { refreshUploadedCount() }
+    }
+
+    private suspend fun refreshUploadedCount() {
+        val count = withContext(Dispatchers.IO) { localPhotos.listUploads().size }
+        _uploadedPhotoCount.value = count
+        _uploadUi.update { it.copy(count = count) }
+    }
+
+    /** Opens the upload screen and starts the Wi-Fi server. */
+    fun openPhotoUpload() {
+        if (uploadServer != null) { _uploadUi.update { it.copy(open = true) }; return }
+        val app = getApplication<Application>()
+        val ip = LanAddress.wifiIpv4(app)
+        if (ip == null) {
+            _uploadUi.value = PhotoUploadUi(open = true, running = false, error = "Connect the TV to Wi-Fi first.")
+            viewModelScope.launch { refreshUploadedCount() }
+            return
+        }
+        val token = randomToken()
+        try {
+            val server = PhotoUploadServer(UPLOAD_PORT, token, localPhotos) {
+                // Fired on every upload/delete from the browser; refresh wallpapers and the count.
+                viewModelScope.launch {
+                    wallpaperRepository.reload()
+                    refreshUploadedCount()
+                }
+            }
+            server.startServer()
+            uploadServer = server
+            _uploadUi.value = PhotoUploadUi(
+                open = true,
+                running = true,
+                url = "http://$ip:$UPLOAD_PORT/?t=$token"
+            )
+            viewModelScope.launch { refreshUploadedCount() }
+        } catch (e: Exception) {
+            _uploadUi.value = PhotoUploadUi(open = true, running = false, error = "Couldn't start the uploader.")
+        }
+    }
+
+    /** Closes the upload screen and stops the server. */
+    fun closePhotoUpload() {
+        stopUploadServer()
+        _uploadUi.value = PhotoUploadUi(open = false, count = _uploadedPhotoCount.value)
+        wallpaperRepository.reload()
+    }
+
+    private fun stopUploadServer() {
+        uploadServer?.let { runCatching { it.stop() } }
+        uploadServer = null
+    }
+
+    /** Deletes every uploaded photo (the app's own folder only; never the gallery album). */
+    fun clearUploadedPhotos() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { localPhotos.clearUploads() }
+            wallpaperRepository.reload()
+            refreshUploadedCount()
+        }
+    }
+
+    private fun randomToken(): String {
+        val alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+        val random = java.security.SecureRandom()
+        return (1..8).map { alphabet[random.nextInt(alphabet.length)] }.joinToString("")
+    }
+
     val nowPlaying: StateFlow<NowPlaying?> = nowPlayingRepository.nowPlaying
     val hasNowPlayingAccess: StateFlow<Boolean> = nowPlayingRepository.hasAccess
 
@@ -700,7 +785,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     override fun onCleared() {
         nowPlayingRepository.stop()
+        stopUploadServer()
         super.onCleared()
+    }
+
+    private companion object {
+        const val UPLOAD_PORT = 8723
     }
 
     /** Re-scans installed apps from PackageManager. */
@@ -738,6 +828,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             .recoverCatching { context.startActivity(fallback) }
     }
 }
+
+/** State for the Wi-Fi photo upload screen. */
+data class PhotoUploadUi(
+    val open: Boolean = false,
+    val running: Boolean = false,
+    val url: String? = null,
+    val count: Int = 0,
+    val error: String? = null
+)
 
 enum class PinPurpose { CREATE, EXIT_KIDS_MODE }
 

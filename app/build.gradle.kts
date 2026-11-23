@@ -136,6 +136,11 @@ gradle.taskGraph.whenReady {
 }
 
 dependencies {
+    // Tiny embedded HTTP server for the Wi-Fi photo uploader (LAN only, runs on demand)
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+    // QR code generation for the uploader address (pure-Java, no UI dependency)
+    implementation("com.google.zxing:core:3.5.3")
+
     // AndroidX Core & Activity Compose
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.2")

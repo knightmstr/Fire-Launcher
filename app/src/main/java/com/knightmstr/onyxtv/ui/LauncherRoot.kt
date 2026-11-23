@@ -80,6 +80,7 @@ import com.knightmstr.onyxtv.ui.components.UpdateChip
 import com.knightmstr.onyxtv.ui.components.UpdateDialog
 import com.knightmstr.onyxtv.update.UpdateState
 import com.knightmstr.onyxtv.ui.components.LauncherSettingsDialog
+import com.knightmstr.onyxtv.ui.components.PhotoUploadDialog
 import com.knightmstr.onyxtv.ui.components.RenameAppDialog
 import com.knightmstr.onyxtv.ui.components.Screensaver
 import com.knightmstr.onyxtv.ui.components.AppRow
@@ -128,6 +129,8 @@ fun LauncherRoot(
     val showNowPlayingHelp by viewModel.showNowPlayingHelp.collectAsStateWithLifecycle()
     val hiddenAppCount by viewModel.hiddenAppCount.collectAsStateWithLifecycle()
     val localPhotoCount by viewModel.localPhotoCount.collectAsStateWithLifecycle()
+    val uploadedPhotoCount by viewModel.uploadedPhotoCount.collectAsStateWithLifecycle()
+    val uploadUi by viewModel.uploadUi.collectAsStateWithLifecycle()
     val hasPhotoPermission by viewModel.hasPhotoPermission.collectAsStateWithLifecycle()
     val hasKidsPin by viewModel.hasKidsPin.collectAsStateWithLifecycle()
     val kidsAppCount by viewModel.kidsAppCount.collectAsStateWithLifecycle()
@@ -234,6 +237,7 @@ fun LauncherRoot(
                 isCelsius = isCelsius,
                 hiddenAppCount = hiddenAppCount,
                 localPhotoCount = localPhotoCount,
+                uploadedPhotoCount = uploadedPhotoCount,
                 hasPhotoPermission = hasPhotoPermission,
                 hasKidsPin = hasKidsPin,
                 kidsAppCount = kidsAppCount,
@@ -254,6 +258,8 @@ fun LauncherRoot(
             onUpdate = viewModel::updateSettings,
             onToggleUnit = viewModel::toggleTemperatureUnit,
             onRequestPhotoPermission = viewModel::requestPhotoPermission,
+            onUploadPhotos = viewModel::openPhotoUpload,
+            onClearUploads = viewModel::clearUploadedPhotos,
             onEnableKidsMode = { viewModel.setKidsModeEnabled(true) },
             onChangeKidsPin = viewModel::changeKidsPin,
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
@@ -262,6 +268,14 @@ fun LauncherRoot(
             onScreensaverTakeover = viewModel::onScreensaverTakeoverPressed,
             onKeepAwake = viewModel::onKeepAwakePressed,
             onDismiss = viewModel::closeSettings
+        )
+    }
+
+    if (uploadUi.open) {
+        PhotoUploadDialog(
+            ui = uploadUi,
+            onClearAll = viewModel::clearUploadedPhotos,
+            onDismiss = viewModel::closePhotoUpload
         )
     }
 
