@@ -3,12 +3,14 @@ package com.knightmstr.onyxtv.update
 import android.content.Context
 import android.os.Build
 import com.knightmstr.onyxtv.BuildConfig
+import com.knightmstr.onyxtv.data.UpdateChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -26,6 +28,7 @@ class UpdateRepository(private val context: Context) {
 
     companion object {
         private const val API_LATEST = "https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases/latest"
+        private const val API_LIST = "https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases?per_page=20"
         private const val MAX_APK_BYTES = 100L * 1024 * 1024
         private const val MAX_NOTES_CHARS = 1500
     }
@@ -40,13 +43,17 @@ class UpdateRepository(private val context: Context) {
 
     // ------------------------------------------------------------------ 1. Check
 
-    /** Asks GitHub for the latest release. Quiet = don't show errors (background checks). */
-    suspend fun check(quiet: Boolean) {
+    /**
+     * Asks GitHub for the newest release on the chosen [channel]. Quiet = don't show errors
+     * (background checks). Stable = latest full release; Beta = newest release including
+     * pre-releases.
+     */
+    suspend fun check(quiet: Boolean, channel: UpdateChannel) {
         val busy = _state.value
         if (busy is UpdateState.Downloading || busy is UpdateState.Installing) return
         if (!quiet) _state.value = UpdateState.Checking
 
-        val result = runCatching { fetchLatestRelease() }
+        val result = runCatching { fetchRelease(channel) }
         _state.value = result.fold(
             onSuccess = { release ->
                 when {
@@ -63,14 +70,36 @@ class UpdateRepository(private val context: Context) {
         if (result.isSuccess) cleanOldDownloads()
     }
 
-    private suspend fun fetchLatestRelease(): ReleaseInfo? = withContext(Dispatchers.IO) {
-        val json = JSONObject(httpGetText(API_LATEST))
-        if (json.optBoolean("draft") || json.optBoolean("prerelease")) return@withContext null
+    private suspend fun fetchRelease(channel: UpdateChannel): ReleaseInfo? = withContext(Dispatchers.IO) {
+        when (channel) {
+            UpdateChannel.STABLE -> {
+                // GitHub's /releases/latest already excludes drafts and pre-releases.
+                val json = JSONObject(httpGetText(API_LATEST))
+                if (json.optBoolean("draft") || json.optBoolean("prerelease")) null else parseRelease(json)
+            }
+            UpdateChannel.BETA -> {
+                // Newest installable release of any kind (pre-releases included), by version code.
+                val text = httpGetText(API_LIST)
+                if (!text.trimStart().startsWith("[")) return@withContext null
+                val releases = JSONArray(text)
+                var best: ReleaseInfo? = null
+                for (i in 0 until releases.length()) {
+                    val json = releases.getJSONObject(i)
+                    if (json.optBoolean("draft")) continue
+                    val info = parseRelease(json) ?: continue
+                    if (best == null || info.versionCode > best.versionCode) best = info
+                }
+                best
+            }
+        }
+    }
 
+    /** Builds a [ReleaseInfo] from one release's JSON, or null if it has no installable APK. */
+    private fun parseRelease(json: JSONObject): ReleaseInfo? {
         val tag = json.optString("tag_name")
-        val versionCode = UpdateVersions.versionCodeFromTag(tag) ?: return@withContext null
+        val versionCode = UpdateVersions.versionCodeFromTag(tag) ?: return null
 
-        val assets = json.optJSONArray("assets") ?: return@withContext null
+        val assets = json.optJSONArray("assets") ?: return null
         var apk: JSONObject? = null
         var checksums: JSONObject? = null
         for (i in 0 until assets.length()) {
@@ -81,9 +110,9 @@ class UpdateRepository(private val context: Context) {
                 name.endsWith(".sha256") -> checksums = a
             }
         }
-        val apkAsset = apk ?: return@withContext null
+        val apkAsset = apk ?: return null
 
-        ReleaseInfo(
+        return ReleaseInfo(
             tag = tag,
             versionName = tag.removePrefix("v"),
             versionCode = versionCode,

@@ -12,17 +12,33 @@ class UpdateVersionsTest {
 
     @Test
     fun `version codes match the release workflow formula`() {
-        assertEquals(10100, UpdateVersions.versionCodeFromTag("v1.1.0"))
-        assertEquals(10203, UpdateVersions.versionCodeFromTag("v1.2.3"))
-        assertEquals(20000, UpdateVersions.versionCodeFromTag("2.0"))
-        assertEquals(10200, UpdateVersions.versionCodeFromTag("v1.2.0-beta1"))
+        // (MAJOR*10000 + MINOR*100 + PATCH) * 1000 + 999 for a stable release.
+        assertEquals(10100999, UpdateVersions.versionCodeFromTag("v1.1.0"))
+        assertEquals(10203999, UpdateVersions.versionCodeFromTag("v1.2.3"))
+        assertEquals(20000999, UpdateVersions.versionCodeFromTag("2.0"))
     }
 
     @Test
-    fun `non-semver tags are ignored`() {
+    fun `pre-releases rank below their stable but above the previous version`() {
+        val prevStable = UpdateVersions.versionCodeFromTag("v1.5.2")!!
+        val beta1 = UpdateVersions.versionCodeFromTag("v1.6.0-beta.1")!!
+        val beta2 = UpdateVersions.versionCodeFromTag("v1.6.0-beta.2")!!
+        val stable = UpdateVersions.versionCodeFromTag("v1.6.0")!!
+
+        assertEquals(10600001, beta1)
+        assertEquals(10600999, stable)
+        assertTrue(beta1 < beta2)        // later beta wins
+        assertTrue(beta2 < stable)       // final stable promotes beta testers
+        assertTrue(prevStable < beta1)   // beta is newer than the last stable
+    }
+
+    @Test
+    fun `non-semver and malformed pre-release tags are ignored`() {
         assertNull(UpdateVersions.versionCodeFromTag("v1_x"))
         assertNull(UpdateVersions.versionCodeFromTag(""))
         assertNull(UpdateVersions.versionCodeFromTag("v1.100.0"))
+        assertNull(UpdateVersions.versionCodeFromTag("v1.2.0-beta1")) // needs the dot: -beta.N
+        assertNull(UpdateVersions.versionCodeFromTag("v1.2.0-foo.1")) // unknown pre-release label
     }
 
     @Test
