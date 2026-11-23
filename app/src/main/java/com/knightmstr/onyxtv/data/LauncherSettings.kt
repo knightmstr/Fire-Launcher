@@ -23,7 +23,9 @@ data class LauncherSettings(
     /** Darken the screensaver between 10pm and 6am. */
     val nightDim: Boolean = true,
     /** Dock: apps always at the bottom. Clean: only the clock until you press a button. */
-    val homeLayout: HomeLayout = HomeLayout.DOCK
+    val homeLayout: HomeLayout = HomeLayout.DOCK,
+    /** Which release channel app updates come from. Stable by default. */
+    val updateChannel: UpdateChannel = UpdateChannel.STABLE
 ) {
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
@@ -89,6 +91,20 @@ enum class HomeLayout(val title: String, val description: String) {
     companion object {
         fun fromName(name: String?): HomeLayout =
             entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: DOCK
+    }
+}
+
+enum class UpdateChannel(val title: String, val description: String) {
+    /** Only full releases — the tested builds everyone gets. */
+    STABLE("Stable", "Only tested releases"),
+    /** The newest release including pre-releases — early test builds, may be rough. */
+    BETA("Beta", "Early test builds, may be rough");
+
+    fun next(): UpdateChannel = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun fromName(name: String?): UpdateChannel =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: STABLE
     }
 }
 

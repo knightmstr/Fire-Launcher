@@ -379,7 +379,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun checkForUpdates(quiet: Boolean) {
-        viewModelScope.launch { updates.check(quiet) }
+        viewModelScope.launch { updates.check(quiet, settings.value.updateChannel) }
     }
 
     fun startUpdate() {
@@ -772,7 +772,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             delay(20_000L)
             while (isActive) {
-                updates.check(quiet = true)
+                updates.check(quiet = true, channel = settings.value.updateChannel)
                 delay(12 * 60 * 60 * 1000L)
             }
         }

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.SystemUpdate
@@ -320,6 +321,14 @@ fun LauncherSettingsDialog(
             iconTint = Color(0xFF38BDF8),
             trailing = "v${status.installedVersion}",
             onClick = onOpenUpdates
+        )
+        TvMenuItem(
+            title = "Update channel",
+            subtitle = settings.updateChannel.description,
+            icon = Icons.Rounded.Science,
+            iconTint = Color(0xFFA78BFA),
+            trailing = settings.updateChannel.title,
+            onClick = { onUpdate { it.copy(updateChannel = it.updateChannel.next()) } }
         )
     }
 }

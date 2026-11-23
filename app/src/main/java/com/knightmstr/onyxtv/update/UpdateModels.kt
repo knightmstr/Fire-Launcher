@@ -30,18 +30,38 @@ sealed interface UpdateState {
 /** Pure helpers shared with the release workflow's numbering scheme (unit tested). */
 object UpdateVersions {
 
-    private val SEMVER = Regex("""^v?(\d+)\.(\d+)(?:\.(\d+))?""")
+    private val SEMVER = Regex("""^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-(?:alpha|beta|rc)\.(\d+))?""")
+
+    /** A stable release ranks above all of its own pre-releases. */
+    const val STABLE_PRE = 999
 
     /**
-     * Same formula as .github/workflows/release.yml: MAJOR*10000 + MINOR*100 + PATCH.
-     * "v1.2.3" -> 10203, "v1.2" -> 10200. Returns null for tags like "v1_x".
+     * Same formula as .github/workflows/release.yml:
+     * `(MAJOR*10000 + MINOR*100 + PATCH) * 1000 + PRE`, where PRE is 999 for a stable release and
+     * the pre-release number (1..998) for `-beta.N` / `-rc.N` / `-alpha.N`.
+     *
+     *   "v1.2.3"        -> 10203999   (stable)
+     *   "v1.2.3-beta.1" -> 10203001   (beta, ranks below the stable 1.2.3)
+     *   "v1.3.0-beta.1" -> 10300001   (ranks above stable 1.2.3)
+     *
+     * Returns null for tags we can't order: "v1_x", or a "-suffix" that isn't a recognised,
+     * numbered pre-release (so a malformed pre-release never outranks a real stable).
      */
     fun versionCodeFromTag(tag: String): Int? {
-        val m = SEMVER.find(tag.trim()) ?: return null
-        val (major, minor) = m.groupValues[1].toInt() to m.groupValues[2].toInt()
+        val trimmed = tag.trim()
+        val m = SEMVER.find(trimmed) ?: return null
+        val major = m.groupValues[1].toInt()
+        val minor = m.groupValues[2].toInt()
         val patch = m.groupValues[3].toIntOrNull() ?: 0
         if (minor > 99 || patch > 99) return null
-        return major * 10000 + minor * 100 + patch
+
+        val preNumber = m.groupValues[4]
+        val pre = when {
+            !trimmed.contains('-') -> STABLE_PRE
+            preNumber.isNotEmpty() -> preNumber.toInt().coerceIn(1, STABLE_PRE - 1)
+            else -> return null // has a '-' but not a recognised -beta.N / -rc.N / -alpha.N
+        }
+        return (major * 10000 + minor * 100 + patch) * 1000 + pre
     }
 
     fun isNewer(release: ReleaseInfo, installedVersionCode: Int): Boolean =

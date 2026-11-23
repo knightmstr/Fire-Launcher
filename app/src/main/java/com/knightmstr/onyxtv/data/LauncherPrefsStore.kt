@@ -63,6 +63,7 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_HOME_LAYOUT = stringPreferencesKey("settings_home_layout")
         private val KEY_SHOW_ALL_APPS_ROW = booleanPreferencesKey("settings_show_all_apps_row")
         private val KEY_NIGHT_DIM = booleanPreferencesKey("settings_screensaver_night_dim")
+        private val KEY_UPDATE_CHANNEL = stringPreferencesKey("settings_update_channel")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
 
@@ -153,7 +154,8 @@ class LauncherPrefsStore(private val context: Context) {
             cardShape = CardShape.fromName(p[KEY_CARD_SHAPE]),
             showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false,
             nightDim = p[KEY_NIGHT_DIM] ?: true,
-            homeLayout = HomeLayout.fromName(p[KEY_HOME_LAYOUT])
+            homeLayout = HomeLayout.fromName(p[KEY_HOME_LAYOUT]),
+            updateChannel = UpdateChannel.fromName(p[KEY_UPDATE_CHANNEL])
         )
     }
 
@@ -169,6 +171,7 @@ class LauncherPrefsStore(private val context: Context) {
             p[KEY_HOME_LAYOUT] = settings.homeLayout.name
             p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
             p[KEY_NIGHT_DIM] = settings.nightDim
+            p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
         }
     }
 
