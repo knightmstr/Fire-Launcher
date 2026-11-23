@@ -9,6 +9,8 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.ChildCare
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PhotoLibrary
@@ -39,6 +41,7 @@ data class SettingsStatus(
     val isCelsius: Boolean,
     val hiddenAppCount: Int,
     val localPhotoCount: Int,
+    val uploadedPhotoCount: Int,
     val hasPhotoPermission: Boolean,
     val hasKidsPin: Boolean,
     val kidsAppCount: Int,
@@ -62,6 +65,8 @@ fun LauncherSettingsDialog(
     onUpdate: ((LauncherSettings) -> LauncherSettings) -> Unit,
     onToggleUnit: () -> Unit,
     onRequestPhotoPermission: () -> Unit,
+    onUploadPhotos: () -> Unit,
+    onClearUploads: () -> Unit,
     onEnableKidsMode: () -> Unit,
     onChangeKidsPin: () -> Unit,
     onOpenNowPlayingHelp: () -> Unit,
@@ -169,6 +174,22 @@ fun LauncherSettingsDialog(
                 icon = Icons.Rounded.Lock,
                 iconTint = Color(0xFF34D399),
                 onClick = onRequestPhotoPermission
+            )
+        }
+        TvMenuItem(
+            title = "Upload photos over Wi-Fi",
+            subtitle = "Open a web address on your phone — no cable or adb",
+            icon = Icons.Rounded.CloudUpload,
+            iconTint = Color(0xFF34D399),
+            onClick = onUploadPhotos
+        )
+        if (status.uploadedPhotoCount > 0) {
+            TvMenuItem(
+                title = "Clear uploaded photos",
+                subtitle = "Removes the ${status.uploadedPhotoCount} photo${if (status.uploadedPhotoCount == 1) "" else "s"} uploaded here (not your gallery)",
+                icon = Icons.Rounded.DeleteSweep,
+                iconTint = Color(0xFFF87171),
+                onClick = onClearUploads
             )
         }
         TvMenuItem(

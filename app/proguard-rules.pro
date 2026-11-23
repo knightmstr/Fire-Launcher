@@ -12,3 +12,7 @@
 # Coil image loader compatibility
 -keep class coil.** { *; }
 -dontwarn coil.**
+
+# NanoHTTPD embedded server (photo uploader)
+-keep class fi.iki.elonen.** { *; }
+-dontwarn fi.iki.elonen.**
