@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Alignment
 import com.knightmstr.onyxtv.data.CardShape
@@ -42,6 +43,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.rounded.Crop
 import coil.compose.AsyncImage
 import com.knightmstr.onyxtv.data.WallpaperFit
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import com.knightmstr.onyxtv.data.LauncherSettings
 import com.knightmstr.onyxtv.home.HomeWatch
@@ -138,21 +140,32 @@ fun LauncherSettingsDialog(
             trailing = settings.cardShape.title,
             onClick = { onUpdate { it.copy(cardShape = it.cardShape.next()) } }
         )
-        // Live preview: two sample tiles at the chosen size and shape.
+        // Live preview: two sample app tiles at the chosen size and shape.
         Row(
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
                 .padding(top = 2.dp, bottom = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            repeat(2) {
+            listOf(
+                Icons.Rounded.PhotoLibrary to Color(0xFF38BDF8),
+                Icons.Rounded.MusicNote to Color(0xFFF472B6)
+            ).forEach { (sampleIcon, tint) ->
                 Box(
                     modifier = Modifier
                         .width(settings.tileWidthDp.dp)
                         .aspectRatio(16f / 9f)
                         .clip(tilePreviewCorner(settings.cardShape, settings.tileWidthDp))
-                        .background(Color(0xFF2A3140))
-                )
+                        .background(Color(0xFF2A3140)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = sampleIcon,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size((settings.tileWidthDp * 0.3f).dp)
+                    )
+                }
             }
         }
         TvMenuItem(
