@@ -31,9 +31,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
@@ -115,6 +120,7 @@ fun LauncherSettingsDialog(
         onDismiss = onDismiss,
         width = 540.dp
     ) {
+        SettingsGroup(expanded = isOpen("Home screen")) {
         CollapsibleSectionHeader(
             title = "Home screen",
             icon = Icons.Rounded.Dashboard,
@@ -211,6 +217,8 @@ fun LauncherSettingsDialog(
         )
 
         }
+        }
+        SettingsGroup(expanded = isOpen("Wallpaper")) {
         CollapsibleSectionHeader(
             title = "Wallpaper",
             icon = Icons.Rounded.Wallpaper,
@@ -308,6 +316,8 @@ fun LauncherSettingsDialog(
         )
 
         }
+        }
+        SettingsGroup(expanded = isOpen("Screensaver")) {
         CollapsibleSectionHeader(
             title = "Screensaver",
             icon = Icons.Rounded.Bedtime,
@@ -369,6 +379,8 @@ fun LauncherSettingsDialog(
         )
 
         }
+        }
+        SettingsGroup(expanded = isOpen("Fire TV")) {
         CollapsibleSectionHeader(
             title = "Fire TV",
             icon = Icons.Rounded.Home,
@@ -403,6 +415,8 @@ fun LauncherSettingsDialog(
         )
 
         }
+        }
+        SettingsGroup(expanded = isOpen("Kids mode")) {
         CollapsibleSectionHeader(
             title = "Kids mode",
             icon = Icons.Rounded.ChildCare,
@@ -433,6 +447,8 @@ fun LauncherSettingsDialog(
         }
 
         }
+        }
+        SettingsGroup(expanded = isOpen("About")) {
         CollapsibleSectionHeader(
             title = "About",
             icon = Icons.Rounded.SystemUpdate,
@@ -457,7 +473,36 @@ fun LauncherSettingsDialog(
             onClick = { onUpdate { it.copy(updateChannel = it.updateChannel.next()) } }
         )
         }
+        }
     }
+}
+
+/**
+ * Wraps a settings group (its header plus revealed rows) so an expanded group reads as one box.
+ * Collapsed groups show just their header with no frame.
+ */
+@Composable
+private fun SettingsGroup(
+    expanded: Boolean,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (expanded) {
+                    Modifier
+                        .background(Color(0x14FFFFFF), shape)
+                        .border(BorderStroke(1.dp, Color(0x26FFFFFF)), shape)
+                        .padding(4.dp)
+                } else {
+                    Modifier
+                }
+            ),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        content = content
+    )
 }
 
 /** A tappable header for a group of settings; OK toggles the group open or closed. */
