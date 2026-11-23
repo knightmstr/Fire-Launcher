@@ -22,6 +22,9 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -100,6 +103,11 @@ fun LauncherSettingsDialog(
     val firstItem = rememberInitialFocus()
     val usingPhotos = settings.wallpaperSource == WallpaperSource.MY_PHOTOS
 
+    // Which settings groups are expanded. Home screen opens by default; the rest start collapsed.
+    val expanded = remember { mutableStateMapOf("Home screen" to true) }
+    val isOpen: (String) -> Boolean = { expanded[it] == true }
+    val toggle: (String) -> Unit = { expanded[it] = !(expanded[it] ?: false) }
+
     TvDialogFrame(
         title = "Launcher Settings",
         subtitle = "OK to change • Left/Right on sliders • Back to close",
@@ -107,14 +115,20 @@ fun LauncherSettingsDialog(
         onDismiss = onDismiss,
         width = 540.dp
     ) {
-        SettingsSection("Home screen", first = true)
+        CollapsibleSectionHeader(
+            title = "Home screen",
+            icon = Icons.Rounded.Dashboard,
+            expanded = isOpen("Home screen"),
+            onToggle = { toggle("Home screen") },
+            modifier = Modifier.focusRequester(firstItem)
+        )
+        if (isOpen("Home screen")) {
         TvMenuItem(
             title = "Home layout",
             subtitle = settings.homeLayout.description,
             icon = Icons.Rounded.Dashboard,
             iconTint = Color(0xFF34D399),
             trailing = settings.homeLayout.title,
-            modifier = Modifier.focusRequester(firstItem),
             onClick = { onUpdate { it.copy(homeLayout = it.homeLayout.next()) } }
         )
         TvSliderItem(
@@ -196,7 +210,14 @@ fun LauncherSettingsDialog(
             onClick = onToggleUnit
         )
 
-        SettingsSection("Wallpaper")
+        }
+        CollapsibleSectionHeader(
+            title = "Wallpaper",
+            icon = Icons.Rounded.Wallpaper,
+            expanded = isOpen("Wallpaper"),
+            onToggle = { toggle("Wallpaper") }
+        )
+        if (isOpen("Wallpaper")) {
         TvMenuItem(
             title = "Wallpapers from",
             subtitle = when (settings.wallpaperSource) {
@@ -286,7 +307,14 @@ fun LauncherSettingsDialog(
             }
         )
 
-        SettingsSection("Screensaver")
+        }
+        CollapsibleSectionHeader(
+            title = "Screensaver",
+            icon = Icons.Rounded.Bedtime,
+            expanded = isOpen("Screensaver"),
+            onToggle = { toggle("Screensaver") }
+        )
+        if (isOpen("Screensaver")) {
         TvMenuItem(
             title = "Use as Fire TV screensaver",
             subtitle = when {
@@ -340,7 +368,14 @@ fun LauncherSettingsDialog(
             onClick = onKeepAwake
         )
 
-        SettingsSection("Fire TV")
+        }
+        CollapsibleSectionHeader(
+            title = "Fire TV",
+            icon = Icons.Rounded.Home,
+            expanded = isOpen("Fire TV"),
+            onToggle = { toggle("Fire TV") }
+        )
+        if (isOpen("Fire TV")) {
         TvMenuItem(
             title = "Home button opens Onyx TV",
             subtitle = when (status.homeWatch) {
@@ -367,7 +402,14 @@ fun LauncherSettingsDialog(
             onClick = onOpenNowPlayingHelp
         )
 
-        SettingsSection("Kids mode")
+        }
+        CollapsibleSectionHeader(
+            title = "Kids mode",
+            icon = Icons.Rounded.ChildCare,
+            expanded = isOpen("Kids mode"),
+            onToggle = { toggle("Kids mode") }
+        )
+        if (isOpen("Kids mode")) {
         TvMenuItem(
             title = "Kids mode",
             subtitle = when (status.kidsAppCount) {
@@ -390,7 +432,14 @@ fun LauncherSettingsDialog(
             )
         }
 
-        SettingsSection("About")
+        }
+        CollapsibleSectionHeader(
+            title = "About",
+            icon = Icons.Rounded.SystemUpdate,
+            expanded = isOpen("About"),
+            onToggle = { toggle("About") }
+        )
+        if (isOpen("About")) {
         TvMenuItem(
             title = "App updates",
             subtitle = status.updateSummary,
@@ -407,19 +456,26 @@ fun LauncherSettingsDialog(
             trailing = settings.updateChannel.title,
             onClick = { onUpdate { it.copy(updateChannel = it.updateChannel.next()) } }
         )
+        }
     }
 }
 
-/** Small heading that starts a group of related settings. */
+/** A tappable header for a group of settings; OK toggles the group open or closed. */
 @Composable
-private fun SettingsSection(title: String, first: Boolean = false) {
-    Text(
-        text = title.uppercase(),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.2.sp,
-        color = TextSecondary,
-        modifier = Modifier.padding(start = 6.dp, top = if (first) 0.dp else 14.dp, bottom = 2.dp)
+private fun CollapsibleSectionHeader(
+    title: String,
+    icon: ImageVector,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    TvMenuItem(
+        title = title,
+        icon = icon,
+        iconTint = Color(0xFF9CA3AF),
+        trailing = if (expanded) "Open" else "Closed",
+        modifier = modifier,
+        onClick = onToggle
     )
 }
 
