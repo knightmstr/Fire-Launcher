@@ -11,6 +11,7 @@ import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.MusicNote
@@ -43,6 +44,7 @@ data class SettingsStatus(
     val hiddenAppCount: Int,
     val localPhotoCount: Int,
     val uploadedPhotoCount: Int,
+    val customUrlCount: Int,
     val hasPhotoPermission: Boolean,
     val hasKidsPin: Boolean,
     val kidsAppCount: Int,
@@ -68,6 +70,7 @@ fun LauncherSettingsDialog(
     onRequestPhotoPermission: () -> Unit,
     onUploadPhotos: () -> Unit,
     onClearUploads: () -> Unit,
+    onManageWallpaperUrls: () -> Unit,
     onEnableKidsMode: () -> Unit,
     onChangeKidsPin: () -> Unit,
     onOpenNowPlayingHelp: () -> Unit,
@@ -151,23 +154,30 @@ fun LauncherSettingsDialog(
         SettingsSection("Wallpaper")
         TvMenuItem(
             title = "Wallpapers from",
-            subtitle = when {
-                !usingPhotos -> "Downloads new wallpapers from Reddit"
-                status.localPhotoCount > 0 -> "${status.localPhotoCount} photos found"
-                else -> "None found: add a \"${LocalPhotoSource.ALBUM_NAME}\" album (using Reddit)"
+            subtitle = when (settings.wallpaperSource) {
+                WallpaperSource.REDDIT -> "Downloads new wallpapers from Reddit"
+                WallpaperSource.CUSTOM_URL ->
+                    if (status.customUrlCount > 0) "${status.customUrlCount} link${if (status.customUrlCount == 1) "" else "s"} added"
+                    else "No links yet — add some (using Reddit)"
+                WallpaperSource.MY_PHOTOS ->
+                    if (status.localPhotoCount > 0) "${status.localPhotoCount} photos found"
+                    else "None found: add a \"${LocalPhotoSource.ALBUM_NAME}\" album (using Reddit)"
             },
             icon = Icons.Rounded.PhotoLibrary,
             iconTint = Color(0xFF34D399),
             trailing = settings.wallpaperSource.title,
-            onClick = {
-                onUpdate {
-                    it.copy(
-                        wallpaperSource = if (it.wallpaperSource == WallpaperSource.MY_PHOTOS) WallpaperSource.REDDIT
-                        else WallpaperSource.MY_PHOTOS
-                    )
-                }
-            }
+            onClick = { onUpdate { it.copy(wallpaperSource = it.wallpaperSource.next()) } }
         )
+        if (settings.wallpaperSource == WallpaperSource.CUSTOM_URL) {
+            TvMenuItem(
+                title = "Manage photo links",
+                subtitle = "Paste image URLs to use as wallpapers",
+                icon = Icons.Rounded.Link,
+                iconTint = Color(0xFF34D399),
+                trailing = if (status.customUrlCount > 0) "${status.customUrlCount}" else null,
+                onClick = onManageWallpaperUrls
+            )
+        }
         if (usingPhotos && !status.hasPhotoPermission) {
             TvMenuItem(
                 title = "Allow photo access",

@@ -81,6 +81,7 @@ import com.knightmstr.onyxtv.ui.components.UpdateDialog
 import com.knightmstr.onyxtv.update.UpdateState
 import com.knightmstr.onyxtv.ui.components.LauncherSettingsDialog
 import com.knightmstr.onyxtv.ui.components.PhotoUploadDialog
+import com.knightmstr.onyxtv.ui.components.WallpaperUrlsDialog
 import com.knightmstr.onyxtv.ui.components.RenameAppDialog
 import com.knightmstr.onyxtv.ui.components.Screensaver
 import com.knightmstr.onyxtv.ui.components.AppRow
@@ -131,6 +132,9 @@ fun LauncherRoot(
     val localPhotoCount by viewModel.localPhotoCount.collectAsStateWithLifecycle()
     val uploadedPhotoCount by viewModel.uploadedPhotoCount.collectAsStateWithLifecycle()
     val uploadUi by viewModel.uploadUi.collectAsStateWithLifecycle()
+    val customWallpaperUrls by viewModel.customWallpaperUrls.collectAsStateWithLifecycle()
+    val wallpaperUrlDialogOpen by viewModel.wallpaperUrlDialogOpen.collectAsStateWithLifecycle()
+    val wallpaperUrlStatus by viewModel.wallpaperUrlStatus.collectAsStateWithLifecycle()
     val hasPhotoPermission by viewModel.hasPhotoPermission.collectAsStateWithLifecycle()
     val hasKidsPin by viewModel.hasKidsPin.collectAsStateWithLifecycle()
     val kidsAppCount by viewModel.kidsAppCount.collectAsStateWithLifecycle()
@@ -238,6 +242,7 @@ fun LauncherRoot(
                 hiddenAppCount = hiddenAppCount,
                 localPhotoCount = localPhotoCount,
                 uploadedPhotoCount = uploadedPhotoCount,
+                customUrlCount = customWallpaperUrls.size,
                 hasPhotoPermission = hasPhotoPermission,
                 hasKidsPin = hasKidsPin,
                 kidsAppCount = kidsAppCount,
@@ -260,6 +265,7 @@ fun LauncherRoot(
             onRequestPhotoPermission = viewModel::requestPhotoPermission,
             onUploadPhotos = viewModel::openPhotoUpload,
             onClearUploads = viewModel::clearUploadedPhotos,
+            onManageWallpaperUrls = viewModel::openWallpaperUrls,
             onEnableKidsMode = { viewModel.setKidsModeEnabled(true) },
             onChangeKidsPin = viewModel::changeKidsPin,
             onOpenNowPlayingHelp = viewModel::openNowPlayingHelp,
@@ -276,6 +282,16 @@ fun LauncherRoot(
             ui = uploadUi,
             onClearAll = viewModel::clearUploadedPhotos,
             onDismiss = viewModel::closePhotoUpload
+        )
+    }
+
+    if (wallpaperUrlDialogOpen) {
+        WallpaperUrlsDialog(
+            urls = customWallpaperUrls,
+            status = wallpaperUrlStatus,
+            onAdd = viewModel::addWallpaperUrl,
+            onRemove = viewModel::removeWallpaperUrl,
+            onDismiss = viewModel::closeWallpaperUrls
         )
     }
 
