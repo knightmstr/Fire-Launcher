@@ -6,6 +6,8 @@ import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.ChildCare
@@ -505,7 +507,11 @@ private fun SettingsGroup(
     )
 }
 
-/** A tappable header for a group of settings; OK toggles the group open or closed. */
+/**
+ * A tappable header for a group of settings; OK toggles the group.
+ * Collapsed: grey "Show" with a right-pointing chevron. Expanded: green "Hide" with a down chevron,
+ * so it's obvious at a glance which groups are folded away.
+ */
 @Composable
 private fun CollapsibleSectionHeader(
     title: String,
@@ -517,8 +523,9 @@ private fun CollapsibleSectionHeader(
     TvMenuItem(
         title = title,
         icon = icon,
-        iconTint = Color(0xFF9CA3AF),
-        trailing = if (expanded) "Open" else "Closed",
+        iconTint = if (expanded) Color(0xFF10B981) else Color(0xFF9CA3AF),
+        trailing = if (expanded) "Hide" else "Show",
+        trailingIcon = if (expanded) Icons.Rounded.KeyboardArrowDown else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
         modifier = modifier,
         onClick = onToggle
     )
