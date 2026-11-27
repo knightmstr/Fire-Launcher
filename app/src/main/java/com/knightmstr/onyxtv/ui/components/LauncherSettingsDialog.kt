@@ -17,6 +17,7 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Thermostat
@@ -95,6 +96,7 @@ fun LauncherSettingsDialog(
     onToggleUnit: () -> Unit,
     onRequestPhotoPermission: () -> Unit,
     onUploadPhotos: () -> Unit,
+    onPhoneSetup: () -> Unit,
     onClearUploads: () -> Unit,
     onManageWallpaperUrls: () -> Unit,
     wallpaperPreviewUrl: String?,
@@ -122,13 +124,20 @@ fun LauncherSettingsDialog(
         onDismiss = onDismiss,
         width = 540.dp
     ) {
+        TvMenuItem(
+            title = "Set up from phone",
+            subtitle = "Favourites, hide, rename and photos from your phone — no adb",
+            icon = Icons.Rounded.PhoneAndroid,
+            iconTint = Color(0xFF34D399),
+            modifier = Modifier.focusRequester(firstItem),
+            onClick = onPhoneSetup
+        )
         SettingsGroup(expanded = isOpen("Home screen")) {
         CollapsibleSectionHeader(
             title = "Home screen",
             icon = Icons.Rounded.Dashboard,
             expanded = isOpen("Home screen"),
-            onToggle = { toggle("Home screen") },
-            modifier = Modifier.focusRequester(firstItem)
+            onToggle = { toggle("Home screen") }
         )
         if (isOpen("Home screen")) {
         TvMenuItem(

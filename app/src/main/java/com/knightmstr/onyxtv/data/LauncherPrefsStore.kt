@@ -116,6 +116,9 @@ class LauncherPrefsStore(private val context: Context) {
     suspend fun moveFavorite(packageName: String, delta: Int) =
         editFavorites { PrefsCodec.move(it, packageName, delta) }
 
+    /** Replaces the whole favourites list (already validated by the caller). */
+    suspend fun setFavoriteOrder(order: List<String>) = editFavorites { order }
+
     private suspend fun editFavorites(block: (List<String>) -> List<String>) {
         context.dataStore.edit { p ->
             p[KEY_FAVORITES_ORDER] = PrefsCodec.encodeList(block(p.favoriteOrder()))
