@@ -23,6 +23,17 @@ In settings, sliders move with **◀ ▶**, and every other row changes with **O
 
 Your apps: open **All Apps** (the round button at the end of the dock), hold OK on an app and choose **Add to Favorites**. Hold OK on a favourite to move it.
 
+## Set up from phone
+
+**⚙ → Launcher settings → Set up from phone** shows a QR code. Scan it with a phone on the same Wi-Fi to:
+
+- **Apps:** add, remove and reorder favourites, hide or show apps, and rename them
+- **Photos:** upload wallpaper photos
+- **Settings:** home layout, tile size and shape, wallpaper and screensaver options
+- **Backup & restore:** save your setup to a file and load it again later or on another Fire TV. Kids mode and its PIN are never in the file.
+
+There's no adb and no account. The link only works while that screen is open on the TV, stops after 10 minutes without use, and is new every time. While Kids mode is on, the phone can look but can't change anything. Kids mode, updates and the Fire TV extras can only be changed on the TV.
+
 ## Good to know
 
 - **Amazon's home may flash** for a moment when you press Home, before Onyx TV comes back. Fire OS doesn't allow avoiding this without rooting.

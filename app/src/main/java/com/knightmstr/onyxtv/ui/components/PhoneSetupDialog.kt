@@ -22,7 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import com.knightmstr.onyxtv.ui.PhotoUploadUi
+import com.knightmstr.onyxtv.ui.PhoneSetupUi
 import com.knightmstr.onyxtv.upload.QrCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,20 +31,21 @@ import com.knightmstr.onyxtv.ui.theme.TextPrimary
 import com.knightmstr.onyxtv.ui.theme.TextSecondary
 
 /**
- * Shows the Wi-Fi address to open on a phone or computer to upload wallpaper photos, plus a
- * one-tap "clear all" for the photos uploaded this way. The server runs only while this is open.
+ * "Set up from phone": shows the Wi-Fi address (and QR code) to open on a phone or computer to
+ * manage apps and upload wallpaper photos, plus a one-tap "clear all" for uploaded photos.
+ * The server runs only while this is open.
  */
 @Composable
-fun PhotoUploadDialog(
-    ui: PhotoUploadUi,
+fun PhoneSetupDialog(
+    ui: PhoneSetupUi,
     onClearAll: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val first = rememberInitialFocus()
 
     TvDialogFrame(
-        title = "Upload photos over Wi-Fi",
-        subtitle = "No cable needed — open the address below on a phone on the same Wi-Fi",
+        title = "Set up from phone",
+        subtitle = "Favourites, hide, rename and photos — from a phone on the same Wi-Fi",
         accentColor = Color(0xFF10B981),
         onDismiss = onDismiss,
         width = 560.dp
@@ -65,7 +66,7 @@ fun PhotoUploadDialog(
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Image(
                             bitmap = bitmap,
-                            contentDescription = "QR code for the upload address",
+                            contentDescription = "QR code for the phone setup address",
                             modifier = Modifier
                                 .background(Color.White, RoundedCornerShape(12.dp))
                                 .padding(12.dp)
@@ -90,14 +91,14 @@ fun PhotoUploadDialog(
                         .padding(12.dp)
                 )
                 Text(
-                    text = "Phone and TV must be on the same Wi-Fi. The address works only while this screen is open.",
+                    text = "Phone and TV must be on the same Wi-Fi. The address works only while this screen is open, and stops after 10 minutes without use.",
                     fontSize = 11.sp,
                     color = Color(0xFF9CA3AF)
                 )
             }
 
             else -> Text(
-                text = "Starting the uploader…",
+                text = "Starting phone setup…",
                 fontSize = 13.sp,
                 color = TextSecondary
             )

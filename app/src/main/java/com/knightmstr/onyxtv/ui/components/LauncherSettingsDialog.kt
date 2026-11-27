@@ -6,6 +6,8 @@ import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.RoundedCorner
 import androidx.compose.material.icons.rounded.ChildCare
@@ -15,6 +17,7 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Thermostat
@@ -93,6 +96,7 @@ fun LauncherSettingsDialog(
     onToggleUnit: () -> Unit,
     onRequestPhotoPermission: () -> Unit,
     onUploadPhotos: () -> Unit,
+    onPhoneSetup: () -> Unit,
     onClearUploads: () -> Unit,
     onManageWallpaperUrls: () -> Unit,
     wallpaperPreviewUrl: String?,
@@ -120,13 +124,20 @@ fun LauncherSettingsDialog(
         onDismiss = onDismiss,
         width = 540.dp
     ) {
+        TvMenuItem(
+            title = "Set up from phone",
+            subtitle = "Favourites, hide, rename and photos from your phone — no adb",
+            icon = Icons.Rounded.PhoneAndroid,
+            iconTint = Color(0xFF34D399),
+            modifier = Modifier.focusRequester(firstItem),
+            onClick = onPhoneSetup
+        )
         SettingsGroup(expanded = isOpen("Home screen")) {
         CollapsibleSectionHeader(
             title = "Home screen",
             icon = Icons.Rounded.Dashboard,
             expanded = isOpen("Home screen"),
-            onToggle = { toggle("Home screen") },
-            modifier = Modifier.focusRequester(firstItem)
+            onToggle = { toggle("Home screen") }
         )
         if (isOpen("Home screen")) {
         TvMenuItem(
@@ -505,7 +516,11 @@ private fun SettingsGroup(
     )
 }
 
-/** A tappable header for a group of settings; OK toggles the group open or closed. */
+/**
+ * A tappable header for a group of settings; OK toggles the group.
+ * Collapsed: grey "Show" with a right-pointing chevron. Expanded: green "Hide" with a down chevron,
+ * so it's obvious at a glance which groups are folded away.
+ */
 @Composable
 private fun CollapsibleSectionHeader(
     title: String,
@@ -517,8 +532,9 @@ private fun CollapsibleSectionHeader(
     TvMenuItem(
         title = title,
         icon = icon,
-        iconTint = Color(0xFF9CA3AF),
-        trailing = if (expanded) "Open" else "Closed",
+        iconTint = if (expanded) Color(0xFF10B981) else Color(0xFF9CA3AF),
+        trailing = if (expanded) "Hide" else "Show",
+        trailingIcon = if (expanded) Icons.Rounded.KeyboardArrowDown else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
         modifier = modifier,
         onClick = onToggle
     )

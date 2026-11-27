@@ -80,7 +80,7 @@ import com.knightmstr.onyxtv.ui.components.UpdateChip
 import com.knightmstr.onyxtv.ui.components.UpdateDialog
 import com.knightmstr.onyxtv.update.UpdateState
 import com.knightmstr.onyxtv.ui.components.LauncherSettingsDialog
-import com.knightmstr.onyxtv.ui.components.PhotoUploadDialog
+import com.knightmstr.onyxtv.ui.components.PhoneSetupDialog
 import com.knightmstr.onyxtv.ui.components.WallpaperUrlsDialog
 import com.knightmstr.onyxtv.ui.components.toContentScale
 import com.knightmstr.onyxtv.ui.components.RenameAppDialog
@@ -132,7 +132,7 @@ fun LauncherRoot(
     val hiddenAppCount by viewModel.hiddenAppCount.collectAsStateWithLifecycle()
     val localPhotoCount by viewModel.localPhotoCount.collectAsStateWithLifecycle()
     val uploadedPhotoCount by viewModel.uploadedPhotoCount.collectAsStateWithLifecycle()
-    val uploadUi by viewModel.uploadUi.collectAsStateWithLifecycle()
+    val phoneSetupUi by viewModel.phoneSetupUi.collectAsStateWithLifecycle()
     val customWallpaperUrls by viewModel.customWallpaperUrls.collectAsStateWithLifecycle()
     val wallpaperUrlDialogOpen by viewModel.wallpaperUrlDialogOpen.collectAsStateWithLifecycle()
     val wallpaperUrlStatus by viewModel.wallpaperUrlStatus.collectAsStateWithLifecycle()
@@ -265,7 +265,8 @@ fun LauncherRoot(
             onUpdate = viewModel::updateSettings,
             onToggleUnit = viewModel::toggleTemperatureUnit,
             onRequestPhotoPermission = viewModel::requestPhotoPermission,
-            onUploadPhotos = viewModel::openPhotoUpload,
+            onUploadPhotos = { viewModel.openPhoneSetup(SetupTab.PHOTOS) },
+            onPhoneSetup = { viewModel.openPhoneSetup(SetupTab.APPS) },
             onClearUploads = viewModel::clearUploadedPhotos,
             onManageWallpaperUrls = viewModel::openWallpaperUrls,
             wallpaperPreviewUrl = currentWallpaper?.url,
@@ -280,11 +281,11 @@ fun LauncherRoot(
         )
     }
 
-    if (uploadUi.open) {
-        PhotoUploadDialog(
-            ui = uploadUi,
+    if (phoneSetupUi.open) {
+        PhoneSetupDialog(
+            ui = phoneSetupUi,
             onClearAll = viewModel::clearUploadedPhotos,
-            onDismiss = viewModel::closePhotoUpload
+            onDismiss = viewModel::closePhoneSetup
         )
     }
 

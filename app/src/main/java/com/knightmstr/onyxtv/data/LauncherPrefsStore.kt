@@ -2,6 +2,7 @@ package com.knightmstr.onyxtv.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
@@ -116,6 +117,9 @@ class LauncherPrefsStore(private val context: Context) {
     suspend fun moveFavorite(packageName: String, delta: Int) =
         editFavorites { PrefsCodec.move(it, packageName, delta) }
 
+    /** Replaces the whole favourites list (already validated by the caller). */
+    suspend fun setFavoriteOrder(order: List<String>) = editFavorites { order }
+
     private suspend fun editFavorites(block: (List<String>) -> List<String>) {
         context.dataStore.edit { p ->
             p[KEY_FAVORITES_ORDER] = PrefsCodec.encodeList(block(p.favoriteOrder()))
@@ -166,20 +170,23 @@ class LauncherPrefsStore(private val context: Context) {
     }
 
     suspend fun updateSettings(settings: LauncherSettings) {
-        context.dataStore.edit { p ->
-            p[KEY_WALLPAPER_INTERVAL] = settings.wallpaperIntervalMinutes.coerceAtLeast(0)
-            p[KEY_SCREENSAVER_TIMEOUT] = settings.screensaverTimeoutMinutes.coerceAtLeast(0)
-            p[KEY_SHOW_HIDDEN] = settings.showHiddenApps
-            p[KEY_WALLPAPER_SOURCE] = settings.wallpaperSource.name
-            p[KEY_TILE_WIDTH] = LauncherSettings.clampTileWidth(settings.tileWidthDp)
-            p.remove(KEY_CARD_SIZE)
-            p[KEY_CARD_SHAPE] = settings.cardShape.name
-            p[KEY_HOME_LAYOUT] = settings.homeLayout.name
-            p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
-            p[KEY_NIGHT_DIM] = settings.nightDim
-            p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
-            p[KEY_WALLPAPER_FIT] = settings.wallpaperFit.name
-        }
+        context.dataStore.edit { p -> p.writeSettings(settings) }
+    }
+
+    private fun MutablePreferences.writeSettings(settings: LauncherSettings) {
+        val p = this
+        p[KEY_WALLPAPER_INTERVAL] = settings.wallpaperIntervalMinutes.coerceAtLeast(0)
+        p[KEY_SCREENSAVER_TIMEOUT] = settings.screensaverTimeoutMinutes.coerceAtLeast(0)
+        p[KEY_SHOW_HIDDEN] = settings.showHiddenApps
+        p[KEY_WALLPAPER_SOURCE] = settings.wallpaperSource.name
+        p[KEY_TILE_WIDTH] = LauncherSettings.clampTileWidth(settings.tileWidthDp)
+        p.remove(KEY_CARD_SIZE)
+        p[KEY_CARD_SHAPE] = settings.cardShape.name
+        p[KEY_HOME_LAYOUT] = settings.homeLayout.name
+        p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
+        p[KEY_NIGHT_DIM] = settings.nightDim
+        p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
+        p[KEY_WALLPAPER_FIT] = settings.wallpaperFit.name
     }
 
     // ---------------------------------------------------------------- Custom wallpaper URLs
@@ -322,6 +329,54 @@ class LauncherPrefsStore(private val context: Context) {
             val count = existing?.split("|")?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(0) ?: 0
             p[KEY_APP_USAGE_STATS] = (current - setOfNotNull(existing)) +
                 "$safePkg|${count + 1}|${System.currentTimeMillis()}"
+        }
+    }
+
+    // ---------------------------------------------------------------- Backup & restore
+
+    /** Everything that goes in a backup file. Kids mode, its PIN and usage stats stay out. */
+    suspend fun backupSnapshot(): BackupData {
+        val p = prefs.first()
+        return BackupData(
+            settings = settingsFlow.first(),
+            favorites = p.favoriteOrder(),
+            hidden = p[KEY_HIDDEN_APPS].orEmpty(),
+            labels = PrefsCodec.decodeLabels(p[KEY_CUSTOM_LABELS].orEmpty()),
+            appOrder = PrefsCodec.decodeList(p[KEY_CUSTOM_APP_ORDER]),
+            sortOrder = AppSortOrder.fromName(p[KEY_APP_SORT_ORDER]),
+            weather = p[KEY_WEATHER_CITY]?.let { city ->
+                BackupWeather(
+                    city = city,
+                    country = p[KEY_WEATHER_COUNTRY].orEmpty(),
+                    latitude = p[KEY_WEATHER_LAT] ?: 0.0,
+                    longitude = p[KEY_WEATHER_LON] ?: 0.0
+                )
+            },
+            celsius = p[KEY_WEATHER_CELSIUS] ?: defaultIsCelsius(),
+            wallpaperUrls = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])
+        )
+    }
+
+    /** Restores a backup already checked by BackupJson.parse, in one DataStore write. */
+    suspend fun restoreBackup(b: BackupData) {
+        context.dataStore.edit { p ->
+            p.writeSettings(b.settings)
+            p[KEY_FAVORITES_ORDER] = PrefsCodec.encodeList(b.favorites)
+            p.remove(KEY_FAVORITES_LEGACY)
+            p[KEY_HIDDEN_APPS] = b.hidden
+            p[KEY_CUSTOM_LABELS] = b.labels.map { (pkg, label) -> PrefsCodec.encodeLabel(pkg, label) }.toSet()
+            p[KEY_CUSTOM_APP_ORDER] = PrefsCodec.encodeList(b.appOrder)
+            p[KEY_APP_SORT_ORDER] = b.sortOrder.name
+            p[KEY_WEATHER_CELSIUS] = b.celsius
+            p[KEY_CUSTOM_WALLPAPER_URLS] = PrefsCodec.encodeList(b.wallpaperUrls.take(MAX_CUSTOM_WALLPAPER_URLS))
+            b.weather?.let { w ->
+                p[KEY_WEATHER_CITY] = w.city
+                p[KEY_WEATHER_COUNTRY] = w.country
+                p[KEY_WEATHER_LAT] = w.latitude
+                p[KEY_WEATHER_LON] = w.longitude
+                p[KEY_SAVED_CITIES] = (p[KEY_SAVED_CITIES] ?: DEFAULT_CITIES) +
+                    "${w.city}|${w.country}|${w.latitude}|${w.longitude}"
+            }
         }
     }
 }

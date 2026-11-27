@@ -13,6 +13,7 @@ import com.knightmstr.onyxtv.screensaver.ScreensaverTakeover
 import com.knightmstr.onyxtv.data.AppRepository
 import com.knightmstr.onyxtv.data.AppSortOrder
 import com.knightmstr.onyxtv.data.AppUsageStat
+import com.knightmstr.onyxtv.data.BackupData
 import com.knightmstr.onyxtv.data.CityLocationModel
 import com.knightmstr.onyxtv.data.LauncherPrefsStore
 import com.knightmstr.onyxtv.data.LauncherSettings
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -46,7 +48,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.knightmstr.onyxtv.data.WallpaperUrlValidator
 import com.knightmstr.onyxtv.upload.LanAddress
-import com.knightmstr.onyxtv.upload.PhotoUploadServer
+import com.knightmstr.onyxtv.upload.IconPng
+import com.knightmstr.onyxtv.upload.PhoneSetupBridge
+import com.knightmstr.onyxtv.upload.PhoneSetupServer
+import com.knightmstr.onyxtv.upload.SetupApp
+import com.knightmstr.onyxtv.upload.SetupToken
+import kotlinx.coroutines.runBlocking
 
 /**
  * Main MVVM coordinator. Exposes StateFlows for the app library (sorted, renamed, hidden),
@@ -415,16 +422,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         wallpaperRepository.reload()
     }
 
-    // ------------------------------------------------------------------ Photo upload (Wi-Fi)
+    // ------------------------------------------------------------------ Set up from phone (Wi-Fi)
 
     /** Number of photos in the app's own upload folder (what adb push / the uploader write to). */
     private val _uploadedPhotoCount = MutableStateFlow(0)
     val uploadedPhotoCount: StateFlow<Int> = _uploadedPhotoCount.asStateFlow()
 
-    private val _uploadUi = MutableStateFlow(PhotoUploadUi())
-    val uploadUi: StateFlow<PhotoUploadUi> = _uploadUi.asStateFlow()
+    private val _phoneSetupUi = MutableStateFlow(PhoneSetupUi())
+    val phoneSetupUi: StateFlow<PhoneSetupUi> = _phoneSetupUi.asStateFlow()
 
-    private var uploadServer: PhotoUploadServer? = null
+    private var setupServer: PhoneSetupServer? = null
+    private var setupIdleWatch: Job? = null
+
+    /** Icons rendered for the phone page, cached for as long as the server runs. */
+    private val iconCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
     init {
         viewModelScope.launch { refreshUploadedCount() }
@@ -433,51 +444,132 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private suspend fun refreshUploadedCount() {
         val count = withContext(Dispatchers.IO) { localPhotos.listUploads().size }
         _uploadedPhotoCount.value = count
-        _uploadUi.update { it.copy(count = count) }
+        _phoneSetupUi.update { it.copy(count = count) }
     }
 
-    /** Opens the upload screen and starts the Wi-Fi server. */
-    fun openPhotoUpload() {
-        if (uploadServer != null) { _uploadUi.update { it.copy(open = true) }; return }
+    /**
+     * What the phone page may read and change. Writes go through the same prefs calls as the TV's
+     * own menus, so the home screen updates live. Runs on the server's worker threads.
+     */
+    private val setupBridge = object : PhoneSetupBridge {
+        override fun listPhotos() = localPhotos.listUploads()
+        override fun savePhoto(bytes: ByteArray, originalName: String?) = localPhotos.saveUpload(bytes, originalName)
+        override fun deletePhoto(name: String) = localPhotos.deleteUpload(name)
+
+        private fun installed() = decoratedApps.value.filter { !it.isSystemShortcut }
+
+        override fun apps() = installed().map {
+            SetupApp(packageName = it.packageName, label = it.label, originalLabel = it.originalLabel, hidden = it.isHidden)
+        }
+
+        // Read straight from DataStore, not the StateFlows: those update a moment later, and two
+        // quick changes from the phone would otherwise build on stale values and undo each other.
+        override fun favoriteOrder() = runBlocking { prefs.favoritesFlow.first() }
+
+        override fun iconPng(packageName: String): ByteArray? {
+            iconCache[packageName]?.let { return it }
+            val app = installed().firstOrNull { it.packageName == packageName } ?: return null
+            return IconPng.render(app.icon)?.also { iconCache[packageName] = it }
+        }
+
+        override fun setFavoriteOrder(order: List<String>) = runBlocking { prefs.setFavoriteOrder(order) }
+
+        override fun setHidden(packageName: String, hidden: Boolean) =
+            runBlocking { prefs.setHidden(packageName, hidden) }
+
+        override fun rename(packageName: String, label: String?) {
+            val original = installed().firstOrNull { it.packageName == packageName }?.originalLabel ?: return
+            val clean = label?.trim()?.takeIf { it.isNotEmpty() && it != original }
+            runBlocking { prefs.setCustomLabel(packageName, clean) }
+        }
+
+        override fun settings() = runBlocking { prefs.settingsFlow.first() }
+
+        override fun updateSettings(settings: LauncherSettings) = runBlocking { prefs.updateSettings(settings) }
+
+        override fun exportBackup() = runBlocking { prefs.backupSnapshot() }
+
+        // Weather follows on its own: it watches the stored city and units.
+        override fun restoreBackup(backup: BackupData) = runBlocking { prefs.restoreBackup(backup) }
+
+        override fun isLocked() = this@LauncherViewModel.kidsModeEnabled.value
+
+        override fun onChanged() {
+            viewModelScope.launch {
+                wallpaperRepository.reload()
+                refreshUploadedCount()
+            }
+        }
+    }
+
+    /** Opens "Set up from phone" and starts the Wi-Fi server. [tab] picks the page's first tab. */
+    fun openPhoneSetup(tab: SetupTab = SetupTab.APPS) {
+        if (kidsModeEnabled.value) return
+        val existing = setupServer
+        if (existing != null) {
+            _phoneSetupUi.update { it.copy(open = true, url = it.url?.let { u -> withTab(u, tab) }) }
+            return
+        }
         val app = getApplication<Application>()
         val ip = LanAddress.wifiIpv4(app)
         if (ip == null) {
-            _uploadUi.value = PhotoUploadUi(open = true, running = false, error = "Connect the TV to Wi-Fi first.")
+            _phoneSetupUi.value = PhoneSetupUi(open = true, running = false, error = "Connect the TV to Wi-Fi first.")
             viewModelScope.launch { refreshUploadedCount() }
             return
         }
-        val token = randomToken()
+        val token = SetupToken.generate()
         try {
-            val server = PhotoUploadServer(UPLOAD_PORT, token, localPhotos) {
-                // Fired on every upload/delete from the browser; refresh wallpapers and the count.
-                viewModelScope.launch {
-                    wallpaperRepository.reload()
-                    refreshUploadedCount()
-                }
-            }
+            val page = app.assets.open(SETUP_PAGE).bufferedReader().use { it.readText() }
+            val server = PhoneSetupServer(SETUP_PORT, token, page, setupBridge)
             server.startServer()
-            uploadServer = server
-            _uploadUi.value = PhotoUploadUi(
+            setupServer = server
+            _phoneSetupUi.value = PhoneSetupUi(
                 open = true,
                 running = true,
-                url = "http://$ip:$UPLOAD_PORT/?t=$token"
+                url = withTab("http://$ip:$SETUP_PORT/?t=$token", tab)
             )
             viewModelScope.launch { refreshUploadedCount() }
+            watchSetupIdle(server)
         } catch (e: Exception) {
-            _uploadUi.value = PhotoUploadUi(open = true, running = false, error = "Couldn't start the uploader.")
+            _phoneSetupUi.value = PhoneSetupUi(open = true, running = false, error = "Couldn't start phone setup.")
         }
     }
 
-    /** Closes the upload screen and stops the server. */
-    fun closePhotoUpload() {
-        stopUploadServer()
-        _uploadUi.value = PhotoUploadUi(open = false, count = _uploadedPhotoCount.value)
+    /** Stops the server once the phone has made no request for [SETUP_IDLE_LIMIT_MS]. */
+    private fun watchSetupIdle(server: PhoneSetupServer) {
+        setupIdleWatch?.cancel()
+        setupIdleWatch = viewModelScope.launch {
+            while (isActive && setupServer === server) {
+                delay(30_000)
+                if (System.currentTimeMillis() - server.lastActivityMs > SETUP_IDLE_LIMIT_MS) {
+                    _phoneSetupUi.update {
+                        it.copy(
+                            running = false,
+                            url = null,
+                            error = "Phone setup stopped after 10 minutes without use. Close this and open it again for a new code."
+                        )
+                    }
+                    stopSetupServer() // cancels this loop too
+                }
+            }
+        }
+    }
+
+    private fun withTab(url: String, tab: SetupTab) = url.substringBefore('#') + "#" + tab.anchor
+
+    /** Closes "Set up from phone" and stops the server. */
+    fun closePhoneSetup() {
+        stopSetupServer()
+        _phoneSetupUi.value = PhoneSetupUi(open = false, count = _uploadedPhotoCount.value)
         wallpaperRepository.reload()
     }
 
-    private fun stopUploadServer() {
-        uploadServer?.let { runCatching { it.stop() } }
-        uploadServer = null
+    private fun stopSetupServer() {
+        setupIdleWatch?.cancel()
+        setupIdleWatch = null
+        setupServer?.let { runCatching { it.stop() } }
+        setupServer = null
+        iconCache.clear()
     }
 
     /** Deletes every uploaded photo (the app's own folder only; never the gallery album). */
@@ -489,11 +581,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun randomToken(): String {
-        val alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
-        val random = java.security.SecureRandom()
-        return (1..8).map { alphabet[random.nextInt(alphabet.length)] }.joinToString("")
-    }
 
     // ------------------------------------------------------------------ Custom wallpaper URLs
 
@@ -826,12 +913,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     override fun onCleared() {
         nowPlayingRepository.stop()
-        stopUploadServer()
+        stopSetupServer()
         super.onCleared()
     }
 
     private companion object {
-        const val UPLOAD_PORT = 8723
+        const val SETUP_PORT = 8723
+        const val SETUP_PAGE = "phone-setup.html"
+        const val SETUP_IDLE_LIMIT_MS = 10 * 60 * 1000L
     }
 
     /** Re-scans installed apps from PackageManager. */
@@ -879,7 +968,10 @@ sealed interface WallpaperUrlStatus {
 }
 
 /** State for the Wi-Fi photo upload screen. */
-data class PhotoUploadUi(
+/** Which tab the phone page opens on. */
+enum class SetupTab(val anchor: String) { APPS("apps"), PHOTOS("photos") }
+
+data class PhoneSetupUi(
     val open: Boolean = false,
     val running: Boolean = false,
     val url: String? = null,

@@ -180,7 +180,9 @@ fun TvMenuItem(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     trailing: String? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    /** Optional icon drawn after [trailing], e.g. a chevron on a collapsible header. */
+    trailingIcon: ImageVector? = null
 ) {
     val shape = RoundedCornerShape(12.dp)
     Surface(
@@ -249,6 +251,15 @@ fun TvMenuItem(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = iconTint
+                )
+            }
+            if (trailingIcon != null) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = trailingIcon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }

@@ -176,6 +176,8 @@ dependencies {
 
     // Unit Testing
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for JVM tests (Android's copy is a stub off-device); used by the setup server tests
+    testImplementation("org.json:json:20240303")
 
     // Debugging tools
     debugImplementation("androidx.compose.ui:ui-tooling")
