@@ -6,6 +6,7 @@ import com.knightmstr.onyxtv.data.UpdateChannel
 import com.knightmstr.onyxtv.upload.PhoneSetupBridge
 import com.knightmstr.onyxtv.upload.PhoneSetupServer
 import com.knightmstr.onyxtv.upload.SetupApp
+import com.knightmstr.onyxtv.upload.SetupToken
 import com.knightmstr.onyxtv.upload.SetupValidation
 import org.json.JSONObject
 import org.junit.After
@@ -100,6 +101,19 @@ class PhoneSetupServerTest {
         return Reply(code, text, conn.contentType)
     }
 
+    /** Status line and headers for a GET with a chosen Host header. */
+    private fun rawGet(path: String, host: String): String = Socket("127.0.0.1", port).use { s ->
+        s.soTimeout = 5000
+        s.getOutputStream().write("GET $path HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n".toByteArray())
+        s.getInputStream().readBytes().toString(Charsets.UTF_8)
+    }
+
+    private fun headers(path: String): Map<String, String> {
+        val conn = URL("http://127.0.0.1:$port$path").openConnection() as HttpURLConnection
+        conn.responseCode
+        return conn.headerFields.filterKeys { it != null }.mapKeys { it.key.lowercase() }.mapValues { it.value.joinToString(",") }
+    }
+
     private fun t(path: String) = path + (if ('?' in path) "&" else "?") + "t=$token"
 
     private fun post(path: String, json: String) = request(t(path), "POST", json)
@@ -175,7 +189,7 @@ class PhoneSetupServerTest {
 
         // A Content-Length that claims to be huge, with almost no body sent.
         val status = raw(
-            "POST ${t("/api/apps/favorites")} HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n" +
+            "POST ${t("/api/apps/favorites")} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n" +
                 "Content-Length: 999999999\r\n\r\n{}"
         )
         assertTrue(status, status.contains("413"))
@@ -184,11 +198,11 @@ class PhoneSetupServerTest {
 
     @Test
     fun `a refused post closes its connection so leftover body bytes can't become a request`() {
-        val smuggled = "GET ${t("/api/apps")} HTTP/1.1\r\nHost: x\r\n\r\n"
+        val smuggled = "GET ${t("/api/apps")} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
         val reply = Socket("127.0.0.1", port).use { s ->
             s.soTimeout = 5000
             s.getOutputStream().write(
-                ("POST /api/apps/hidden?t=wrong HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n" +
+                ("POST /api/apps/hidden?t=wrong HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n" +
                     "Content-Length: ${smuggled.length}\r\n\r\n$smuggled").toByteArray()
             )
             s.getInputStream().readBytes().toString(Charsets.UTF_8)
@@ -378,6 +392,65 @@ class PhoneSetupServerTest {
         threads.forEach { it.join() }
         assertEquals(20, bridge.hiddenCalls.size)
         assertTrue(bridge.settings.cardShape == CardShape.SQUARE || bridge.settings.cardShape == CardShape.PILL)
+    }
+
+    // ------------------------------------------------------------------ hardening (phase 3)
+
+    @Test
+    fun `host names are refused, so DNS rebinding can't reach the API`() {
+        for (host in listOf("evil.example", "evil.example:$port", "192.168.1.5.evil.example", "localhost.evil", "", "[::1]:$port", "1.2.3.4:", "1.2.3.4:99999x")) {
+            val r = rawGet(t("/api/apps"), host)
+            assertTrue("host '$host': ${r.lineSequence().first()}", r.startsWith("HTTP/1.1 403"))
+            assertFalse(r.contains("\"apps\""))
+        }
+        for (host in listOf("192.168.1.5:$port", "10.0.0.2", "127.0.0.1:$port", "localhost:$port")) {
+            assertTrue("host '$host'", rawGet(t("/api/apps"), host).startsWith("HTTP/1.1 200"))
+        }
+    }
+
+    @Test
+    fun `every response carries the safety headers`() {
+        for (path in listOf("/", t("/api/apps"), "/api/apps", "/nope")) {
+            val h = headers(path)
+            assertEquals(path, "nosniff", h["x-content-type-options"])
+            assertEquals(path, "no-referrer", h["referrer-policy"])
+            assertEquals(path, "DENY", h["x-frame-options"])
+            assertEquals(path, "no-store", h["cache-control"])
+        }
+        assertEquals("private, max-age=3600", headers(t("/api/icon?pkg=com.netflix.ninja"))["cache-control"])
+    }
+
+    @Test
+    fun `page CSP allows only its own inline script and style`() {
+        val page = "<html><style>a{}</style><script>go()</script></html>"
+        val csp = PhoneSetupServer.hashes(page, "script")
+        assertTrue(csp.startsWith("'sha256-") && !csp.contains("unsafe"))
+        assertEquals("'none'", PhoneSetupServer.hashes("<html></html>", "script"))
+        assertEquals(2, PhoneSetupServer.hashes("<script>a</script><script>b</script>", "script").split(" ").size)
+
+        val h = headers("/")["content-security-policy"].orEmpty()
+        assertTrue(h, h.contains("default-src 'none'"))
+        assertTrue(h, h.contains("frame-ancestors 'none'"))
+        assertFalse(h, h.contains("unsafe-inline") || h.contains("unsafe-eval") || h.contains("*"))
+    }
+
+    @Test
+    fun `only correct-token requests count as activity`() {
+        val start = server.lastActivityMs
+        Thread.sleep(20)
+        request("/api/apps?t=wrong")
+        request("/")
+        assertEquals(start, server.lastActivityMs)
+        request(t("/api/apps"))
+        assertTrue(server.lastActivityMs > start)
+    }
+
+    @Test
+    fun `tokens are long, random and url-safe`() {
+        val tokens = (1..500).map { SetupToken.generate() }
+        assertEquals(500, tokens.toSet().size)
+        assertTrue(tokens.all { it.length == SetupToken.LENGTH && it.all { c -> c in 'a'..'z' || c in '0'..'9' } })
+        assertTrue(SetupToken.LENGTH >= 16)
     }
 
     @Test

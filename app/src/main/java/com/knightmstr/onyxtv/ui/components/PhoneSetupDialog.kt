@@ -91,7 +91,7 @@ fun PhoneSetupDialog(
                         .padding(12.dp)
                 )
                 Text(
-                    text = "Phone and TV must be on the same Wi-Fi. The address works only while this screen is open.",
+                    text = "Phone and TV must be on the same Wi-Fi. The address works only while this screen is open, and stops after 10 minutes without use.",
                     fontSize = 11.sp,
                     color = Color(0xFF9CA3AF)
                 )

@@ -22,6 +22,13 @@ class PhoneSetupPageTest {
     }
 
     @Test
+    fun `page has no inline handlers or style attributes (the CSP would block them)`() {
+        assertFalse(Regex("""\son[a-z]+\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(page))
+        assertFalse(page.contains(" style=\""))
+        assertFalse(page.contains("javascript:"))
+    }
+
+    @Test
     fun `page loads nothing from other sites`() {
         assertFalse(Regex("""(src|href)\s*=\s*["']?(https?:)?//""").containsMatchIn(page))
         assertFalse(page.contains("@import"))

@@ -51,6 +51,7 @@ import com.knightmstr.onyxtv.upload.IconPng
 import com.knightmstr.onyxtv.upload.PhoneSetupBridge
 import com.knightmstr.onyxtv.upload.PhoneSetupServer
 import com.knightmstr.onyxtv.upload.SetupApp
+import com.knightmstr.onyxtv.upload.SetupToken
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -430,6 +431,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val phoneSetupUi: StateFlow<PhoneSetupUi> = _phoneSetupUi.asStateFlow()
 
     private var setupServer: PhoneSetupServer? = null
+    private var setupIdleWatch: Job? = null
 
     /** Icons rendered for the phone page, cached for as long as the server runs. */
     private val iconCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
@@ -509,7 +511,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             viewModelScope.launch { refreshUploadedCount() }
             return
         }
-        val token = randomToken()
+        val token = SetupToken.generate()
         try {
             val page = app.assets.open(SETUP_PAGE).bufferedReader().use { it.readText() }
             val server = PhoneSetupServer(SETUP_PORT, token, page, setupBridge)
@@ -521,8 +523,29 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 url = withTab("http://$ip:$SETUP_PORT/?t=$token", tab)
             )
             viewModelScope.launch { refreshUploadedCount() }
+            watchSetupIdle(server)
         } catch (e: Exception) {
             _phoneSetupUi.value = PhoneSetupUi(open = true, running = false, error = "Couldn't start phone setup.")
+        }
+    }
+
+    /** Stops the server once the phone has made no request for [SETUP_IDLE_LIMIT_MS]. */
+    private fun watchSetupIdle(server: PhoneSetupServer) {
+        setupIdleWatch?.cancel()
+        setupIdleWatch = viewModelScope.launch {
+            while (isActive && setupServer === server) {
+                delay(30_000)
+                if (System.currentTimeMillis() - server.lastActivityMs > SETUP_IDLE_LIMIT_MS) {
+                    _phoneSetupUi.update {
+                        it.copy(
+                            running = false,
+                            url = null,
+                            error = "Phone setup stopped after 10 minutes without use. Close this and open it again for a new code."
+                        )
+                    }
+                    stopSetupServer() // cancels this loop too
+                }
+            }
         }
     }
 
@@ -536,6 +559,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun stopSetupServer() {
+        setupIdleWatch?.cancel()
+        setupIdleWatch = null
         setupServer?.let { runCatching { it.stop() } }
         setupServer = null
         iconCache.clear()
@@ -550,11 +575,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun randomToken(): String {
-        val alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
-        val random = java.security.SecureRandom()
-        return (1..8).map { alphabet[random.nextInt(alphabet.length)] }.joinToString("")
-    }
 
     // ------------------------------------------------------------------ Custom wallpaper URLs
 
@@ -894,6 +914,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private companion object {
         const val SETUP_PORT = 8723
         const val SETUP_PAGE = "phone-setup.html"
+        const val SETUP_IDLE_LIMIT_MS = 10 * 60 * 1000L
     }
 
     /** Re-scans installed apps from PackageManager. */

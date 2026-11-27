@@ -35,4 +35,19 @@ object SetupValidation {
         val keptAside = current.filter { it !in installed && it !in chosen }
         return chosen + keptAside
     }
+
+    private val IPV4 = Regex("^(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}$")
+
+    /**
+     * True if a Host header names the TV the way the TV's own link does: an IPv4 address or
+     * localhost, with an optional port. A host *name* means the browser reached us through DNS,
+     * which is what a DNS-rebinding attack relies on.
+     */
+    fun isLocalHost(host: String?): Boolean {
+        if (host.isNullOrBlank() || host.length > 64) return false
+        val name = host.substringBeforeLast(':').takeIf { ':' in host } ?: host
+        val port = if (':' in host) host.substringAfterLast(':') else null
+        if (port != null && (port.isEmpty() || port.length > 5 || port.any { !it.isDigit() })) return false
+        return name == "localhost" || IPV4.matches(name)
+    }
 }

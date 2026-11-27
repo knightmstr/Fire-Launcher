@@ -7,6 +7,9 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
+import java.security.MessageDigest
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * A tiny, token-gated HTTP server that lets a phone on the same Wi-Fi set up the TV from a
@@ -15,8 +18,15 @@ import java.io.FileInputStream
  * No adb, no account. It only runs while the "Set up from phone" screen is open on the TV.
  *
  * Security model:
- *  - A random [token] is minted per session and shown on the TV as part of the URL. Every API call
- *    must carry it (`?t=<token>`); without it the server answers 403.
+ *  - A random [token] ([SetupToken], ~82 bits) is minted per session and shown on the TV as part of
+ *    the URL. Every API call must carry it (`?t=<token>`), compared in constant time; without it
+ *    the server answers 403.
+ *  - Requests must name the TV by IP address (or localhost) in the Host header, which blocks DNS
+ *    rebinding: a web page on some other site can't make the phone's browser treat the TV as
+ *    its own origin.
+ *  - Every response carries no-store / nosniff / no-referrer / no-framing headers, and the page has
+ *    a strict Content-Security-Policy that allows only its own inline script and style (by hash).
+ *  - [lastActivityMs] lets the TV stop the server after a while without use.
  *  - Every change must be a POST. JSON endpoints also require `Content-Type: application/json`,
  *    which a web page on another site can't send here without a CORS preflight this server never
  *    approves, and a body no bigger than [SetupValidation.MAX_JSON_BYTES].
@@ -34,8 +44,30 @@ class PhoneSetupServer(
 
     fun startServer() = start(SOCKET_READ_TIMEOUT, true)
 
+    /** When the phone last made a request with the right token (or when the server started). */
+    @Volatile
+    var lastActivityMs: Long = System.currentTimeMillis()
+        private set
+
+    private val tokenBytes = token.toByteArray(Charsets.UTF_8)
+
+    /** CSP for the page: nothing but its own inline <script> and <style>, pinned by hash. */
+    private val pageCsp: String = buildString {
+        append("default-src 'none'; img-src 'self'; connect-src 'self'; ")
+        append("script-src ${hashes(page, "script")}; style-src ${hashes(page, "style")}; ")
+        append("base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+    }
+
     override fun serve(session: IHTTPSession): Response {
-        val response = route(session)
+        val response = if (!SetupValidation.isLocalHost(session.headers["host"])) {
+            status(Response.Status.FORBIDDEN, "Open the address shown on the TV")
+        } else {
+            route(session)
+        }
+        response.addHeader("X-Content-Type-Options", "nosniff")
+        response.addHeader("Referrer-Policy", "no-referrer")
+        response.addHeader("X-Frame-Options", "DENY")
+        if (response.getHeader("Cache-Control") == null) response.addHeader("Cache-Control", "no-store")
         // A refused request may leave its body unread on the socket, and the next request on a
         // kept-alive connection would then be parsed from those leftover bytes. So any request
         // that can carry a body ends its connection.
@@ -45,7 +77,7 @@ class PhoneSetupServer(
 
     private fun route(session: IHTTPSession): Response = try {
         when (session.uri) {
-            "/", "/index.html" -> html(page)
+            "/", "/index.html" -> html(page).apply { addHeader("Content-Security-Policy", pageCsp) }
 
             // Photos
             "/api/list" -> guarded(session) { listPhotos() }
@@ -75,8 +107,12 @@ class PhoneSetupServer(
     // ---------------------------------------------------------------- Guards
 
     private inline fun guarded(session: IHTTPSession, block: () -> Response): Response {
-        val given = session.parameters["t"]?.firstOrNull()
-        return if (given == token) block() else status(Response.Status.FORBIDDEN, "Forbidden")
+        val given = session.parameters["t"]?.firstOrNull() ?: return status(Response.Status.FORBIDDEN, "Forbidden")
+        if (!MessageDigest.isEqual(given.toByteArray(Charsets.UTF_8), tokenBytes)) {
+            return status(Response.Status.FORBIDDEN, "Forbidden")
+        }
+        lastActivityMs = System.currentTimeMillis()
+        return block()
     }
 
     /** Changes run one at a time, so two quick requests can't read-modify-write over each other. */
@@ -261,6 +297,18 @@ class PhoneSetupServer(
         newFixedLengthResponse(code, "text/plain", message)
 
     companion object {
+        /** `'sha256-…'` sources for every inline <[tag]> block in [html], for the CSP. */
+        @OptIn(ExperimentalEncodingApi::class) // Kotlin's Base64: java.util.Base64 needs API 26
+        fun hashes(html: String, tag: String): String {
+            val blocks = Regex("<$tag(?:\\s[^>]*)?>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
+                .findAll(html).map { it.groupValues[1] }.toList()
+            if (blocks.isEmpty()) return "'none'"
+            val digest = { text: String ->
+                Base64.Default.encode(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
+            }
+            return blocks.joinToString(" ") { "'sha256-${digest(it)}'" }
+        }
+
         /** Matches LocalPhotoSource's cap; checked here too so huge bodies are refused unread. */
         const val MAX_UPLOAD_BYTES = 20L * 1024 * 1024
 
