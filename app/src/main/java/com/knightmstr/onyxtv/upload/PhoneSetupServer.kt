@@ -10,7 +10,8 @@ import java.io.FileInputStream
 
 /**
  * A tiny, token-gated HTTP server that lets a phone on the same Wi-Fi set up the TV from a
- * browser: upload wallpaper photos, and manage apps (favourites and their order, hide, rename).
+ * browser: upload wallpaper photos, manage apps (favourites and their order, hide, rename) and
+ * change launcher settings.
  * No adb, no account. It only runs while the "Set up from phone" screen is open on the TV.
  *
  * Security model:
@@ -59,6 +60,12 @@ class PhoneSetupServer(
             "/api/apps/hidden" -> jsonMutation(session) { setHidden(it) }
             "/api/apps/rename" -> jsonMutation(session) { rename(it) }
 
+            // Settings
+            "/api/settings" -> when (session.method) {
+                Method.GET -> guarded(session) { getSettings() }
+                else -> jsonMutation(session) { updateSettings(it) }
+            }
+
             else -> status(Response.Status.NOT_FOUND, "Not found")
         }
     } catch (e: Exception) {
@@ -72,12 +79,16 @@ class PhoneSetupServer(
         return if (given == token) block() else status(Response.Status.FORBIDDEN, "Forbidden")
     }
 
+    /** Changes run one at a time, so two quick requests can't read-modify-write over each other. */
+    private val writeLock = Any()
+
     /** A change: token, POST only, and refused while Kids mode is on. */
     private inline fun mutation(session: IHTTPSession, block: () -> Response): Response = guarded(session) {
         when {
             session.method != Method.POST -> status(Response.Status.METHOD_NOT_ALLOWED, "POST only")
-            bridge.isLocked() -> error(Response.Status.FORBIDDEN, "kids_mode")
-            else -> block()
+            else -> synchronized(writeLock) {
+                if (bridge.isLocked()) error(Response.Status.FORBIDDEN, "kids_mode") else block()
+            }
         }
     }
 
@@ -207,6 +218,25 @@ class PhoneSetupServer(
         if (!SetupValidation.isPackageName(pkg)) return null
         return pkg.takeIf { p -> bridge.apps().any { it.packageName == p } }
     }
+
+    // ---------------------------------------------------------------- Settings
+
+    private fun getSettings(): Response = json(
+        JSONObject()
+            .put("settings", SettingsJson.toJson(bridge.settings()))
+            .put("options", SettingsJson.options())
+            .put("locked", bridge.isLocked())
+    )
+
+    private fun updateSettings(body: JSONObject): Response =
+        when (val result = SettingsJson.apply(bridge.settings(), body)) {
+            is SettingsJson.Result.Invalid -> error(Response.Status.BAD_REQUEST, "bad_setting")
+            is SettingsJson.Result.Ok -> {
+                bridge.updateSettings(result.settings)
+                bridge.onChanged()
+                json(JSONObject().put("ok", true).put("settings", SettingsJson.toJson(result.settings)))
+            }
+        }
 
     // ---------------------------------------------------------------- Responses
 

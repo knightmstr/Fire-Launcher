@@ -1,5 +1,6 @@
 package com.knightmstr.onyxtv.upload
 
+import com.knightmstr.onyxtv.data.LauncherSettings
 import java.io.File
 
 /**
@@ -35,6 +36,13 @@ interface PhoneSetupBridge {
 
     /** Blank [label] (or the app's own name) restores the original name. */
     fun rename(packageName: String, label: String?)
+
+    // ---------------------------------------------------------------- Settings
+
+    fun settings(): LauncherSettings
+
+    /** Saves settings already checked by [SettingsJson.apply]. */
+    fun updateSettings(settings: LauncherSettings)
 
     // ---------------------------------------------------------------- Safety
 

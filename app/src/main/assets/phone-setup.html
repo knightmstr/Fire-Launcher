@@ -53,6 +53,24 @@
   .card img { width:100%; height:90px; object-fit:cover; display:block; }
   .card .bar { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; gap:6px; }
   .card .name { font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .setting { display:flex; align-items:center; gap:12px; background:var(--card); border-radius:12px; padding:12px; }
+  .setting .names { flex:1; min-width:0; }
+  .setting .note { font-size:12px; color:var(--muted); margin-top:2px; }
+  #settings-status { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:10; margin:0;
+                     background:#1f2937; padding:10px 16px; border-radius:999px; box-shadow:0 6px 20px #0008; }
+  #settings-status:empty { display:none; }
+  .setting label.title { font-size:15px; display:block; }
+  .setting select { background:var(--line); color:var(--text); border:1px solid #374151; border-radius:10px;
+                    padding:10px; font-size:15px; max-width:52%; }
+  .setting input[type=range] { width:100%; margin-top:8px; accent-color:var(--green); }
+  .switch { position:relative; width:52px; height:30px; flex:none; }
+  .switch input { opacity:0; width:100%; height:100%; margin:0; position:absolute; cursor:pointer; z-index:1; }
+  .switch span { position:absolute; inset:0; background:#374151; border-radius:30px; transition:.15s; }
+  .switch span::after { content:""; position:absolute; width:24px; height:24px; left:3px; top:3px; background:#fff;
+                        border-radius:50%; transition:.15s; }
+  .switch input:checked + span { background:var(--green); }
+  .switch input:checked + span::after { transform:translateX(22px); }
+  .switch input:disabled + span { opacity:.4; }
   .del { background:none; border:none; color:var(--red); font-size:13px; cursor:pointer; }
 </style>
 </head>
@@ -64,6 +82,7 @@
 <nav role="tablist">
   <button role="tab" id="tab-apps" data-tab="apps">Apps</button>
   <button role="tab" id="tab-photos" data-tab="photos">Photos</button>
+  <button role="tab" id="tab-settings" data-tab="settings">Settings</button>
 </nav>
 <main>
   <div id="global" class="status"></div>
@@ -77,6 +96,11 @@
     <h2>All apps</h2>
     <input type="search" id="search" placeholder="Search apps" autocomplete="off">
     <div class="list" id="apps" style="margin-top:10px"></div>
+  </section>
+
+  <section class="panel" id="panel-settings" role="tabpanel" hidden>
+    <div id="settings-status" class="status"></div>
+    <div id="settings"></div>
   </section>
 
   <section class="panel" id="panel-photos" role="tabpanel" hidden>
@@ -137,7 +161,7 @@
 
   // ---------------------------------------------------------------- tabs
 
-  var TABS = ['apps', 'photos'];
+  var TABS = ['apps', 'photos', 'settings'];
   function showTab(name) {
     if (TABS.indexOf(name) < 0) name = 'apps';
     TABS.forEach(function (t) {
@@ -146,6 +170,7 @@
     });
     if (location.hash !== '#' + name) history.replaceState(null, '', location.pathname + location.search + '#' + name);
     if (name === 'photos') loadPhotos();
+    if (name === 'settings') loadSettings();
   }
   Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
     b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
@@ -153,7 +178,7 @@
 
   function renderLock() {
     $('locked').hidden = !state.locked;
-    Array.prototype.forEach.call(document.querySelectorAll('main button, main input'), function (b) {
+    Array.prototype.forEach.call(document.querySelectorAll('main button, main input, main select'), function (b) {
       if (b.id === 'search') return;
       if (state.locked) b.disabled = true;
     });
@@ -363,6 +388,134 @@
         .then(function () { next(i + 1); });
     })(0);
   });
+
+  // ---------------------------------------------------------------- settings
+
+  // What to show, in the TV's own wording. Choices come from the TV (options), not from here.
+  var SETTINGS = [
+    { group: 'Home screen', items: [
+      { key: 'homeLayout', title: 'Home layout', kind: 'select', describe: true },
+      { key: 'tileWidthDp', title: 'Tile size', kind: 'range' },
+      { key: 'cardShape', title: 'Tile shape', kind: 'select' },
+      { key: 'showAllAppsRow', title: 'Show all apps as a row', note: 'Off: use the All Apps tile', kind: 'switch' },
+      { key: 'showHiddenApps', title: 'Show a Hidden Apps row', note: 'So hidden apps can be brought back', kind: 'switch' }
+    ]},
+    { group: 'Wallpaper', items: [
+      { key: 'wallpaperSource', title: 'Wallpapers from', kind: 'select' },
+      { key: 'wallpaperFit', title: 'Photo fit', kind: 'select', describe: true },
+      { key: 'wallpaperIntervalMinutes', title: 'Change wallpaper every', kind: 'select' }
+    ]},
+    { group: 'Screensaver', items: [
+      { key: 'screensaverTimeoutMinutes', title: 'Start screensaver after', kind: 'select' },
+      { key: 'nightDim', title: 'Dim at night', note: '10pm to 6am', kind: 'switch' }
+    ]}
+  ];
+  var settingsState = null;
+
+  function loadSettings() {
+    if (!token) { linkProblem(); return; }
+    getJSON('/api/settings').then(function (d) {
+      settingsState = d;
+      state.locked = !!d.locked;
+      renderSettings();
+    }).catch(function (e) {
+      if (e.message !== 'forbidden') say($('settings-status'), 'Couldn’t reach the TV.', true);
+    });
+  }
+
+  function saveSetting(key, value) {
+    var change = {};
+    change[key] = value;
+    say($('settings-status'), 'Saving…');
+    postJSON('/api/settings', change).then(function (d) {
+      settingsState.settings = d.settings;
+      say($('settings-status'), 'Saved. The TV has updated.');
+      clearTimeout(saveSetting.timer);
+      saveSetting.timer = setTimeout(function () { say($('settings-status'), ''); }, 2000);
+      renderSettings();
+    }).catch(function () {
+      say($('settings-status'), 'Couldn’t save that setting.', true);
+      renderSettings();
+    });
+  }
+
+  function optionTitle(key, value) {
+    var opts = settingsState.options[key] || [];
+    for (var i = 0; i < opts.length; i++) if (opts[i].value === value) return opts[i];
+    return null;
+  }
+
+  function settingRow(item) {
+    var current = settingsState.settings[item.key];
+    var row = el('div', 'setting');
+    var names = el('div', 'names');
+    var id = 'set-' + item.key;
+    var title = el('label', 'title', item.title);
+    title.htmlFor = id;
+    names.appendChild(title);
+    var noteText = item.note;
+    if (item.describe) {
+      var chosen = optionTitle(item.key, current);
+      if (chosen && chosen.description) noteText = chosen.description;
+    }
+    var note = el('div', 'note', noteText || '');
+    names.appendChild(note);
+    row.appendChild(names);
+
+    if (item.kind === 'select') {
+      var select = el('select');
+      select.id = id;
+      (settingsState.options[item.key] || []).forEach(function (o) {
+        var opt = el('option', null, o.title);
+        opt.value = String(o.value);
+        if (o.value === current) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', function () {
+        var o = (settingsState.options[item.key] || [])[select.selectedIndex];
+        if (o) saveSetting(item.key, o.value);
+      });
+      row.appendChild(select);
+    } else if (item.kind === 'switch') {
+      var sw = el('label', 'switch');
+      var box = el('input');
+      box.type = 'checkbox';
+      box.id = id;
+      box.checked = !!current;
+      box.addEventListener('change', function () { saveSetting(item.key, box.checked); });
+      sw.appendChild(box);
+      sw.appendChild(el('span'));
+      row.appendChild(sw);
+    } else if (item.kind === 'range') {
+      var r = settingsState.options[item.key];
+      var range = el('input');
+      range.type = 'range';
+      range.id = id;
+      range.min = r.min; range.max = r.max; range.step = r.step;
+      range.value = current;
+      note.textContent = current + ' dp';
+      range.addEventListener('input', function () { note.textContent = range.value + ' dp'; });
+      range.addEventListener('change', function () { saveSetting(item.key, Number(range.value)); });
+      names.appendChild(range);
+    }
+    return row;
+  }
+
+  function renderSettings() {
+    var box = $('settings');
+    box.textContent = '';
+    if (!settingsState) return;
+    SETTINGS.forEach(function (g) {
+      box.appendChild(el('h2', null, g.group));
+      var list = el('div', 'list');
+      g.items.forEach(function (item) { list.appendChild(settingRow(item)); });
+      box.appendChild(list);
+    });
+    var more = el('p', 'sub', 'Kids mode, updates and the Fire TV extras stay on the TV.');
+    more.style.marginTop = '18px';
+    box.appendChild(more);
+    renderLock();
+  }
 
   // ---------------------------------------------------------------- start
 

@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -458,7 +459,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             SetupApp(packageName = it.packageName, label = it.label, originalLabel = it.originalLabel, hidden = it.isHidden)
         }
 
-        override fun favoriteOrder() = this@LauncherViewModel.favoriteOrder.value
+        // Read straight from DataStore, not the StateFlows: those update a moment later, and two
+        // quick changes from the phone would otherwise build on stale values and undo each other.
+        override fun favoriteOrder() = runBlocking { prefs.favoritesFlow.first() }
 
         override fun iconPng(packageName: String): ByteArray? {
             iconCache[packageName]?.let { return it }
@@ -476,6 +479,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val clean = label?.trim()?.takeIf { it.isNotEmpty() && it != original }
             runBlocking { prefs.setCustomLabel(packageName, clean) }
         }
+
+        override fun settings() = runBlocking { prefs.settingsFlow.first() }
+
+        override fun updateSettings(settings: LauncherSettings) = runBlocking { prefs.updateSettings(settings) }
 
         override fun isLocked() = this@LauncherViewModel.kidsModeEnabled.value
 

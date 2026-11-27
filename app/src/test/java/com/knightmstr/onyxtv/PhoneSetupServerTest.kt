@@ -1,5 +1,8 @@
 package com.knightmstr.onyxtv
 
+import com.knightmstr.onyxtv.data.CardShape
+import com.knightmstr.onyxtv.data.LauncherSettings
+import com.knightmstr.onyxtv.data.UpdateChannel
 import com.knightmstr.onyxtv.upload.PhoneSetupBridge
 import com.knightmstr.onyxtv.upload.PhoneSetupServer
 import com.knightmstr.onyxtv.upload.SetupApp
@@ -47,6 +50,9 @@ class PhoneSetupServerTest {
         override fun setFavoriteOrder(order: List<String>) { favorites = order }
         override fun setHidden(packageName: String, hidden: Boolean) { hiddenCalls += packageName to hidden }
         override fun rename(packageName: String, label: String?) { renameCalls += packageName to label }
+        var settings = LauncherSettings()
+        override fun settings(): LauncherSettings = settings
+        override fun updateSettings(settings: LauncherSettings) { this.settings = settings }
         override fun isLocked(): Boolean = locked
         override fun onChanged() { changes++ }
     }
@@ -120,7 +126,7 @@ class PhoneSetupServerTest {
         val endpoints = listOf(
             "/api/list", "/api/img?name=x", "/api/upload", "/api/delete?name=x",
             "/api/apps", "/api/icon?pkg=com.netflix.ninja",
-            "/api/apps/favorites", "/api/apps/hidden", "/api/apps/rename"
+            "/api/apps/favorites", "/api/apps/hidden", "/api/apps/rename", "/api/settings"
         )
         for (e in endpoints) {
             val sep = if ('?' in e) "&" else "?"
@@ -298,7 +304,8 @@ class PhoneSetupServerTest {
         val attempts = listOf(
             "/api/apps/favorites" to """{"order":[]}""",
             "/api/apps/hidden" to """{"pkg":"com.netflix.ninja","hidden":true}""",
-            "/api/apps/rename" to """{"pkg":"com.netflix.ninja","label":"x"}"""
+            "/api/apps/rename" to """{"pkg":"com.netflix.ninja","label":"x"}""",
+            "/api/settings" to """{"nightDim":false}"""
         )
         for ((path, body) in attempts) {
             val r = post(path, body)
@@ -309,6 +316,68 @@ class PhoneSetupServerTest {
         assertEquals(listOf("com.plexapp.android", "com.gone.app"), bridge.favorites)
         assertTrue(bridge.hiddenCalls.isEmpty() && bridge.renameCalls.isEmpty())
         assertEquals(0, bridge.changes)
+    }
+
+    // ------------------------------------------------------------------ settings
+
+    @Test
+    fun `settings read back with the TV's options`() {
+        val r = request(t("/api/settings"))
+        assertEquals(200, r.code)
+        val json = JSONObject(r.body)
+        assertEquals("ROUNDED", json.getJSONObject("settings").getString("cardShape"))
+        assertTrue(json.getJSONObject("options").has("wallpaperIntervalMinutes"))
+        assertFalse("update channel stays TV-only", json.getJSONObject("settings").has("updateChannel"))
+    }
+
+    @Test
+    fun `settings change only with valid values`() {
+        assertEquals(200, post("/api/settings", """{"cardShape":"PILL","tileWidthDp":100,"nightDim":false}""").code)
+        assertEquals(CardShape.PILL, bridge.settings.cardShape)
+        assertEquals(100, bridge.settings.tileWidthDp)
+        assertFalse(bridge.settings.nightDim)
+
+        val before = bridge.settings
+        for (bad in listOf(
+            """{"updateChannel":"BETA"}""",
+            """{"cardShape":"pill"}""",
+            """{"cardShape":"HEXAGON"}""",
+            """{"tileWidthDp":5000}""",
+            """{"tileWidthDp":105}""",
+            """{"tileWidthDp":"100"}""",
+            """{"wallpaperIntervalMinutes":1}""",
+            """{"screensaverTimeoutMinutes":-5}""",
+            """{"nightDim":"false"}""",
+            """{"nightDim":true,"bogus":1}""",
+            """{}"""
+        )) {
+            assertEquals("should refuse $bad", 400, post("/api/settings", bad).code)
+        }
+        assertEquals(before, bridge.settings)
+        assertEquals(UpdateChannel.STABLE, bridge.settings.updateChannel)
+    }
+
+    @Test
+    fun `settings writes need POST and JSON`() {
+        assertEquals(415, request(t("/api/settings"), "POST", "nightDim=false",
+            contentType = "application/x-www-form-urlencoded").code)
+        assertEquals(405, request(t("/api/settings"), "PUT", """{"nightDim":false}""").code)
+        assertTrue(bridge.settings.nightDim)
+    }
+
+    @Test
+    fun `concurrent changes don't lose each other`() {
+        val threads = (1..20).map { i ->
+            Thread {
+                val shape = if (i % 2 == 0) "SQUARE" else "PILL"
+                post("/api/settings", """{"cardShape":"$shape"}""")
+                post("/api/apps/hidden", """{"pkg":"com.netflix.ninja","hidden":${i % 2 == 0}}""")
+            }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+        assertEquals(20, bridge.hiddenCalls.size)
+        assertTrue(bridge.settings.cardShape == CardShape.SQUARE || bridge.settings.cardShape == CardShape.PILL)
     }
 
     @Test
