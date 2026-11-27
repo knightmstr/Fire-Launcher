@@ -12,4 +12,6 @@
 | Accessibility (Home button) | Only sees which **Amazon launcher** screen opened, never screen content |
 | Notification access (Now playing) | Only reads what's playing; never reads notifications |
 
-There's no analytics or tracking, and no accounts. Network traffic is HTTPS only.
+There's no analytics or tracking, and no accounts. Traffic to the internet is HTTPS only.
+
+**Set up from phone** runs a small web server on your home network, only while that screen is open on the TV (and for at most 10 minutes without use). It answers only requests carrying the one-time code from the TV's QR code, and only when they address the TV by its IP address. That local traffic is plain HTTP, since a TV on a home network has no certificate.

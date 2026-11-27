@@ -24,7 +24,7 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 **Home**
 - Wallpaper-first layout: date, weather and a big clock in the middle, a dock of favourites at the bottom
 - Two home layouts: **Dock** (favourites always at the bottom) or **Clean** (only the clock and wallpaper; any button brings the apps back, and they fade away after a few seconds)
-- Wallpapers from your own photos (default) or r/TVWallpapersSFW, changing on a timer you choose
+- Wallpapers from your own photos (default, uploaded from your phone) or r/TVWallpapersSFW, changing on a timer you choose
 - Live weather for any city (Open-Meteo, no account), °C / °F
 - Now playing: app, title and ⏮ ⏯ ⏭ for whatever's playing in Spotify, YouTube, Plex…
 
@@ -33,6 +33,9 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 - Sort A–Z, most recent, most used, or your own order
 - Hold OK (or ☰) on any app to favourite, reorder, rename, hide, or open App info
 - Tile size slider and tile shapes (rounded, square, extra rounded, pill)
+
+**Set up from phone**
+- Scan a QR code to manage favourites, hidden and renamed apps, wallpaper photos and settings from your phone, and back up or restore your whole setup. No adb, no account ([how](docs/USING.md#set-up-from-phone))
 
 **Fire TV**
 - Home button opens Onyx TV instead of Amazon's home ([Extras](docs/EXTRAS.md))

@@ -62,7 +62,9 @@ To undo it, run the same command with `disallow_listener` in place of `allow_lis
 
 ## Your own wallpapers
 
-Copy photos straight in, with no permission needed:
+The easiest way: **⚙ → Launcher settings → Set up from phone → Photos**, then pick photos on your phone. See [Set up from phone](USING.md#set-up-from-phone).
+
+Or copy photos straight in with adb, with no permission needed:
 
 ```bash
 adb connect 192.168.1.50:5555    # your TV's IP
