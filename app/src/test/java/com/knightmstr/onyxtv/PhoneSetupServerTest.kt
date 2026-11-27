@@ -1,5 +1,7 @@
 package com.knightmstr.onyxtv
 
+import com.knightmstr.onyxtv.data.AppSortOrder
+import com.knightmstr.onyxtv.data.BackupData
 import com.knightmstr.onyxtv.data.CardShape
 import com.knightmstr.onyxtv.data.LauncherSettings
 import com.knightmstr.onyxtv.data.UpdateChannel
@@ -54,6 +56,10 @@ class PhoneSetupServerTest {
         var settings = LauncherSettings()
         override fun settings(): LauncherSettings = settings
         override fun updateSettings(settings: LauncherSettings) { this.settings = settings }
+        var restored: BackupData? = null
+        override fun exportBackup() = BackupData(settings, favorites, setOf("org.xbmc.kodi"), emptyMap(),
+            emptyList(), AppSortOrder.ALPHABETICAL, null, true, emptyList())
+        override fun restoreBackup(backup: BackupData) { restored = backup }
         override fun isLocked(): Boolean = locked
         override fun onChanged() { changes++ }
     }
@@ -140,7 +146,8 @@ class PhoneSetupServerTest {
         val endpoints = listOf(
             "/api/list", "/api/img?name=x", "/api/upload", "/api/delete?name=x",
             "/api/apps", "/api/icon?pkg=com.netflix.ninja",
-            "/api/apps/favorites", "/api/apps/hidden", "/api/apps/rename", "/api/settings"
+            "/api/apps/favorites", "/api/apps/hidden", "/api/apps/rename", "/api/settings",
+            "/api/backup", "/api/restore"
         )
         for (e in endpoints) {
             val sep = if ('?' in e) "&" else "?"
@@ -319,7 +326,8 @@ class PhoneSetupServerTest {
             "/api/apps/favorites" to """{"order":[]}""",
             "/api/apps/hidden" to """{"pkg":"com.netflix.ninja","hidden":true}""",
             "/api/apps/rename" to """{"pkg":"com.netflix.ninja","label":"x"}""",
-            "/api/settings" to """{"nightDim":false}"""
+            "/api/settings" to """{"nightDim":false}""",
+            "/api/restore" to request(t("/api/backup")).body
         )
         for ((path, body) in attempts) {
             val r = post(path, body)
@@ -329,6 +337,7 @@ class PhoneSetupServerTest {
         assertEquals(403, request(t("/api/delete?name=x"), "POST", "").code)
         assertEquals(listOf("com.plexapp.android", "com.gone.app"), bridge.favorites)
         assertTrue(bridge.hiddenCalls.isEmpty() && bridge.renameCalls.isEmpty())
+        assertEquals(null, bridge.restored)
         assertEquals(0, bridge.changes)
     }
 
@@ -451,6 +460,41 @@ class PhoneSetupServerTest {
         assertEquals(500, tokens.toSet().size)
         assertTrue(tokens.all { it.length == SetupToken.LENGTH && it.all { c -> c in 'a'..'z' || c in '0'..'9' } })
         assertTrue(SetupToken.LENGTH >= 16)
+    }
+
+    // ------------------------------------------------------------------ backup & restore (phase 4)
+
+    @Test
+    fun `backup downloads as a file and restores`() {
+        val conn = URL("http://127.0.0.1:$port${t("/api/backup")}").openConnection() as HttpURLConnection
+        assertEquals(200, conn.responseCode)
+        assertTrue(conn.getHeaderField("Content-Disposition").startsWith("attachment"))
+        val file = conn.inputStream.readBytes().toString(Charsets.UTF_8)
+        assertEquals("onyx-tv-backup", JSONObject(file).getString("format"))
+
+        assertEquals(200, post("/api/restore", file).code)
+        assertEquals(listOf("com.plexapp.android", "com.gone.app"), bridge.restored!!.favorites)
+        assertEquals(1, bridge.changes)
+    }
+
+    @Test
+    fun `restore refuses bad files and changes nothing`() {
+        assertEquals(400, post("/api/restore", """{"format":"onyx-tv-backup","version":1}""").code)
+        assertEquals(400, post("/api/restore", """{"hello":"world"}""").code)
+        val tampered = JSONObject(request(t("/api/backup")).body).put("favorites", org.json.JSONArray(listOf("../../x")))
+        assertEquals(400, post("/api/restore", tampered.toString()).code)
+        assertEquals(405, request(t("/api/restore")).code)
+        assertEquals(null, bridge.restored)
+    }
+
+    @Test
+    fun `restore accepts bigger bodies than other changes, up to its own cap`() {
+        val pad = "x".repeat(40_000) // over the 16 KB cap for other endpoints
+        val file = JSONObject(request(t("/api/backup")).body).put("note", pad).toString()
+        assertEquals(200, post("/api/restore", file).code)
+        assertEquals(413, post("/api/apps/hidden", """{"pkg":"com.netflix.ninja","hidden":true,"n":"$pad"}""").code)
+        val tooBig = JSONObject(request(t("/api/backup")).body).put("note", "x".repeat(300_000)).toString()
+        assertEquals(413, post("/api/restore", tooBig).code)
     }
 
     @Test

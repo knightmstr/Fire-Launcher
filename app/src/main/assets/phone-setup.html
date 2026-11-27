@@ -72,6 +72,8 @@
   .switch input:checked + span { background:var(--green); }
   .switch input:checked + span::after { transform:translateX(22px); }
   .switch input:disabled + span { opacity:.4; }
+  .backup { display:flex; gap:10px; flex-wrap:wrap; }
+  .backup .btn { text-decoration:none; }
   .del { background:none; border:none; color:var(--red); font-size:13px; cursor:pointer; }
 </style>
 </head>
@@ -102,6 +104,16 @@
   <section class="panel" id="panel-settings" role="tabpanel" hidden>
     <div id="settings-status" class="status"></div>
     <div id="settings"></div>
+
+    <h2>Backup &amp; restore</h2>
+    <p class="sub">Saves favourites, hidden and renamed apps, app order, settings, weather city and wallpaper links.
+      Kids mode and its PIN are never included. Photos aren’t included either.</p>
+    <div class="backup" data-gap>
+      <a class="btn" id="backup-link" download="onyx-tv-backup.json">Download backup</a>
+      <label class="btn sec" for="restore-file">Restore from file</label>
+      <input id="restore-file" type="file" accept="application/json,.json" hidden>
+    </div>
+    <div id="restore-status" class="status"></div>
   </section>
 
   <section class="panel" id="panel-photos" role="tabpanel" hidden>
@@ -517,6 +529,47 @@
     box.appendChild(more);
     renderLock();
   }
+
+  // ---------------------------------------------------------------- backup & restore
+
+  $('backup-link').href = api('/api/backup');
+
+  function describeBackup(b) {
+    var parts = [];
+    var n = function (x) { return (x && x.length) || 0; };
+    parts.push(n(b.favorites) + ' favourite' + (n(b.favorites) === 1 ? '' : 's'));
+    parts.push(n(b.hidden) + ' hidden');
+    parts.push(Object.keys(b.labels || {}).length + ' renamed');
+    if (b.weather && b.weather.city) parts.push('weather for ' + b.weather.city);
+    return parts.join(', ');
+  }
+
+  $('restore-file').addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    var status = $('restore-status');
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 256 * 1024) { say(status, 'That file is too big to be an Onyx TV backup.', true); return; }
+    file.text().then(function (text) {
+      var data;
+      try { data = JSON.parse(text); } catch (err) { data = null; }
+      if (!data || data.format !== 'onyx-tv-backup') {
+        say(status, 'That isn’t an Onyx TV backup file.', true);
+        return;
+      }
+      if (!window.confirm('Restore this backup? It replaces the TV’s current setup with: ' + describeBackup(data) + '.')) return;
+      say(status, 'Restoring…');
+      postJSON('/api/restore', data).then(function () {
+        say(status, 'Restored. The TV has updated.');
+        loadApps();
+        loadSettings();
+      }).catch(function (err) {
+        say(status, /newer_version/.test(err.message)
+          ? 'This backup is from a newer Onyx TV. Update the TV first.'
+          : 'Couldn’t restore: the file looks damaged or was changed.', true);
+      });
+    });
+  });
 
   // ---------------------------------------------------------------- start
 

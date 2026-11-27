@@ -13,6 +13,7 @@ import com.knightmstr.onyxtv.screensaver.ScreensaverTakeover
 import com.knightmstr.onyxtv.data.AppRepository
 import com.knightmstr.onyxtv.data.AppSortOrder
 import com.knightmstr.onyxtv.data.AppUsageStat
+import com.knightmstr.onyxtv.data.BackupData
 import com.knightmstr.onyxtv.data.CityLocationModel
 import com.knightmstr.onyxtv.data.LauncherPrefsStore
 import com.knightmstr.onyxtv.data.LauncherSettings
@@ -485,6 +486,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         override fun settings() = runBlocking { prefs.settingsFlow.first() }
 
         override fun updateSettings(settings: LauncherSettings) = runBlocking { prefs.updateSettings(settings) }
+
+        override fun exportBackup() = runBlocking { prefs.backupSnapshot() }
+
+        // Weather follows on its own: it watches the stored city and units.
+        override fun restoreBackup(backup: BackupData) = runBlocking { prefs.restoreBackup(backup) }
 
         override fun isLocked() = this@LauncherViewModel.kidsModeEnabled.value
 

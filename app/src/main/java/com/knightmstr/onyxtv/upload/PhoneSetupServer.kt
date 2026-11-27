@@ -14,7 +14,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 /**
  * A tiny, token-gated HTTP server that lets a phone on the same Wi-Fi set up the TV from a
  * browser: upload wallpaper photos, manage apps (favourites and their order, hide, rename) and
- * change launcher settings.
+ * change launcher settings, and back up or restore the whole setup.
  * No adb, no account. It only runs while the "Set up from phone" screen is open on the TV.
  *
  * Security model:
@@ -98,6 +98,10 @@ class PhoneSetupServer(
                 else -> jsonMutation(session) { updateSettings(it) }
             }
 
+            // Backup & restore
+            "/api/backup" -> guarded(session) { backup() }
+            "/api/restore" -> jsonMutation(session, BackupJson.MAX_BYTES) { restore(it) }
+
             else -> status(Response.Status.NOT_FOUND, "Not found")
         }
     } catch (e: Exception) {
@@ -129,7 +133,11 @@ class PhoneSetupServer(
     }
 
     /** A JSON change: as [mutation], plus a JSON content type and a small, parsed body. */
-    private inline fun jsonMutation(session: IHTTPSession, block: (JSONObject) -> Response): Response =
+    private inline fun jsonMutation(
+        session: IHTTPSession,
+        maxBytes: Int = SetupValidation.MAX_JSON_BYTES,
+        block: (JSONObject) -> Response
+    ): Response =
         mutation(session) {
             val type = session.headers["content-type"].orEmpty().substringBefore(';').trim()
             val length = session.headers["content-length"]?.toLongOrNull()
@@ -137,7 +145,7 @@ class PhoneSetupServer(
                 !type.equals("application/json", ignoreCase = true) ->
                     error(Response.Status.UNSUPPORTED_MEDIA_TYPE, "json_only")
                 length == null || length <= 0 -> error(Response.Status.BAD_REQUEST, "no_body")
-                length > SetupValidation.MAX_JSON_BYTES -> error(Response.Status.PAYLOAD_TOO_LARGE, "too_large")
+                length > maxBytes -> error(Response.Status.PAYLOAD_TOO_LARGE, "too_large")
                 else -> {
                     val files = HashMap<String, String>()
                     session.parseBody(files)
@@ -271,6 +279,22 @@ class PhoneSetupServer(
                 bridge.updateSettings(result.settings)
                 bridge.onChanged()
                 json(JSONObject().put("ok", true).put("settings", SettingsJson.toJson(result.settings)))
+            }
+        }
+
+    // ---------------------------------------------------------------- Backup & restore
+
+    private fun backup(): Response =
+        newFixedLengthResponse(Response.Status.OK, "application/json", BackupJson.toJson(bridge.exportBackup()).toString(2))
+            .apply { addHeader("Content-Disposition", "attachment; filename=\"onyx-tv-backup.json\"") }
+
+    private fun restore(body: JSONObject): Response =
+        when (val result = BackupJson.parse(body, bridge.settings())) {
+            is BackupJson.Result.Invalid -> error(Response.Status.BAD_REQUEST, "bad_backup_" + result.reason)
+            is BackupJson.Result.Ok -> {
+                bridge.restoreBackup(result.data)
+                bridge.onChanged()
+                ok()
             }
         }
 

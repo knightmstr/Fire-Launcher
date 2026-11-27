@@ -1,5 +1,6 @@
 package com.knightmstr.onyxtv.upload
 
+import com.knightmstr.onyxtv.data.BackupData
 import com.knightmstr.onyxtv.data.LauncherSettings
 import java.io.File
 
@@ -43,6 +44,13 @@ interface PhoneSetupBridge {
 
     /** Saves settings already checked by [SettingsJson.apply]. */
     fun updateSettings(settings: LauncherSettings)
+
+    // ---------------------------------------------------------------- Backup
+
+    fun exportBackup(): BackupData
+
+    /** Restores a backup already checked by [BackupJson.parse]. */
+    fun restoreBackup(backup: BackupData)
 
     // ---------------------------------------------------------------- Safety
 
