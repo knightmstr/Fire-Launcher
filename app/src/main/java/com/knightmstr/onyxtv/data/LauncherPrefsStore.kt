@@ -212,6 +212,16 @@ class LauncherPrefsStore(private val context: Context) {
         }
     }
 
+    /** Appends several (already-resolved) URLs at once, skipping duplicates, up to the cap. */
+    suspend fun addCustomWallpaperUrls(urls: List<String>) {
+        context.dataStore.edit { p ->
+            val current = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])
+            val merged = (current + urls.map { it.trim() }.filter { it.isNotEmpty() }).distinct()
+                .take(maxOf(current.size, MAX_CUSTOM_WALLPAPER_URLS))
+            p[KEY_CUSTOM_WALLPAPER_URLS] = PrefsCodec.encodeList(merged)
+        }
+    }
+
     suspend fun removeCustomWallpaperUrl(url: String) {
         context.dataStore.edit { p ->
             val current = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])

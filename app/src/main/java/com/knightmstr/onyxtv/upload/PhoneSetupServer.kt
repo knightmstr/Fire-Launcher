@@ -1,5 +1,6 @@
 package com.knightmstr.onyxtv.upload
 
+import com.knightmstr.onyxtv.data.WallpaperLinks
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONArray
 import org.json.JSONException
@@ -297,21 +298,32 @@ class PhoneSetupServer(
     )
 
     private fun addWallpaperUrl(body: JSONObject): Response {
-        val url = (body.opt("url") as? String)?.trim()
-        if (url == null || !SetupValidation.isHttpsUrl(url)) return error(Response.Status.BAD_REQUEST, "bad_url")
-        val current = bridge.wallpaperUrls()
-        if (url in current) return ok()
-        if (current.size >= MAX_WALLPAPER_URLS) return error(Response.Status.BAD_REQUEST, "full")
-        val problem = bridge.addWallpaperUrl(url)
-        if (problem != null) {
-            return newFixedLengthResponse(
-                Response.Status.BAD_REQUEST, "application/json",
-                JSONObject().put("ok", false).put("error", "not_image").put("message", problem.take(200)).toString()
-            )
+        val raw = (body.opt("url") as? String)?.trim()
+            ?: return error(Response.Status.BAD_REQUEST, "bad_url")
+        // Work out what it is offline first, so junk never makes the TV fetch anything.
+        val stored = when (val kind = WallpaperLinks.classify(raw)) {
+            is WallpaperLinks.Kind.Unsupported -> return linkProblem(kind.message)
+            is WallpaperLinks.Kind.Image ->
+                if (SetupValidation.isHttpsUrl(kind.url)) kind.url else return error(Response.Status.BAD_REQUEST, "bad_url")
+            is WallpaperLinks.Kind.Subreddit -> kind.url
+            is WallpaperLinks.Kind.RedditPost -> null // its pictures are only known once fetched
         }
-        bridge.onChanged()
-        return ok()
+        val current = bridge.wallpaperUrls()
+        if (stored != null && stored in current) return json(JSONObject().put("ok", true).put("added", "already"))
+        if (current.size >= MAX_WALLPAPER_URLS) return error(Response.Status.BAD_REQUEST, "full")
+        return when (val result = bridge.addWallpaperUrl(raw)) {
+            is LinkResult.Failed -> linkProblem(result.message)
+            is LinkResult.Added -> {
+                bridge.onChanged()
+                json(JSONObject().put("ok", true).put("added", result.what.take(80)))
+            }
+        }
     }
+
+    private fun linkProblem(message: String): Response = newFixedLengthResponse(
+        Response.Status.BAD_REQUEST, "application/json",
+        JSONObject().put("ok", false).put("error", "not_image").put("message", message.take(200)).toString()
+    )
 
     private fun removeWallpaperUrl(body: JSONObject): Response {
         val url = body.opt("url") as? String ?: return error(Response.Status.BAD_REQUEST, "bad_url")

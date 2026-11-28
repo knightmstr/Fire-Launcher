@@ -256,7 +256,7 @@ fun LauncherSettingsDialog(
         if (settings.wallpaperSource == WallpaperSource.CUSTOM_URL) {
             TvMenuItem(
                 title = "Manage photo links",
-                subtitle = "Paste image URLs to use as wallpapers",
+                subtitle = "Picture links, Drive / Dropbox / OneDrive, Reddit posts or subreddits",
                 icon = Icons.Rounded.Link,
                 iconTint = Color(0xFF34D399),
                 trailing = if (status.customUrlCount > 0) "${status.customUrlCount}" else null,

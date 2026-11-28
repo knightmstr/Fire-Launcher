@@ -5,6 +5,7 @@ import com.knightmstr.onyxtv.data.BackupData
 import com.knightmstr.onyxtv.data.CardShape
 import com.knightmstr.onyxtv.data.LauncherSettings
 import com.knightmstr.onyxtv.data.UpdateChannel
+import com.knightmstr.onyxtv.upload.LinkResult
 import com.knightmstr.onyxtv.upload.PhoneSetupBridge
 import com.knightmstr.onyxtv.upload.PhoneSetupServer
 import com.knightmstr.onyxtv.upload.SetupApp
@@ -59,10 +60,10 @@ class PhoneSetupServerTest {
         var urls = mutableListOf("https://example.com/a.jpg")
         val fetched = mutableListOf<String>()
         override fun wallpaperUrls(): List<String> = urls
-        override fun addWallpaperUrl(url: String): String? {
+        override fun addWallpaperUrl(url: String): LinkResult {
             fetched += url
-            if (url.contains("notimage")) return "That link doesn't open as an image we can show."
-            urls.add(url); return null
+            if (url.contains("notimage")) return LinkResult.Failed("That link doesn't open as an image we can show.")
+            urls.add(url); return LinkResult.Added("picture")
         }
         override fun removeWallpaperUrl(url: String) { urls.remove(url) }
 
@@ -543,6 +544,33 @@ class PhoneSetupServerTest {
         assertEquals(400, r.code)
         assertTrue(JSONObject(r.body).getString("message").contains("image"))
         assertEquals(1, bridge.urls.size)
+    }
+
+    @Test
+    fun `subreddits, posts and cloud links reach the TV's resolver`() {
+        for (s in listOf("r/EarthPorn", "https://www.reddit.com/r/EarthPorn/comments/1abcde/x/",
+            "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing", "dropbox.com/s/abc/a.jpg?dl=0")) {
+            assertEquals(s, 200, post("/api/wallpaper-urls/add", JSONObject().put("url", s).toString()).code)
+        }
+        assertEquals(4, bridge.fetched.size)
+    }
+
+    @Test
+    fun `unsupported links explain themselves without any fetch`() {
+        for (s in listOf("https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp", "https://photos.app.goo.gl/x",
+            "https://www.reddit.com/r/EarthPorn/s/AbC")) {
+            val r = post("/api/wallpaper-urls/add", JSONObject().put("url", s).toString())
+            assertEquals(400, r.code)
+            assertTrue(JSONObject(r.body).getString("message").isNotEmpty())
+        }
+        assertTrue(bridge.fetched.isEmpty())
+    }
+
+    @Test
+    fun `a stored subreddit isn't added twice`() {
+        bridge.urls.add("https://www.reddit.com/r/EarthPorn")
+        assertEquals(200, post("/api/wallpaper-urls/add", """{"url":"reddit.com/r/EarthPorn/"}""").code)
+        assertTrue(bridge.fetched.isEmpty())
     }
 
     @Test

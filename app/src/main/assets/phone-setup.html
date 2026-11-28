@@ -75,6 +75,7 @@
   .link-row { display:flex; align-items:center; gap:8px; background:var(--line); border-radius:10px; padding:6px 6px 6px 10px; }
   .link-row .url { flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .setting.links { align-items:flex-start; }
+  .link-row .tag { margin-left:8px; font-size:11px; color:var(--green); }
   input[type=url] { width:100%; padding:12px; border-radius:10px; border:1px solid var(--line);
          background:var(--card); color:var(--text); font-size:16px; }
   .note.warn { color:var(--amber); }
@@ -480,19 +481,20 @@
 
   function addLink(url) {
     url = (url || '').trim();
-    if (!/^https:\/\/\S+$/i.test(url)) {
-      links.message = 'Use a full https:// link to an image.'; links.warn = true; renderSettings(); return;
-    }
+    if (!url) return;
     links.busy = true; links.message = 'Checking the link on the TV…'; links.warn = false; renderSettings();
     fetch(api('/api/wallpaper-urls/add'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url })
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (d) {
         links.busy = false;
-        if (r.ok) { links.message = 'Added.'; links.warn = false; links.draft = ''; return loadLinks(); }
+        if (r.ok) {
+          links.message = d.added === 'already' ? 'That’s already in your links.' : 'Added ' + (d.added || 'it') + '.';
+          links.warn = false; links.draft = ''; return loadLinks();
+        }
         links.warn = true;
         links.message = d.message || (d.error === 'full' ? 'That’s the most links the TV keeps (' + links.max + ').'
-          : d.error === 'kids_mode' ? 'Kids mode is on.' : 'Use a full https:// link to an image.');
+          : d.error === 'kids_mode' ? 'Kids mode is on.' : 'Use a full https:// link.');
         renderSettings();
       });
     }).catch(function () { links.busy = false; links.message = 'Couldn’t reach the TV.'; links.warn = true; renderSettings(); });
@@ -508,7 +510,8 @@
     var box = el('div', 'setting links');
     var names = el('div', 'names');
     names.appendChild(el('label', 'title', 'My links'));
-    names.appendChild(el('div', 'note', 'Image links (https) to use as wallpapers. The TV checks each one is a real image.'));
+    names.appendChild(el('div', 'note', 'Paste a picture link, a Google Drive, Dropbox or OneDrive share link, a Reddit post, ' +
+      'or a subreddit like r/EarthPorn to keep getting new pictures from it. The TV checks each one first.'));
     if (links.urls === null) { loadLinks(); names.appendChild(el('div', 'note', 'Loading…')); box.appendChild(names); return box; }
 
     var list = el('div', 'list');
@@ -516,7 +519,14 @@
     if (!links.urls.length) list.appendChild(el('div', 'empty', 'No links yet. Until you add one, Reddit wallpapers are used.'));
     links.urls.forEach(function (u) {
       var row = el('div', 'link-row');
-      row.appendChild(el('span', 'url', u));
+      var sub = /^https:\/\/www\.reddit\.com\/r\/([A-Za-z0-9_]+)$/.exec(u);
+      var cloud = /^https:\/\/drive\.google\.com\/uc\?/.test(u) ? 'Google Drive picture'
+        : /^https:\/\/www\.dropbox\.com\//.test(u) ? 'Dropbox picture'
+        : /^https:\/\/api\.onedrive\.com\//.test(u) ? 'OneDrive picture' : null;
+      var label = el('span', 'url', sub ? 'r/' + sub[1] : (cloud || u));
+      label.title = u;
+      if (sub) label.appendChild(el('span', 'tag', 'new pictures'));
+      row.appendChild(label);
       var del = button('Remove', 'Remove this link', function () { removeLink(u); });
       row.appendChild(del);
       list.appendChild(row);
@@ -525,14 +535,18 @@
 
     var add = el('div', 'edit');
     var input = el('input');
-    input.type = 'url';
+    input.type = 'text';
+    input.inputMode = 'url';
+    input.spellcheck = false;
+    input.autocapitalize = 'off';
     input.id = 'link-input';
-    input.placeholder = 'https://…/photo.jpg';
+    input.placeholder = 'Link or r/subreddit';
     input.autocomplete = 'off';
     input.value = links.draft;
     input.addEventListener('input', function () { links.draft = input.value; });
     input.setAttribute('aria-label', 'Image link');
     var addBtn = button(links.busy ? 'Checking…' : 'Add', 'Add link', function () { addLink(input.value); });
+    input.disabled = links.busy;
     addBtn.disabled = links.busy || links.urls.length >= links.max;
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') addLink(input.value); });
     add.appendChild(input);
