@@ -1,6 +1,7 @@
 package com.knightmstr.onyxtv.upload
 
 import com.knightmstr.onyxtv.data.CardShape
+import com.knightmstr.onyxtv.data.ClockPlacement
 import com.knightmstr.onyxtv.data.HomeLayout
 import com.knightmstr.onyxtv.data.LauncherSettings
 import com.knightmstr.onyxtv.data.WallpaperFit
@@ -32,11 +33,13 @@ object SettingsJson {
     const val NIGHT_START = "nightStartHour"
     const val NIGHT_END = "nightEndHour"
     const val HOME_NIGHT_DIM = "homeNightDim"
+    const val CLOCK_PLACEMENT = "clockPlacement"
+    const val CLOCK_DRIFT = "clockDrift"
 
     val KEYS = setOf(
         HOME_LAYOUT, CARD_SHAPE, TILE_WIDTH, SHOW_ALL_APPS_ROW, SHOW_HIDDEN_APPS,
         WALLPAPER_SOURCE, WALLPAPER_FIT, WALLPAPER_INTERVAL, SCREENSAVER_TIMEOUT, NIGHT_DIM,
-        NIGHT_START, NIGHT_END, HOME_NIGHT_DIM
+        NIGHT_START, NIGHT_END, HOME_NIGHT_DIM, CLOCK_PLACEMENT, CLOCK_DRIFT
     )
 
     sealed class Result {
@@ -58,12 +61,15 @@ object SettingsJson {
         .put(NIGHT_START, s.nightStartHour)
         .put(NIGHT_END, s.nightEndHour)
         .put(HOME_NIGHT_DIM, s.homeNightDim)
+        .put(CLOCK_PLACEMENT, s.clockPlacement.name)
+        .put(CLOCK_DRIFT, s.clockDrift)
 
     /** The choices the TV offers, so the page draws the same options with the same names. */
     fun options(): JSONObject = JSONObject()
         .put(HOME_LAYOUT, enumOptions(HomeLayout.entries.map { Triple(it.name, it.title, it.description) }))
         .put(CARD_SHAPE, enumOptions(CardShape.entries.map { Triple(it.name, it.title, null) }))
         .put(WALLPAPER_SOURCE, enumOptions(WallpaperSource.entries.map { Triple(it.name, it.title, null) }))
+        .put(CLOCK_PLACEMENT, enumOptions(ClockPlacement.entries.map { Triple(it.name, it.title, it.description) }))
         .put(WALLPAPER_FIT, enumOptions(WallpaperFit.entries.map { Triple(it.name, it.title, it.description) }))
         .put(WALLPAPER_INTERVAL, minuteOptions(LauncherSettings.WALLPAPER_INTERVAL_OPTIONS, "Never"))
         .put(SCREENSAVER_TIMEOUT, minuteOptions(LauncherSettings.SCREENSAVER_TIMEOUT_OPTIONS, "Off"))
@@ -111,6 +117,8 @@ object SettingsJson {
                 NIGHT_START -> s.copy(nightStartHour = hourValue(v) ?: return Result.Invalid(key))
                 NIGHT_END -> s.copy(nightEndHour = hourValue(v) ?: return Result.Invalid(key))
                 HOME_NIGHT_DIM -> s.copy(homeNightDim = v as? Boolean ?: return Result.Invalid(key))
+                CLOCK_PLACEMENT -> s.copy(clockPlacement = enumValue<ClockPlacement>(v) ?: return Result.Invalid(key))
+                CLOCK_DRIFT -> s.copy(clockDrift = v as? Boolean ?: return Result.Invalid(key))
                 else -> return Result.Invalid(key)
             }
         }

@@ -67,6 +67,8 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_NIGHT_START = intPreferencesKey("settings_screensaver_night_start_hour")
         private val KEY_NIGHT_END = intPreferencesKey("settings_screensaver_night_end_hour")
         private val KEY_HOME_NIGHT_DIM = booleanPreferencesKey("settings_home_night_dim")
+        private val KEY_CLOCK_PLACEMENT = stringPreferencesKey("settings_clock_placement")
+        private val KEY_CLOCK_DRIFT = booleanPreferencesKey("settings_clock_drift")
         private val KEY_UPDATE_CHANNEL = stringPreferencesKey("settings_update_channel")
         private val KEY_WALLPAPER_FIT = stringPreferencesKey("settings_wallpaper_fit")
 
@@ -184,6 +186,8 @@ class LauncherPrefsStore(private val context: Context) {
             nightStartHour = LauncherSettings.clampHour(p[KEY_NIGHT_START] ?: LauncherSettings.NIGHT_START_HOUR),
             nightEndHour = LauncherSettings.clampHour(p[KEY_NIGHT_END] ?: LauncherSettings.NIGHT_END_HOUR),
             homeNightDim = p[KEY_HOME_NIGHT_DIM] ?: false,
+            clockPlacement = ClockPlacement.fromName(p[KEY_CLOCK_PLACEMENT]),
+            clockDrift = p[KEY_CLOCK_DRIFT] ?: true,
             homeLayout = HomeLayout.fromName(p[KEY_HOME_LAYOUT]),
             updateChannel = UpdateChannel.fromName(p[KEY_UPDATE_CHANNEL]),
             wallpaperFit = WallpaperFit.fromName(p[KEY_WALLPAPER_FIT])
@@ -209,6 +213,8 @@ class LauncherPrefsStore(private val context: Context) {
         p[KEY_NIGHT_START] = LauncherSettings.clampHour(settings.nightStartHour)
         p[KEY_NIGHT_END] = LauncherSettings.clampHour(settings.nightEndHour)
         p[KEY_HOME_NIGHT_DIM] = settings.homeNightDim
+        p[KEY_CLOCK_PLACEMENT] = settings.clockPlacement.name
+        p[KEY_CLOCK_DRIFT] = settings.clockDrift
         p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
         p[KEY_WALLPAPER_FIT] = settings.wallpaperFit.name
     }

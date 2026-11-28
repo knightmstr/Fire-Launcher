@@ -6,6 +6,8 @@ import com.knightmstr.onyxtv.data.CardShape
 import com.knightmstr.onyxtv.data.LauncherSettings
 import com.knightmstr.onyxtv.data.UpdateChannel
 import com.knightmstr.onyxtv.upload.LinkResult
+import com.knightmstr.onyxtv.upload.ApkStart
+import com.knightmstr.onyxtv.upload.ApkStatus
 import com.knightmstr.onyxtv.upload.PhoneSetupBridge
 import com.knightmstr.onyxtv.upload.PhoneSetupServer
 import com.knightmstr.onyxtv.upload.SetupApp
@@ -66,6 +68,20 @@ class PhoneSetupServerTest {
             urls.add(url); return LinkResult.Added("picture")
         }
         override fun removeWallpaperUrl(url: String) { urls.remove(url) }
+
+        var free = 10L * 1024 * 1024 * 1024
+        val workDir: File = java.nio.file.Files.createTempDirectory("apk").toFile()
+        var apkState = ApkStatus()
+        val apkReceived = mutableListOf<ByteArray>()
+        override fun freeSpaceBytes() = free
+        override fun apkWorkDir() = workDir
+        override fun startApkInstall(apk: File): ApkStart {
+            apkReceived += apk.readBytes()
+            apk.delete()
+            apkState = ApkStatus("waiting", "Test App", "com.netflix.ninja", "1.0", true, null, apkState.serial + 1)
+            return ApkStart.Started(apkState)
+        }
+        override fun apkStatus() = apkState
 
         var restored: BackupData? = null
         override fun exportBackup() = BackupData(settings, favorites, setOf("org.xbmc.kodi"), emptyMap(),
@@ -159,7 +175,8 @@ class PhoneSetupServerTest {
             "/api/apps", "/api/icon?pkg=com.netflix.ninja",
             "/api/apps/favorites", "/api/apps/hidden", "/api/apps/rename", "/api/settings",
             "/api/backup", "/api/restore",
-            "/api/wallpaper-urls", "/api/wallpaper-urls/add", "/api/wallpaper-urls/remove"
+            "/api/wallpaper-urls", "/api/wallpaper-urls/add", "/api/wallpaper-urls/remove",
+            "/api/apk/upload", "/api/apk/status", "/api/apk/favorite"
         )
         for (e in endpoints) {
             val sep = if ('?' in e) "&" else "?"
@@ -359,6 +376,8 @@ class PhoneSetupServerTest {
         assertEquals(null, bridge.restored)
         assertEquals(listOf("https://example.com/a.jpg"), bridge.urls)
         assertTrue("no fetch while locked", bridge.fetched.isEmpty())
+        assertEquals(403, postApk(apk()).first)
+        assertTrue("no install while locked", bridge.apkReceived.isEmpty())
         assertEquals(0, bridge.changes)
     }
 
@@ -594,6 +613,102 @@ class PhoneSetupServerTest {
         while (bridge.urls.size < PhoneSetupServer.MAX_WALLPAPER_URLS) bridge.urls.add("https://example.com/${bridge.urls.size}.jpg")
         assertEquals(400, post("/api/wallpaper-urls/add", """{"url":"https://example.com/new.jpg"}""").code)
         assertTrue(bridge.fetched.isEmpty())
+    }
+
+    // ------------------------------------------------------------------ install an app (sideload)
+
+    private fun apk(withManifest: Boolean = true, padding: Int = 0): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { z ->
+            if (withManifest) { z.putNextEntry(java.util.zip.ZipEntry("AndroidManifest.xml")); z.write(ByteArray(64)); z.closeEntry() }
+            z.putNextEntry(java.util.zip.ZipEntry("classes.dex")); z.write(ByteArray(128 + padding)); z.closeEntry()
+        }
+        return out.toByteArray()
+    }
+
+    private fun postApk(bytes: ByteArray, type: String = PhoneSetupServer.APK_TYPE, path: String = t("/api/apk/upload")): Pair<Int, String> {
+        val conn = URL("http://127.0.0.1:$port$path").openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.doOutput = true
+        conn.setFixedLengthStreamingMode(bytes.size)
+        conn.setRequestProperty("Content-Type", type)
+        conn.outputStream.use { it.write(bytes) }
+        val code = conn.responseCode
+        val body = (if (code < 400) conn.inputStream else conn.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
+        return code to body
+    }
+
+    @Test
+    fun `an uploaded app reaches the installer intact and the upload is cleaned up`() {
+        val bytes = apk(padding = 300_000)
+        val (code, body) = postApk(bytes)
+        assertEquals(body, 200, code)
+        assertEquals("waiting", JSONObject(body).getString("state"))
+        assertEquals("Test App", JSONObject(body).getString("label"))
+        assertTrue(bytes.contentEquals(bridge.apkReceived.single()))
+        assertTrue("no files left behind", bridge.workDir.listFiles()!!.isEmpty())
+        assertEquals("waiting", JSONObject(request(t("/api/apk/status")).body).getString("state"))
+    }
+
+    @Test
+    fun `only real app files get to the installer`() {
+        assertEquals(400, postApk("not a zip at all".toByteArray()).first)
+        assertEquals(400, postApk(apk(withManifest = false)).first)
+        assertEquals(415, postApk(apk(), type = "application/octet-stream").first)
+        assertEquals(415, postApk(apk(), type = "multipart/form-data; boundary=x").first)
+        assertEquals(403, postApk(apk(), path = "/api/apk/upload?t=wrong").first)
+        assertEquals(405, request(t("/api/apk/upload")).code)
+        assertTrue(bridge.apkReceived.isEmpty())
+        assertTrue(bridge.workDir.listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun `size and space are checked before reading the upload`() {
+        val tooBig = raw(
+            "POST ${t("/api/apk/upload")} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: ${PhoneSetupServer.APK_TYPE}\r\n" +
+                "Content-Length: ${PhoneSetupServer.MAX_APK_BYTES + 1}\r\n\r\nPK"
+        )
+        assertTrue(tooBig, tooBig.contains("413"))
+        bridge.free = 50L * 1024 * 1024
+        val noSpace = raw(
+            "POST ${t("/api/apk/upload")} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: ${PhoneSetupServer.APK_TYPE}\r\n" +
+                "Content-Length: 1000\r\n\r\nPK"
+        )
+        assertTrue(noSpace, noSpace.contains("400"))
+        assertTrue(bridge.apkReceived.isEmpty())
+    }
+
+    @Test
+    fun `a cut-off upload is thrown away`() {
+        // Send headers promising 5000 bytes, then only 4, then close our side
+        val partial = Socket("127.0.0.1", port).use { sock ->
+            sock.soTimeout = 10_000
+            sock.getOutputStream().write(
+                ("POST ${t("/api/apk/upload")} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: ${PhoneSetupServer.APK_TYPE}\r\n" +
+                    "Content-Length: 5000\r\n\r\nPK\u0003\u0004").toByteArray()
+            )
+            sock.shutdownOutput()
+            runCatching { sock.getInputStream().bufferedReader().readLine().orEmpty() }.getOrDefault("")
+        }
+        assertTrue(partial, partial.isEmpty() || partial.contains("400") || partial.contains("500"))
+        Thread.sleep(300)
+        assertTrue(bridge.apkReceived.isEmpty())
+        assertTrue(bridge.workDir.listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun `one install at a time`() {
+        bridge.apkState = ApkStatus(state = "waiting")
+        assertEquals(409, postApk(apk()).first)
+        assertTrue(bridge.apkReceived.isEmpty())
+    }
+
+    @Test
+    fun `an installed app can be added to the dock once`() {
+        assertEquals(200, post("/api/apk/favorite", """{"pkg":"com.netflix.ninja"}""").code)
+        assertEquals(200, post("/api/apk/favorite", """{"pkg":"com.netflix.ninja"}""").code)
+        assertEquals(listOf("com.plexapp.android", "com.gone.app", "com.netflix.ninja"), bridge.favorites)
+        assertEquals(400, post("/api/apk/favorite", """{"pkg":"com.not.installed"}""").code)
     }
 
     @Test

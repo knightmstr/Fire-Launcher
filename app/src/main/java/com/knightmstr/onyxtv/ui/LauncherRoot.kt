@@ -1,6 +1,7 @@
 package com.knightmstr.onyxtv.ui
 
 import com.knightmstr.onyxtv.data.HomeLayout
+import com.knightmstr.onyxtv.data.ClockPlacement
 import com.knightmstr.onyxtv.data.LauncherSettings
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -53,6 +54,13 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import coil.imageLoader
+import androidx.compose.ui.BiasAlignment
+import androidx.compose.ui.unit.Dp
+import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.animation.core.LinearEasing
 import com.knightmstr.onyxtv.data.AppModel
 import com.knightmstr.onyxtv.data.AppSortOrder
 import com.knightmstr.onyxtv.data.CityLocationModel
@@ -208,6 +216,8 @@ fun LauncherRoot(
             currentWallpaper = currentWallpaper,
             wallpaperContentScale = settings.wallpaperFit.toContentScale(),
             nightShade = homeNightShade,
+            clockPlacement = settings.clockPlacement,
+            clockDrift = settings.clockDrift,
             sortOrder = sortOrder,
             searchQuery = searchQuery,
             isSearchActive = isSearchActive,
@@ -503,6 +513,8 @@ fun LauncherContent(
     wallpaperContentScale: ContentScale,
     /** 0 = none; above 0 darkens the wallpaper (home night dimming). */
     nightShade: Float = 0f,
+    clockPlacement: ClockPlacement = ClockPlacement.CENTER,
+    clockDrift: Boolean = true,
     sortOrder: AppSortOrder,
     searchQuery: String,
     isSearchActive: Boolean,
@@ -725,14 +737,17 @@ fun LauncherContent(
                     }
                 }
             } else {
-                // Centre: date, weather and the big clock, plus what's playing
+                // Date, weather and the big clock, plus what's playing: centred, or in the calmest
+                // part of the wallpaper (Smart), drifting a few dp over time against burn-in
+                val clockAlign = rememberClockAlignment(currentWallpaper?.url, clockPlacement)
+                val drift = rememberClockDrift(clockDrift)
                 Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = edge, vertical = 8.dp),
+                    contentAlignment = clockAlign
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.offset(y = (-20).dp)
+                        modifier = Modifier.offset(x = drift.first, y = (-20).dp + drift.second)
                     ) {
                         HomeClock(
                             weather = weather,
@@ -858,3 +873,52 @@ fun LauncherContent(
         }
     }
 }
+
+/** Where the clock block sits: centre, or the calmest spot of the wallpaper (eased, never a jump). */
+@Composable
+private fun rememberClockAlignment(wallpaperUrl: String?, placement: ClockPlacement): Alignment {
+    val context = LocalContext.current
+    var spot by remember { mutableStateOf(ClockSpot.Spot.CENTER) }
+    LaunchedEffect(wallpaperUrl, placement) {
+        if (placement != ClockPlacement.SMART || wallpaperUrl == null) {
+            spot = ClockSpot.Spot.CENTER
+            return@LaunchedEffect
+        }
+        val pixels = withContext(Dispatchers.IO) { smallPixels(context, wallpaperUrl) } ?: return@LaunchedEffect
+        spot = withContext(Dispatchers.Default) {
+            ClockSpot.choose(pixels, SAMPLE_W, SAMPLE_H, spot)
+        }
+    }
+    val h by animateFloatAsState(spot.horizontalBias, tween(1800), label = "clockH")
+    val v by animateFloatAsState(spot.verticalBias, tween(1800), label = "clockV")
+    return BiasAlignment(h, v)
+}
+
+/** The slow anti-burn-in drift: a new few-dp target every few minutes, eased over a minute. */
+@Composable
+private fun rememberClockDrift(enabled: Boolean): Pair<Dp, Dp> {
+    var minute by remember { mutableLongStateOf(System.currentTimeMillis() / 60_000L) }
+    LaunchedEffect(enabled) {
+        while (enabled) {
+            minute = System.currentTimeMillis() / 60_000L
+            delay(60_000L)
+        }
+    }
+    val (tx, ty) = if (enabled) ClockSpot.driftFor(minute) else 0 to 0
+    val x by animateFloatAsState(tx.toFloat(), tween(60_000, easing = LinearEasing), label = "driftX")
+    val y by animateFloatAsState(ty.toFloat(), tween(60_000, easing = LinearEasing), label = "driftY")
+    return x.dp to y.dp
+}
+
+private const val SAMPLE_W = 64
+private const val SAMPLE_H = 36
+
+/** A tiny copy of the wallpaper (from Coil's cache when it's already showing), as ARGB pixels. */
+private suspend fun smallPixels(context: android.content.Context, url: String): IntArray? = runCatching {
+    val result = context.imageLoader.execute(
+        ImageRequest.Builder(context).data(url).size(SAMPLE_W * 4, SAMPLE_H * 4).allowHardware(false).build()
+    )
+    val drawable = (result as? coil.request.SuccessResult)?.drawable ?: return null
+    val bmp = drawable.toBitmap(SAMPLE_W, SAMPLE_H)
+    IntArray(SAMPLE_W * SAMPLE_H).also { bmp.getPixels(it, 0, SAMPLE_W, 0, 0, SAMPLE_W, SAMPLE_H) }
+}.getOrNull()

@@ -28,6 +28,10 @@ data class LauncherSettings(
     val nightEndHour: Int = NIGHT_END_HOUR,
     /** Also darken the home screen (wallpaper and clock) during the night hours. */
     val homeNightDim: Boolean = false,
+    /** Where the home clock (with date and weather) sits. */
+    val clockPlacement: ClockPlacement = ClockPlacement.CENTER,
+    /** Moves the home clock a few pixels over time, so nothing stays lit in one place (burn-in). */
+    val clockDrift: Boolean = true,
     /** Dock: apps always at the bottom. Clean: only the clock until you press a button. */
     val homeLayout: HomeLayout = HomeLayout.DOCK,
     /** Which release channel app updates come from. Stable by default. */
@@ -117,6 +121,16 @@ enum class HomeLayout(val title: String, val description: String) {
     companion object {
         fun fromName(name: String?): HomeLayout =
             entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: DOCK
+    }
+}
+
+enum class ClockPlacement(val title: String, val description: String) {
+    CENTER("Centre", "Always in the middle of the screen"),
+    SMART("Smart", "Moves to the calmest part of each wallpaper");
+
+    companion object {
+        fun fromName(name: String?): ClockPlacement =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: CENTER
     }
 }
 

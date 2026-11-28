@@ -104,6 +104,11 @@ class PhoneSetupServer(
             "/api/wallpaper-urls/add" -> jsonMutation(session) { addWallpaperUrl(it) }
             "/api/wallpaper-urls/remove" -> jsonMutation(session) { removeWallpaperUrl(it) }
 
+            // Install an app (sideload)
+            "/api/apk/upload" -> guarded(session) { uploadApk(session) }
+            "/api/apk/status" -> guarded(session) { json(apkStatusJson(bridge.apkStatus())) }
+            "/api/apk/favorite" -> jsonMutation(session) { favoriteInstalled(it) }
+
             // Backup & restore
             "/api/backup" -> guarded(session) { backup() }
             "/api/restore" -> jsonMutation(session, BackupJson.MAX_BYTES) { restore(it) }
@@ -334,6 +339,82 @@ class PhoneSetupServer(
         return ok()
     }
 
+    // ---------------------------------------------------------------- Install an app (sideload)
+
+    /** One upload at a time, kept apart from [writeLock] so a long upload doesn't hold up other changes. */
+    private val apkBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * The phone sends the APK as the raw request body (Content-Type
+     * application/vnd.android.package-archive), streamed straight to a file: no multipart parsing,
+     * no large buffers in memory. That content type also can't be sent cross-site without a CORS
+     * preflight this server never approves.
+     */
+    private fun uploadApk(session: IHTTPSession): Response {
+        if (session.method != Method.POST) return status(Response.Status.METHOD_NOT_ALLOWED, "POST only")
+        if (bridge.isLocked()) return error(Response.Status.FORBIDDEN, "kids_mode")
+        val type = session.headers["content-type"].orEmpty().substringBefore(';').trim()
+        if (!type.equals(APK_TYPE, ignoreCase = true)) return error(Response.Status.UNSUPPORTED_MEDIA_TYPE, "apk_only")
+        val length = session.headers["content-length"]?.toLongOrNull()
+            ?: return error(Response.Status.BAD_REQUEST, "no_length")
+        if (length <= 0) return error(Response.Status.BAD_REQUEST, "no_body")
+        if (length > MAX_APK_BYTES) return error(Response.Status.PAYLOAD_TOO_LARGE, "too_large")
+        // Room for the upload plus the installer's own copy of it
+        if (bridge.freeSpaceBytes() < length * 2 + SPACE_MARGIN_BYTES) return error(Response.Status.BAD_REQUEST, "no_space")
+        if (bridge.apkStatus().state == "waiting") return error(Response.Status.CONFLICT, "busy")
+        if (!apkBusy.compareAndSet(false, true)) return error(Response.Status.CONFLICT, "busy")
+
+        val file = File(bridge.apkWorkDir(), "upload-${System.nanoTime()}.apk")
+        try {
+            // Stream exactly Content-Length bytes to disk
+            var remaining = length
+            file.outputStream().use { out ->
+                val buf = ByteArray(64 * 1024)
+                val input = session.inputStream
+                while (remaining > 0) {
+                    val n = input.read(buf, 0, minOf(buf.size.toLong(), remaining).toInt())
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    remaining -= n
+                    lastActivityMs = System.currentTimeMillis() // a long upload counts as use
+                }
+            }
+            if (remaining != 0L) return error(Response.Status.BAD_REQUEST, "incomplete")
+            if (!looksLikeApk(file)) return error(Response.Status.BAD_REQUEST, "not_apk")
+            return when (val start = bridge.startApkInstall(file)) {
+                is ApkStart.Failed -> newFixedLengthResponse(
+                    Response.Status.BAD_REQUEST, "application/json",
+                    JSONObject().put("ok", false).put("error", "install").put("message", start.message.take(300)).toString()
+                )
+                is ApkStart.Started -> json(apkStatusJson(start.status).put("ok", true))
+            }
+        } finally {
+            file.delete() // normally already handed to the installer and deleted by the bridge
+            apkBusy.set(false)
+        }
+    }
+
+    private fun apkStatusJson(s: ApkStatus): JSONObject = JSONObject()
+        .put("state", s.state)
+        .put("label", s.label ?: JSONObject.NULL)
+        .put("pkg", s.packageName ?: JSONObject.NULL)
+        .put("version", s.versionName ?: JSONObject.NULL)
+        .put("isUpdate", s.isUpdate)
+        .put("message", s.message ?: JSONObject.NULL)
+        .put("serial", s.serial)
+        .put("favorite", s.packageName != null && s.packageName in bridge.favoriteOrder())
+
+    /** Adds a just-installed app to the end of the dock. */
+    private fun favoriteInstalled(body: JSONObject): Response {
+        val pkg = installedPackage(body) ?: return error(Response.Status.BAD_REQUEST, "bad_package")
+        val current = bridge.favoriteOrder()
+        if (pkg !in current) {
+            bridge.setFavoriteOrder(current + pkg)
+            bridge.onChanged()
+        }
+        return ok()
+    }
+
     // ---------------------------------------------------------------- Backup & restore
 
     private fun backup(): Response =
@@ -387,6 +468,24 @@ class PhoneSetupServer(
 
         /** Matches LocalPhotoSource's cap; checked here too so huge bodies are refused unread. */
         const val MAX_UPLOAD_BYTES = 20L * 1024 * 1024
+
+        const val APK_TYPE = "application/vnd.android.package-archive"
+
+        /** Largest app the phone can upload. */
+        const val MAX_APK_BYTES = 300L * 1024 * 1024
+
+        /** Kept free on the TV after an upload and its install copy. */
+        const val SPACE_MARGIN_BYTES = 100L * 1024 * 1024
+
+        /** An APK is a zip with an AndroidManifest.xml at its root. */
+        fun looksLikeApk(file: File): Boolean = try {
+            val magic = file.inputStream().use { input -> ByteArray(4).also { input.read(it) } }
+            magic[0] == 'P'.code.toByte() && magic[1] == 'K'.code.toByte() &&
+                magic[2] == 3.toByte() && magic[3] == 4.toByte() &&
+                java.util.zip.ZipFile(file).use { it.getEntry("AndroidManifest.xml") != null }
+        } catch (e: Exception) {
+            false
+        }
 
         /** Same cap as the TV's own "My links" list. */
         const val MAX_WALLPAPER_URLS = 50

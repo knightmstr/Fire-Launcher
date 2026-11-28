@@ -54,6 +54,9 @@ import com.knightmstr.onyxtv.upload.PhoneSetupBridge
 import com.knightmstr.onyxtv.upload.PhoneSetupServer
 import com.knightmstr.onyxtv.upload.SetupApp
 import com.knightmstr.onyxtv.upload.LinkResult
+import com.knightmstr.onyxtv.upload.ApkStart
+import com.knightmstr.onyxtv.upload.ApkStatus
+import com.knightmstr.onyxtv.tools.AppSideloader
 import com.knightmstr.onyxtv.data.WallpaperLinkResolver
 import com.knightmstr.onyxtv.upload.SetupToken
 import com.knightmstr.onyxtv.tools.SleepTimer
@@ -534,6 +537,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    init {
+        // A phone-installed app shows up at once (and can be added to the dock from the phone)
+        viewModelScope.launch {
+            AppSideloader.status.map { it.state to it.serial }.distinctUntilChanged().collect { (state, _) ->
+                if (state == AppSideloader.State.INSTALLED) refreshApps()
+            }
+        }
+    }
+
     fun cycleKidsDailyLimit() {
         val app = getApplication<Application>()
         val r = KidsTimeKeeper.rules(app)
@@ -695,6 +707,30 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
 
         override fun removeWallpaperUrl(url: String) = runBlocking { prefs.removeCustomWallpaperUrl(url) }
+
+        override fun freeSpaceBytes(): Long = runCatching {
+            android.os.StatFs(AppSideloader.workDir(getApplication()).path).availableBytes
+        }.getOrDefault(0L)
+
+        override fun apkWorkDir(): java.io.File = AppSideloader.workDir(getApplication())
+
+        override fun startApkInstall(apk: java.io.File): ApkStart =
+            when (val r = AppSideloader.start(getApplication(), apk)) {
+                is AppSideloader.Start.Started -> ApkStart.Started(r.status.toApkStatus())
+                is AppSideloader.Start.Failed -> ApkStart.Failed(r.message)
+            }
+
+        override fun apkStatus(): ApkStatus = AppSideloader.status.value.toApkStatus()
+
+        private fun AppSideloader.Status.toApkStatus() = ApkStatus(
+            state = state.name.lowercase(),
+            label = label,
+            packageName = packageName,
+            versionName = versionName,
+            isUpdate = isUpdate,
+            message = message,
+            serial = serial
+        )
 
         override fun exportBackup() = runBlocking { prefs.backupSnapshot() }
 
