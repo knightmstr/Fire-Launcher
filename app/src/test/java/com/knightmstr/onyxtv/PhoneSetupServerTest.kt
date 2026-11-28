@@ -202,9 +202,14 @@ class PhoneSetupServerTest {
 
     @Test
     fun `oversized bodies are refused before reading`() {
+        // A real body just over the cap (sent raw: the server may close before reading it all)
         val big = "{\"order\":[" + (1..3000).joinToString(",") { "\"com.netflix.ninja\"" } + "]}"
         assertTrue(big.length > SetupValidation.MAX_JSON_BYTES)
-        assertEquals(413, post("/api/apps/favorites", big).code)
+        val first = raw(
+            "POST ${t("/api/apps/favorites")} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n" +
+                "Content-Length: ${big.length}\r\n\r\n" + big.take(100)
+        )
+        assertTrue(first, first.contains("413"))
 
         // A Content-Length that claims to be huge, with almost no body sent.
         val status = raw(
@@ -508,9 +513,17 @@ class PhoneSetupServerTest {
         val pad = "x".repeat(40_000) // over the 16 KB cap for other endpoints
         val file = JSONObject(request(t("/api/backup")).body).put("note", pad).toString()
         assertEquals(200, post("/api/restore", file).code)
-        assertEquals(413, post("/api/apps/hidden", """{"pkg":"com.netflix.ninja","hidden":true,"n":"$pad"}""").code)
-        val tooBig = JSONObject(request(t("/api/backup")).body).put("note", "x".repeat(300_000)).toString()
-        assertEquals(413, post("/api/restore", tooBig).code)
+        val other = raw(
+            "POST ${t("/api/apps/hidden")} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n" +
+                "Content-Length: 40100\r\n\r\n{}"
+        )
+        assertTrue(other, other.contains("413"))
+        // Over the restore cap: refused from the headers alone (the body is never read)
+        val status = raw(
+            "POST ${t("/api/restore")} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n" +
+                "Content-Length: 300000\r\n\r\n{}"
+        )
+        assertTrue(status, status.contains("413"))
     }
 
     // ------------------------------------------------------------------ wallpaper links

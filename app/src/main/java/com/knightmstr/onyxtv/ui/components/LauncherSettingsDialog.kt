@@ -18,6 +18,15 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.Snooze
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
+import com.knightmstr.onyxtv.tools.StorageInfo
+import com.knightmstr.onyxtv.ui.ToolsUi
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Thermostat
@@ -97,6 +106,10 @@ fun LauncherSettingsDialog(
     onRequestPhotoPermission: () -> Unit,
     onUploadPhotos: () -> Unit,
     onPhoneSetup: () -> Unit,
+    sleepTimerEndsAt: Long?,
+    tools: ToolsUi,
+    onSleepTimer: () -> Unit,
+    onFreeUpSpace: () -> Unit,
     onClearUploads: () -> Unit,
     onManageWallpaperUrls: () -> Unit,
     wallpaperPreviewUrl: String?,
@@ -132,6 +145,7 @@ fun LauncherSettingsDialog(
             modifier = Modifier.focusRequester(firstItem),
             onClick = onPhoneSetup
         )
+        SleepTimerItem(endsAt = sleepTimerEndsAt, message = tools.sleepMessage, onClick = onSleepTimer)
         SettingsGroup(expanded = isOpen("Home screen")) {
         CollapsibleSectionHeader(
             title = "Home screen",
@@ -456,6 +470,36 @@ fun LauncherSettingsDialog(
 
         }
         }
+        SettingsGroup(expanded = isOpen("Storage")) {
+        CollapsibleSectionHeader(
+            title = "Storage",
+            icon = Icons.Rounded.Storage,
+            expanded = isOpen("Storage"),
+            onToggle = { toggle("Storage") }
+        )
+        if (isOpen("Storage")) {
+        val space = tools.space
+        TvMenuItem(
+            title = "Free space",
+            subtitle = space?.let { "${StorageInfo.describe(it.freeBytes)} free of ${StorageInfo.describe(it.totalBytes)}" }
+                ?: "Couldn't read storage",
+            icon = Icons.Rounded.Storage,
+            iconTint = Color(0xFF60A5FA),
+            trailing = space?.let { "${(it.freeBytes * 100 / it.totalBytes.coerceAtLeast(1))}%" },
+            onClick = {}
+        )
+        TvMenuItem(
+            title = "Free up space",
+            subtitle = tools.storageMessage
+                ?: "Clears every app's cache. Logins, downloads and settings stay. Needs ADB debugging on",
+            icon = Icons.Rounded.CleaningServices,
+            iconTint = Color(0xFF60A5FA),
+            trailing = if (tools.cleaning) "…" else null,
+            enabled = !tools.cleaning,
+            onClick = onFreeUpSpace
+        )
+        }
+        }
         SettingsGroup(expanded = isOpen("Kids mode")) {
         CollapsibleSectionHeader(
             title = "Kids mode",
@@ -582,4 +626,29 @@ private fun tilePreviewCorner(shape: CardShape, widthDp: Int): RoundedCornerShap
     CardShape.SQUARE -> RoundedCornerShape((2 * widthDp / 200f).dp)
     CardShape.SOFT -> RoundedCornerShape((26 * widthDp / 200f).dp)
     CardShape.PILL -> RoundedCornerShape(percent = 50)
+}
+
+/** Sleep timer row: OK steps through Off, 15, 30, 45, 60, 90, 120 minutes. */
+@Composable
+private fun SleepTimerItem(endsAt: Long?, message: String?, onClick: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(endsAt) {
+        while (endsAt != null) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(15_000)
+        }
+    }
+    val left = endsAt?.let { ((it - now + 59_999) / 60_000).toInt() }?.takeIf { it > 0 }
+    TvMenuItem(
+        title = "Sleep timer",
+        subtitle = message ?: if (left != null) {
+            "Fire TV sleeps in $left min. OK for longer, or step past 2 hr to turn off"
+        } else {
+            "Puts the Fire TV (and the TV, with HDMI-CEC) to sleep later"
+        },
+        icon = Icons.Rounded.Snooze,
+        iconTint = Color(0xFFA78BFA),
+        trailing = left?.let { LauncherSettings.describeMinutes(it) } ?: "Off",
+        onClick = onClick
+    )
 }

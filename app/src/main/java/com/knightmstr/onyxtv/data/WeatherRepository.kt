@@ -73,7 +73,9 @@ class WeatherRepository {
         try {
             val urlStr = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
                     "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m" +
-                    "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph"
+                    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max," +
+                    "precipitation_sum,wind_gusts_10m_max&forecast_days=${WeatherForecast.DAYS}" +
+                    "&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph"
 
             val url = URL(urlStr)
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -110,6 +112,7 @@ class WeatherRepository {
                 val windMph = Math.round(current.optDouble("wind_speed_10m", 8.0)).toInt()
 
                 val (conditionStr, iconStr) = mapWmoCode(wmoCode, isDay)
+                val forecast = WeatherForecast.parseDaily(daily)
 
                 return@withContext WeatherData(
                     city = cityName,
@@ -127,7 +130,9 @@ class WeatherRepository {
                     humidity = humidity,
                     windMph = windMph,
                     isCelsius = isCelsius,
-                    isLive = true
+                    isLive = true,
+                    forecast = forecast,
+                    headsUps = WeatherForecast.headsUps(forecast)
                 )
             }
         } catch (_: Exception) {

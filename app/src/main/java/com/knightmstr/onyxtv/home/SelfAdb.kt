@@ -97,6 +97,54 @@ object SelfAdb {
         }
     }
 
+    /**
+     * The only shell commands Onyx TV runs on its own TV besides the one-time grant. A fixed list,
+     * so nothing (a setting, the phone page) can ever turn this into a general shell.
+     */
+    enum class Command(val shell: String) {
+        /** Fire TV sleeps; with HDMI-CEC on, the TV switches off too. */
+        SLEEP("input keyevent 223"),
+        /** Clears every app's cache until this much is free (more than any Fire TV has). */
+        TRIM_CACHES("pm trim-caches 999G"),
+        /** Presses Home, so a Kids mode lock can come forward. */
+        HOME("input keyevent 3")
+    }
+
+    sealed interface ShellResult {
+        data class Ok(val output: String) : ShellResult
+        data object AdbOff : ShellResult
+        data object NotAllowed : ShellResult
+        data class Failed(val reason: String) : ShellResult
+    }
+
+    /**
+     * Runs one [Command] through this TV's own ADB. Once "Always allow from this computer" was
+     * ticked (the one-time setup asks for it), this is silent; otherwise the TV shows the Allow
+     * box and this waits up to [approvalWaitMs].
+     */
+    suspend fun run(context: Context, command: Command, approvalWaitMs: Int = 20_000): ShellResult =
+        withContext(Dispatchers.IO) {
+            if (!isAdbOn(context)) return@withContext ShellResult.AdbOff
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(HOST, PORT), 3000)
+                    socket.soTimeout = approvalWaitMs
+                    val conn = Connection(socket, keys(context))
+                    conn.handshake()
+                    socket.soTimeout = 60_000
+                    ShellResult.Ok(conn.shell(command.shell))
+                }
+            } catch (_: SocketTimeoutException) {
+                ShellResult.NotAllowed
+            } catch (_: NotAllowedException) {
+                ShellResult.NotAllowed
+            } catch (e: IOException) {
+                ShellResult.Failed(e.message ?: "Couldn't connect to this TV's ADB")
+            } catch (e: Exception) {
+                ShellResult.Failed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+
     private class NotAllowedException : IOException("Not allowed on the TV")
 
     // ------------------------------------------------------------------ Keys

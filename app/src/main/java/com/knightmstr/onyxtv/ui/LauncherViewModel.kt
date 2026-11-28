@@ -54,6 +54,9 @@ import com.knightmstr.onyxtv.upload.SetupApp
 import com.knightmstr.onyxtv.upload.LinkResult
 import com.knightmstr.onyxtv.data.WallpaperLinkResolver
 import com.knightmstr.onyxtv.upload.SetupToken
+import com.knightmstr.onyxtv.tools.SleepTimer
+import com.knightmstr.onyxtv.tools.StorageInfo
+import com.knightmstr.onyxtv.home.SelfAdb
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -83,7 +86,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _isSettingsOpen = MutableStateFlow(false)
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
 
-    fun openSettings() { _isSettingsOpen.value = true }
+    fun openSettings() {
+        _isSettingsOpen.value = true
+        refreshStorage()
+    }
     fun closeSettings() { _isSettingsOpen.value = false }
 
     fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
@@ -421,6 +427,52 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun onPhotoPermissionResult() {
         _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
         wallpaperRepository.reload()
+    }
+
+    // ------------------------------------------------------------------ Sleep timer & storage
+
+    /** When the sleep timer goes off (wall clock), or null when it's off. */
+    val sleepTimerEndsAt: StateFlow<Long?> = SleepTimer.endsAt
+
+    private val _toolsUi = MutableStateFlow(ToolsUi(space = runCatching { StorageInfo.read() }.getOrNull()))
+    val toolsUi: StateFlow<ToolsUi> = _toolsUi.asStateFlow()
+
+    init {
+        SleepTimer.load(getApplication())
+    }
+
+    /** Off → 15 → 30 → 45 → 60 → 90 → 120 min → off. Needs ADB debugging on to work. */
+    fun cycleSleepTimer() {
+        val app = getApplication<Application>()
+        val next = SleepTimer.nextOption()
+        if (next > 0 && !SelfAdb.isAdbOn(app)) {
+            _toolsUi.update { it.copy(sleepMessage = "Turn on ADB debugging first (Fire TV Settings → My Fire TV → Developer options).") }
+            return
+        }
+        SleepTimer.set(app, next)
+        _toolsUi.update { it.copy(sleepMessage = null) }
+    }
+
+    fun refreshStorage() {
+        _toolsUi.update { it.copy(space = runCatching { StorageInfo.read() }.getOrNull()) }
+    }
+
+    /** Clears every app's cache through the TV's own ADB, then reports how much was freed. */
+    fun freeUpSpace() {
+        if (_toolsUi.value.cleaning) return
+        _toolsUi.update { it.copy(cleaning = true, storageMessage = "Clearing app caches…") }
+        viewModelScope.launch {
+            val message = when (val r = StorageInfo.freeUpSpace(getApplication())) {
+                is StorageInfo.CleanResult.Freed -> {
+                    _toolsUi.update { it.copy(space = r.space) }
+                    if (r.bytes > 0) "Freed ${StorageInfo.describe(r.bytes)}" else "Caches were already small"
+                }
+                StorageInfo.CleanResult.AdbOff -> "Turn on ADB debugging first (Developer options)"
+                StorageInfo.CleanResult.NotAllowed -> "Press Allow on the TV's ADB box (tick Always allow), then try again"
+                is StorageInfo.CleanResult.Failed -> "Couldn't clear caches: ${r.reason.take(60)}"
+            }
+            _toolsUi.update { it.copy(cleaning = false, storageMessage = message) }
+        }
     }
 
     // ------------------------------------------------------------------ Set up from phone (Wi-Fi)
@@ -986,6 +1038,13 @@ sealed interface WallpaperUrlStatus {
 }
 
 /** State for the Wi-Fi photo upload screen. */
+data class ToolsUi(
+    val space: StorageInfo.Space? = null,
+    val cleaning: Boolean = false,
+    val storageMessage: String? = null,
+    val sleepMessage: String? = null
+)
+
 /** Which tab the phone page opens on. */
 enum class SetupTab(val anchor: String) { APPS("apps"), PHOTOS("photos") }
 

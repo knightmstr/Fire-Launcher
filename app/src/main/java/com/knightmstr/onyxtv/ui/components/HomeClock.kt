@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.Thunderstorm
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.WbCloudy
 import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -85,6 +86,18 @@ fun HomeClock(
             if (interactive) WeatherText(weather = weather, onClick = onWeatherClick)
             else WeatherLine(weather = weather, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
         }
+        // The soonest weather heads-up, e.g. "Thunderstorms tomorrow" (worked out from the forecast)
+        weather.headsUps.firstOrNull()?.let { headsUp ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = null,
+                    tint = HeadsUpAmber,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(text = headsUp.message, style = Soft, fontSize = 16.sp, color = HeadsUpAmber)
+            }
+        }
         Row {
             Text(
                 text = time,
@@ -150,10 +163,12 @@ private fun WeatherLine(weather: WeatherData, modifier: Modifier = Modifier) {
     }
 }
 
-private fun weatherIcon(type: String): ImageVector = when (type) {
+internal fun weatherIcon(type: String): ImageVector = when (type) {
     "partly_cloudy" -> Icons.Rounded.WbCloudy
     "cloudy" -> Icons.Rounded.Cloud
     "rain" -> Icons.Rounded.WaterDrop
     "thunder" -> Icons.Rounded.Thunderstorm
     else -> Icons.Rounded.WbSunny
 }
+
+private val HeadsUpAmber = Color(0xFFFBBF24)

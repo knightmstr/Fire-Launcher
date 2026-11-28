@@ -63,6 +63,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.style.TextOverflow
 import com.knightmstr.onyxtv.ui.components.CitySelectionDialog
+import com.knightmstr.onyxtv.ui.components.ForecastDialog
 import com.knightmstr.onyxtv.ui.components.HomeDock
 import com.knightmstr.onyxtv.ui.components.HomeClock
 import com.knightmstr.onyxtv.ui.components.GrantSetupDialog
@@ -133,6 +134,8 @@ fun LauncherRoot(
     val localPhotoCount by viewModel.localPhotoCount.collectAsStateWithLifecycle()
     val uploadedPhotoCount by viewModel.uploadedPhotoCount.collectAsStateWithLifecycle()
     val phoneSetupUi by viewModel.phoneSetupUi.collectAsStateWithLifecycle()
+    val sleepTimerEndsAt by viewModel.sleepTimerEndsAt.collectAsStateWithLifecycle()
+    val toolsUi by viewModel.toolsUi.collectAsStateWithLifecycle()
     val customWallpaperUrls by viewModel.customWallpaperUrls.collectAsStateWithLifecycle()
     val wallpaperUrlDialogOpen by viewModel.wallpaperUrlDialogOpen.collectAsStateWithLifecycle()
     val wallpaperUrlStatus by viewModel.wallpaperUrlStatus.collectAsStateWithLifecycle()
@@ -267,6 +270,10 @@ fun LauncherRoot(
             onRequestPhotoPermission = viewModel::requestPhotoPermission,
             onUploadPhotos = { viewModel.openPhoneSetup(SetupTab.PHOTOS) },
             onPhoneSetup = { viewModel.openPhoneSetup(SetupTab.APPS) },
+            sleepTimerEndsAt = sleepTimerEndsAt,
+            tools = toolsUi,
+            onSleepTimer = viewModel::cycleSleepTimer,
+            onFreeUpSpace = viewModel::freeUpSpace,
             onClearUploads = viewModel::clearUploadedPhotos,
             onManageWallpaperUrls = viewModel::openWallpaperUrls,
             wallpaperPreviewUrl = currentWallpaper?.url,
@@ -433,6 +440,7 @@ fun LauncherContent(
     val firstItemFocusRequester = remember { FocusRequester() }
     var showRowSortDialog by remember { mutableStateOf(false) }
     var showCityDialog by remember { mutableStateOf(false) }
+    var showForecast by remember { mutableStateOf(false) }
 
     // Smooth background gradient transition to the focused app's clamped accent color
     val targetAccentColor = focusedApp?.let { Color(it.accentColor) } ?: FireOrange
@@ -632,7 +640,7 @@ fun LauncherContent(
                     ) {
                         HomeClock(
                             weather = weather,
-                            onWeatherClick = { showCityDialog = true }
+                            onWeatherClick = { if (weather.forecast.isNotEmpty()) showForecast = true else showCityDialog = true }
                         )
                         nowPlaying?.let { np ->
                             Spacer(modifier = Modifier.height(10.dp))
@@ -706,6 +714,17 @@ fun LauncherContent(
                     .align(Alignment.BottomEnd)
                     .padding(end = LocalScreenEdge.current, bottom = 12.dp)
                     .widthIn(max = 320.dp)
+            )
+        }
+
+        if (showForecast) {
+            ForecastDialog(
+                weather = weather,
+                onChangeCity = {
+                    showForecast = false
+                    showCityDialog = true
+                },
+                onDismiss = { showForecast = false }
             )
         }
 

@@ -20,7 +20,11 @@ data class WeatherData(
     val humidity: Int = 65,
     val windMph: Int = 8,
     val isCelsius: Boolean = false,
-    val isLive: Boolean = true
+    val isLive: Boolean = true,
+    /** Up to [WeatherForecast.DAYS] days, today first. */
+    val forecast: List<ForecastDay> = emptyList(),
+    /** Notable forecast days, soonest first (not official warnings). */
+    val headsUps: List<WeatherHeadsUp> = emptyList()
 ) {
     val displayTemperature: String
         get() = if (isCelsius) "$temperatureC°C" else "$temperatureF°F"
