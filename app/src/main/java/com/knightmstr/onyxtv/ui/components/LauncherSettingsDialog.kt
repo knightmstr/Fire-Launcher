@@ -21,6 +21,8 @@ import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Snooze
+import androidx.compose.material.icons.rounded.Schedule
+import com.knightmstr.onyxtv.data.ClockPlacement
 import androidx.compose.material.icons.rounded.HourglassBottom
 import com.knightmstr.onyxtv.kids.KidsTimeKeeper
 import androidx.compose.runtime.LaunchedEffect
@@ -166,6 +168,28 @@ fun LauncherSettingsDialog(
             iconTint = Color(0xFF34D399),
             trailing = settings.homeLayout.title,
             onClick = { onUpdate { it.copy(homeLayout = it.homeLayout.next()) } }
+        )
+        TvMenuItem(
+            title = "Clock position",
+            subtitle = settings.clockPlacement.description,
+            icon = Icons.Rounded.Schedule,
+            iconTint = Color(0xFF34D399),
+            trailing = settings.clockPlacement.title,
+            onClick = {
+                onUpdate {
+                    it.copy(
+                        clockPlacement = if (it.clockPlacement == ClockPlacement.SMART) ClockPlacement.CENTER else ClockPlacement.SMART
+                    )
+                }
+            }
+        )
+        TvMenuItem(
+            title = "Move clock slightly over time",
+            subtitle = "A few pixels every few minutes, too small to notice. Protects any screen from burn-in",
+            icon = Icons.Rounded.Schedule,
+            iconTint = Color(0xFF34D399),
+            trailing = if (settings.clockDrift) "On" else "Off",
+            onClick = { onUpdate { it.copy(clockDrift = !it.clockDrift) } }
         )
         TvSliderItem(
             title = "App tile size",
