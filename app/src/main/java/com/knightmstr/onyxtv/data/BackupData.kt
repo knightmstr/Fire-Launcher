@@ -10,7 +10,9 @@ data class BackupData(
     val sortOrder: AppSortOrder,
     val weather: BackupWeather?,
     val celsius: Boolean,
-    val wallpaperUrls: List<String>
+    val wallpaperUrls: List<String>,
+    /** Dock folders; older backups have none. */
+    val folders: List<AppFolder> = emptyList()
 )
 
 data class BackupWeather(val city: String, val country: String, val latitude: Double, val longitude: Double)

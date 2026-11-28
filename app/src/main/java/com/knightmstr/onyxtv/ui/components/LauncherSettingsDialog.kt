@@ -398,7 +398,15 @@ fun LauncherSettingsDialog(
             trailing = if (settings.nightDim) "On" else "Off",
             onClick = { onUpdate { it.copy(nightDim = !it.nightDim) } }
         )
-        if (settings.nightDim) {
+        TvMenuItem(
+            title = "Dim the home screen too",
+            subtitle = "Darker wallpaper and clock on the home screen during the same hours",
+            icon = Icons.Rounded.Bedtime,
+            iconTint = Color(0xFFA78BFA),
+            trailing = if (settings.homeNightDim) "On" else "Off",
+            onClick = { onUpdate { it.copy(homeNightDim = !it.homeNightDim) } }
+        )
+        if (settings.nightDim || settings.homeNightDim) {
             TvSliderItem(
                 title = "Dim from",
                 subtitle = "Left/Right to change the hour",

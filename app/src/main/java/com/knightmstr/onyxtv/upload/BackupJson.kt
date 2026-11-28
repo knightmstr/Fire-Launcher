@@ -1,5 +1,7 @@
 package com.knightmstr.onyxtv.upload
 
+import com.knightmstr.onyxtv.data.AppFolder
+import com.knightmstr.onyxtv.data.AppFolders
 import com.knightmstr.onyxtv.data.AppSortOrder
 import com.knightmstr.onyxtv.data.BackupData
 import com.knightmstr.onyxtv.data.BackupWeather
@@ -47,6 +49,9 @@ object BackupJson {
             .put("sortOrder", b.sortOrder.name)
             .put("celsius", b.celsius)
             .put("wallpaperUrls", JSONArray(b.wallpaperUrls))
+            .put("folders", JSONArray(b.folders.map { f ->
+                JSONObject().put("id", f.id).put("name", f.name).put("apps", JSONArray(f.packages))
+            }))
         b.weather?.let {
             json.put(
                 "weather",
@@ -70,7 +75,13 @@ object BackupJson {
             is SettingsJson.Result.Invalid -> return Result.Invalid("settings")
         }
 
-        val favorites = packageList(json.opt("favorites")) ?: return Result.Invalid("favorites")
+        val folders = when (val f = json.opt("folders")) {
+            null -> emptyList()
+            is JSONArray -> folders(f) ?: return Result.Invalid("folders")
+            else -> return Result.Invalid("folders")
+        }
+        val folderKeys = folders.map { AppFolders.keyOf(it.id) }.toSet()
+        val favorites = packageList(json.opt("favorites"), allowed = folderKeys) ?: return Result.Invalid("favorites")
         val hidden = packageList(json.opt("hidden"))?.toSet() ?: return Result.Invalid("hidden")
         val appOrder = packageList(json.opt("appOrder")) ?: return Result.Invalid("appOrder")
         val labels = labels(json.opt("labels")) ?: return Result.Invalid("labels")
@@ -89,19 +100,35 @@ object BackupJson {
         val urls = wallpaperUrls(json.opt("wallpaperUrls")) ?: return Result.Invalid("wallpaperUrls")
 
         return Result.Ok(
-            BackupData(settings, favorites, hidden, labels, appOrder, sortOrder, weather, celsius, urls)
+            BackupData(settings, favorites, hidden, labels, appOrder, sortOrder, weather, celsius, urls, folders)
         )
     }
 
     /** A list of well-formed, distinct package names, or null if anything in it is off. */
-    private fun packageList(value: Any?): List<String>? {
+    private fun packageList(value: Any?, allowed: Set<String> = emptySet()): List<String>? {
         val array = value as? JSONArray ?: return null
         if (array.length() > MAX_PACKAGES) return null
         val out = ArrayList<String>(array.length())
         for (i in 0 until array.length()) {
             val p = array.opt(i) as? String ?: return null
-            if (!SetupValidation.isPackageName(p)) return null
+            if (!SetupValidation.isPackageName(p) && p !in allowed) return null
             if (p !in out) out += p
+        }
+        return out
+    }
+
+    /** Dock folders: valid ids, names cleaned, well-formed package lists; any bad folder rejects the file. */
+    private fun folders(array: JSONArray): List<AppFolder>? {
+        if (array.length() > AppFolders.MAX_FOLDERS) return null
+        val out = ArrayList<AppFolder>()
+        for (i in 0 until array.length()) {
+            val o = array.opt(i) as? JSONObject ?: return null
+            val id = o.opt("id") as? String ?: return null
+            if (!AppFolders.isFolderKey(AppFolders.keyOf(id)) || out.any { it.id == id }) return null
+            val name = AppFolders.cleanName(o.opt("name") as? String ?: return null).ifEmpty { "Folder" }
+            val apps = packageList(o.opt("apps")) ?: return null
+            if (apps.isEmpty() || apps.size > AppFolders.MAX_APPS_PER_FOLDER) return null
+            out += AppFolder(id, name, apps)
         }
         return out
     }

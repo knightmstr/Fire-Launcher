@@ -1,5 +1,7 @@
 package com.knightmstr.onyxtv.upload
 
+import com.knightmstr.onyxtv.data.AppFolders
+
 /**
  * Pure checks for values the phone sends. Nothing from the network is trusted: package names must
  * look like package names and refer to an installed app, lists are de-duplicated and capped.
@@ -32,8 +34,13 @@ object SetupValidation {
             .distinct()
             .take(MAX_FAVORITES)
             .toList()
-        val keptAside = current.filter { it !in installed && it !in chosen }
-        return chosen + keptAside
+        // Dock folders aren't shown on the phone: put them back where they were.
+        val result = chosen.toMutableList()
+        current.forEachIndexed { i, key ->
+            if (AppFolders.isFolderKey(key)) result.add(minOf(i, result.size), key)
+        }
+        val keptAside = current.filter { it !in installed && it !in chosen && !AppFolders.isFolderKey(it) }
+        return result + keptAside
     }
 
     const val MAX_URL_LENGTH = 2048

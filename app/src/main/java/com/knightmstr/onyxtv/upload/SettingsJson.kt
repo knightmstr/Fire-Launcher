@@ -31,11 +31,12 @@ object SettingsJson {
     const val NIGHT_DIM = "nightDim"
     const val NIGHT_START = "nightStartHour"
     const val NIGHT_END = "nightEndHour"
+    const val HOME_NIGHT_DIM = "homeNightDim"
 
     val KEYS = setOf(
         HOME_LAYOUT, CARD_SHAPE, TILE_WIDTH, SHOW_ALL_APPS_ROW, SHOW_HIDDEN_APPS,
         WALLPAPER_SOURCE, WALLPAPER_FIT, WALLPAPER_INTERVAL, SCREENSAVER_TIMEOUT, NIGHT_DIM,
-        NIGHT_START, NIGHT_END
+        NIGHT_START, NIGHT_END, HOME_NIGHT_DIM
     )
 
     sealed class Result {
@@ -56,6 +57,7 @@ object SettingsJson {
         .put(NIGHT_DIM, s.nightDim)
         .put(NIGHT_START, s.nightStartHour)
         .put(NIGHT_END, s.nightEndHour)
+        .put(HOME_NIGHT_DIM, s.homeNightDim)
 
     /** The choices the TV offers, so the page draws the same options with the same names. */
     fun options(): JSONObject = JSONObject()
@@ -108,6 +110,7 @@ object SettingsJson {
                 NIGHT_DIM -> s.copy(nightDim = v as? Boolean ?: return Result.Invalid(key))
                 NIGHT_START -> s.copy(nightStartHour = hourValue(v) ?: return Result.Invalid(key))
                 NIGHT_END -> s.copy(nightEndHour = hourValue(v) ?: return Result.Invalid(key))
+                HOME_NIGHT_DIM -> s.copy(homeNightDim = v as? Boolean ?: return Result.Invalid(key))
                 else -> return Result.Invalid(key)
             }
         }

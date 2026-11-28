@@ -20,8 +20,14 @@ data class AppModel(
     val lastLaunchedTimeMs: Long = 0L,
     val isHidden: Boolean = false,
     /** Allowed while Kids mode is on. */
-    val isKidsAllowed: Boolean = false
+    val isKidsAllowed: Boolean = false,
+    /** For a dock folder tile: the apps inside, in order. */
+    val folderApps: List<AppModel> = emptyList()
 ) {
+    /** A dock folder: its [packageName] is the favourites key `folder:<id>`. */
+    val isFolder: Boolean
+        get() = packageName.startsWith(AppFolders.KEY_PREFIX)
+
     val isRenamed: Boolean
         get() = label != originalLabel
 

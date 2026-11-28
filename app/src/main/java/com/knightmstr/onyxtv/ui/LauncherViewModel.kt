@@ -14,6 +14,8 @@ import com.knightmstr.onyxtv.data.AppRepository
 import com.knightmstr.onyxtv.data.AppSortOrder
 import com.knightmstr.onyxtv.data.AppUsageStat
 import com.knightmstr.onyxtv.data.BackupData
+import com.knightmstr.onyxtv.data.AppFolder
+import com.knightmstr.onyxtv.data.AppFolders
 import com.knightmstr.onyxtv.data.CityLocationModel
 import com.knightmstr.onyxtv.data.LauncherPrefsStore
 import com.knightmstr.onyxtv.data.LauncherSettings
@@ -214,10 +216,82 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         .map { it.toSet() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    /** Favourite apps in the user's chosen order (hidden / non-kids apps are left out). */
-    val favoriteApps: StateFlow<List<AppModel>> = combine(visibleApps, favoriteOrder) { visible, order ->
-        PrefsCodec.applyOrder(visible, order) { it.packageName }
+    /** Dock folders (each holds apps; it sits in the dock as a `folder:<id>` favourite). */
+    val folders: StateFlow<List<AppFolder>> = prefs.foldersFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * The dock in the user's order: favourite apps and folder tiles. Hidden / non-kids apps are
+     * left out, also from inside folders; a folder with nothing left to show is skipped.
+     */
+    val favoriteApps: StateFlow<List<AppModel>> = combine(visibleApps, favoriteOrder, folders) { visible, order, folderList ->
+        val byPkg = visible.associateBy { it.packageName }
+        val byFolder = folderList.associateBy { AppFolders.keyOf(it.id) }
+        order.mapNotNull { key ->
+            val folder = byFolder[key]
+            if (folder != null) folderTile(key, folder, folder.packages.mapNotNull { byPkg[it] })
+            else byPkg[key]
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private fun folderTile(key: String, folder: AppFolder, inside: List<AppModel>): AppModel? {
+        val first = inside.firstOrNull() ?: return null
+        return AppModel(
+            packageName = key,
+            activityName = "",
+            label = folder.name,
+            originalLabel = folder.name,
+            icon = first.icon,
+            accentColor = first.accentColor,
+            folderApps = inside
+        )
+    }
+
+    // ------------------------------------------------------------------ Folders
+
+    private val _openFolderKey = MutableStateFlow<String?>(null)
+    /** The folder whose apps are showing, resolved live so changes inside it show at once. */
+    val openFolder: StateFlow<AppModel?> = combine(_openFolderKey, favoriteApps) { key, dock ->
+        key?.let { k -> dock.firstOrNull { it.packageName == k } }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun closeFolder() { _openFolderKey.value = null }
+
+    private val _folderPickerFor = MutableStateFlow<String?>(null)
+    /** The app being moved into a folder (the "Move to folder" chooser), if open. */
+    val folderPickerFor: StateFlow<String?> = _folderPickerFor.asStateFlow()
+
+    fun openFolderPicker(app: AppModel) { if (!app.isSystemShortcut && !app.isFolder) _folderPickerFor.value = app.packageName }
+    fun closeFolderPicker() { _folderPickerFor.value = null }
+
+    fun moveToNewFolder(pkg: String) {
+        _folderPickerFor.value = null
+        viewModelScope.launch { prefs.editFolders { AppFolders.create(it, pkg) } }
+    }
+
+    fun moveToFolder(pkg: String, folderId: String) {
+        _folderPickerFor.value = null
+        viewModelScope.launch { prefs.editFolders { AppFolders.moveInto(it, pkg, folderId) } }
+    }
+
+    fun takeOutOfFolder(app: AppModel) {
+        viewModelScope.launch { prefs.editFolders { AppFolders.takeOut(it, app.packageName) } }
+    }
+
+    fun renameFolder(folder: AppModel, name: String?) {
+        val id = AppFolders.idOf(folder.packageName) ?: return
+        if (name.isNullOrBlank()) return
+        viewModelScope.launch { prefs.editFolders { AppFolders.rename(it, id, name) } }
+    }
+
+    fun deleteFolder(folder: AppModel) {
+        val id = AppFolders.idOf(folder.packageName) ?: return
+        if (_openFolderKey.value == folder.packageName) _openFolderKey.value = null
+        viewModelScope.launch { prefs.editFolders { AppFolders.delete(it, id) } }
+    }
+
+    /** Name of the folder [app] is in, if any (for "Take out of …"). */
+    fun folderNameOf(app: AppModel): String? = AppFolders.folderOf(folders.value, app.packageName)?.name
 
     // ------------------------------------------------------------------ Kids mode
 
@@ -722,7 +796,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleFavorite(app: AppModel) {
-        if (app.isSystemShortcut) return
+        if (app.isSystemShortcut || app.isFolder) return
         viewModelScope.launch { prefs.toggleFavorite(app.packageName) }
     }
 
@@ -734,11 +808,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // ------------------------------------------------------------------ Hide / rename
 
     fun setHidden(app: AppModel, hidden: Boolean) {
-        if (app.isSystemShortcut) return
+        if (app.isSystemShortcut || app.isFolder) return
         viewModelScope.launch { prefs.setHidden(app.packageName, hidden) }
     }
 
     fun renameApp(app: AppModel, newLabel: String?) {
+        if (app.isFolder) return renameFolder(app, newLabel)
         if (app.isSystemShortcut) return
         val label = newLabel?.trim()?.takeIf { it.isNotEmpty() && it != app.originalLabel }
         viewModelScope.launch { prefs.setCustomLabel(app.packageName, label) }
@@ -746,7 +821,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ------------------------------------------------------------------ Focus, menus & dialogs
 
-    private val allKnownApps = decoratedApps.map { it + allAppsTile }
+    private val allKnownApps = combine(decoratedApps, favoriteApps) { apps, dock -> apps + allAppsTile + dock.filter { it.isFolder } }
 
     private fun resolve(keyFlow: StateFlow<String?>): StateFlow<AppModel?> =
         combine(keyFlow, allKnownApps) { key, list -> key?.let { k -> list.firstOrNull { it.uniqueKey == k } } }
@@ -1007,6 +1082,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun launchApp(app: AppModel): Boolean {
         if (app.packageName == AppRepository.ALL_APPS_KEY) {
             openAllApps()
+            return true
+        }
+        if (app.isFolder) {
+            _openFolderKey.value = app.packageName
             return true
         }
         if (!app.isSystemShortcut) {

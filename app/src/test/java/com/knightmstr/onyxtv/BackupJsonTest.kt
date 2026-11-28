@@ -95,6 +95,36 @@ class BackupJsonTest {
     }
 
     @Test
+    fun `folders round trip and their dock keys are allowed`() {
+        val withFolders = sample.copy(
+            favorites = listOf("com.netflix.ninja", "folder:f1"),
+            folders = listOf(com.knightmstr.onyxtv.data.AppFolder("f1", "Movies", listOf("com.plexapp.android", "org.xbmc.kodi")))
+        )
+        val back = parse(JSONObject(BackupJson.toJson(withFolders).toString()))
+        assertEquals(BackupJson.Result.Ok(withFolders), back)
+    }
+
+    @Test
+    fun `a dock folder key needs its folder, and folders are checked`() {
+        val j = json().put("favorites", JSONArray(listOf("folder:f1")))
+        assertTrue(parse(j) is BackupJson.Result.Invalid)
+        val bad = listOf(
+            JSONArray().put(JSONObject().put("id", "../x").put("name", "A").put("apps", JSONArray(listOf("a.b")))),
+            JSONArray().put(JSONObject().put("id", "f1").put("name", "A").put("apps", JSONArray(listOf("bad pkg")))),
+            JSONArray().put(JSONObject().put("id", "f1").put("name", "A").put("apps", JSONArray())),
+            JSONArray().put(JSONObject().put("id", "f1").put("name", "A").put("apps", JSONArray(listOf("a.b"))))
+                .put(JSONObject().put("id", "f1").put("name", "B").put("apps", JSONArray(listOf("c.d"))))
+        )
+        bad.forEachIndexed { i, f -> assertTrue("case $i", parse(json().put("folders", f)) is BackupJson.Result.Invalid) }
+    }
+
+    @Test
+    fun `older backups without folders still restore`() {
+        val j = json().apply { remove("folders") }
+        assertTrue(parse(j) is BackupJson.Result.Ok)
+    }
+
+    @Test
     fun `weather is optional`() {
         val j = json().apply { remove("weather") }
         assertEquals(null, (parse(j) as BackupJson.Result.Ok).data.weather)
