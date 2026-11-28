@@ -79,6 +79,10 @@
   input[type=url] { width:100%; padding:12px; border-radius:10px; border:1px solid var(--line);
          background:var(--card); color:var(--text); font-size:16px; }
   .note.warn { color:var(--amber); }
+  .setting.install .btn { flex:none; }
+  .progress { height:8px; background:var(--line); border-radius:8px; overflow:hidden; margin-top:10px; }
+  .progress[hidden] { display:none; }
+  .progress span { display:block; height:100%; width:0; background:var(--green); transition:width .2s; }
   .backup { display:flex; gap:10px; flex-wrap:wrap; }
   .backup .btn { text-decoration:none; }
   .del { background:none; border:none; color:var(--red); font-size:13px; cursor:pointer; }
@@ -99,6 +103,19 @@
   <div id="locked" class="banner" hidden>Kids mode is on. Turn it off on the TV (it asks for the PIN) to make changes here.</div>
 
   <section class="panel" id="panel-apps" role="tabpanel">
+    <h2>Install an app</h2>
+    <div class="setting install">
+      <div class="names">
+        <label class="title" for="apk-file">Send an app (.apk) to the TV</label>
+        <div class="note">The TV asks you to confirm before installing. Up to 300 MB.</div>
+        <div class="progress" id="apk-progress" hidden><span id="apk-bar"></span></div>
+        <div id="apk-status" class="note"></div>
+        <div id="apk-actions" class="edit"></div>
+      </div>
+      <label class="btn" for="apk-file" id="apk-pick">Choose app</label>
+      <input id="apk-file" type="file" accept=".apk,application/vnd.android.package-archive" hidden>
+    </div>
+
     <h2>Favourites</h2>
     <p class="sub">These sit in the dock on the TV. Use ↑ ↓ to change their order.</p>
     <div class="list" id="favs" data-gap></div>
@@ -637,6 +654,110 @@
     box.appendChild(more);
     renderLock();
   }
+
+  // ---------------------------------------------------------------- install an app (sideload)
+
+  var apk = { busy: false, serial: 0, timer: null };
+
+  function apkSay(text, warn) {
+    var s = $('apk-status');
+    s.textContent = text || '';
+    s.className = 'note' + (warn ? ' warn' : '');
+  }
+
+  function apkButtons(list) {
+    var box = $('apk-actions');
+    box.textContent = '';
+    list.forEach(function (b) { box.appendChild(b); });
+  }
+
+  function setApkBusy(busy) {
+    apk.busy = busy;
+    $('apk-pick').classList.toggle('sec', busy);
+    $('apk-file').disabled = busy;
+  }
+
+  var APK_ERRORS = {
+    too_large: 'That file is bigger than 300 MB.',
+    no_space: 'The TV doesn’t have enough free space. Try Launcher settings → Storage → Free up space.',
+    not_apk: 'That isn’t an Android app (.apk) file.',
+    busy: 'The TV is still busy with another app. Finish that one on the TV first.',
+    kids_mode: 'Kids mode is on.',
+    incomplete: 'The upload was cut off. Try again.'
+  };
+
+  function uploadApk(file) {
+    if (!file) return;
+    if (!/\.apk$/i.test(file.name)) { apkSay('Choose an .apk file.', true); return; }
+    if (file.size > 300 * 1024 * 1024) { apkSay(APK_ERRORS.too_large, true); return; }
+    setApkBusy(true);
+    apkButtons([]);
+    var bar = $('apk-bar');
+    $('apk-progress').hidden = false;
+    bar.style.width = '0%';
+    apkSay('Sending ' + file.name + '…');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', api('/api/apk/upload'));
+    xhr.setRequestHeader('Content-Type', 'application/vnd.android.package-archive');
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) bar.style.width = Math.round(e.loaded * 100 / e.total) + '%';
+    };
+    xhr.onload = function () {
+      var d = {};
+      try { d = JSON.parse(xhr.responseText); } catch (err) { d = {}; }
+      $('apk-progress').hidden = true;
+      if (xhr.status === 403 && d.error !== 'kids_mode') { setApkBusy(false); linkProblem(); return; }
+      if (xhr.status !== 200) {
+        setApkBusy(false);
+        apkSay(d.message || APK_ERRORS[d.error] || 'The TV couldn’t take that file.', true);
+        return;
+      }
+      apk.serial = d.serial;
+      apkSay('Confirm on the TV: press Install for ' + (d.label || 'the app') + (d.version ? ' ' + d.version : '') +
+        (d.isUpdate ? ' (update).' : '.'));
+      pollApk();
+    };
+    xhr.onerror = function () {
+      $('apk-progress').hidden = true;
+      setApkBusy(false);
+      apkSay('Couldn’t reach the TV. Is it still on the same Wi-Fi?', true);
+    };
+    xhr.send(file);
+  }
+
+  function pollApk() {
+    clearTimeout(apk.timer);
+    apk.timer = setTimeout(function () {
+      getJSON('/api/apk/status').then(function (s) {
+        if (s.serial !== apk.serial || s.state === 'waiting') { pollApk(); return; }
+        setApkBusy(false);
+        if (s.state === 'installed') {
+          apkSay((s.label || 'The app') + ' is installed.' + (s.favorite ? ' It’s in the dock.' : ''));
+          loadApps();
+          if (!s.favorite && s.pkg) {
+            var pkg = s.pkg;
+            apkButtons([button('Add to dock', 'Add the new app to the dock', function () {
+              postJSON('/api/apk/favorite', { pkg: pkg }).then(function () {
+                apkSay((s.label || 'The app') + ' is installed and in the dock.');
+                apkButtons([]);
+                loadApps();
+              }).catch(function () { apkSay('Couldn’t add it to the dock. Try again in a moment.', true); });
+            })]);
+          }
+        } else if (s.state === 'cancelled') {
+          apkSay('Cancelled on the TV. Nothing was installed.', true);
+        } else {
+          apkSay(s.message || 'The install didn’t work.', true);
+        }
+      }).catch(function () { pollApk(); });
+    }, 1500);
+  }
+
+  $('apk-file').addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    e.target.value = '';
+    if (!apk.busy) uploadApk(file);
+  });
 
   // ---------------------------------------------------------------- backup & restore
 

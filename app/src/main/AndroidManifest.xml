@@ -84,6 +84,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Set up from phone: result of installing an app the phone uploaded -->
+        <receiver
+            android:name=".tools.SideloadResultReceiver"
+            android:exported="false" />
+
         <!-- In-app update: installer result callback, and relaunch after self-update -->
         <receiver
             android:name=".update.InstallResultReceiver"

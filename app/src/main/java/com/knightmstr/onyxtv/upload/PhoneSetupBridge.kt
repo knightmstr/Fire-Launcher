@@ -64,6 +64,22 @@ interface PhoneSetupBridge {
     /** Restores a backup already checked by [BackupJson.parse]. */
     fun restoreBackup(backup: BackupData)
 
+    // ---------------------------------------------------------------- Install an app (sideload)
+
+    /** Free bytes where uploaded apps are kept until installed. */
+    fun freeSpaceBytes(): Long
+
+    /** Folder the server streams an uploaded APK into. */
+    fun apkWorkDir(): File
+
+    /**
+     * Opens the TV's install screen for [apk] (the bridge deletes the file once it's handed over).
+     * Nothing installs until someone presses Install on the TV.
+     */
+    fun startApkInstall(apk: File): ApkStart
+
+    fun apkStatus(): ApkStatus
+
     // ---------------------------------------------------------------- Safety
 
     /**
@@ -81,6 +97,22 @@ sealed class LinkResult {
     data class Added(val what: String) : LinkResult()
     data class Failed(val message: String) : LinkResult()
 }
+
+sealed class ApkStart {
+    data class Started(val status: ApkStatus) : ApkStart()
+    data class Failed(val message: String) : ApkStart()
+}
+
+/** Where the last phone install is up to. [state]: idle, waiting, installed, cancelled, failed. */
+data class ApkStatus(
+    val state: String = "idle",
+    val label: String? = null,
+    val packageName: String? = null,
+    val versionName: String? = null,
+    val isUpdate: Boolean = false,
+    val message: String? = null,
+    val serial: Int = 0
+)
 
 /** An installed app as the phone page sees it. No icons inline: those come from /api/icon. */
 data class SetupApp(

@@ -30,6 +30,7 @@ Your apps: open **All Apps** (the round button at the end of the dock), hold OK 
 - **Apps:** add, remove and reorder favourites, hide or show apps, and rename them
 - **Photos:** upload wallpaper photos
 - **Settings:** home layout, tile size and shape, wallpaper and screensaver options, your own wallpaper links (when *Wallpapers from* is **My links**: picture links, Google Drive photos or whole folders, Dropbox / OneDrive share links, Reddit posts, or subreddits like `r/EarthPorn`. Folders and subreddits keep bringing new pictures; shared links must be set to *Anyone with the link*), and the hours the screensaver dims at night
+- **Install an app** (Apps tab): send an `.apk` from your phone, up to 300 MB. The TV shows Fire OS's usual *Install?* screen and nothing installs until you press Install. The uploaded file is deleted once it's handed to the installer. When it's done, the phone can add the new app to the dock.
 - **Backup & restore:** save your setup to a file and load it again later or on another Fire TV. Kids mode and its PIN are never in the file.
 
 There's no adb and no account. The link only works while that screen is open on the TV, stops after 10 minutes without use, and is new every time. While Kids mode is on, the phone can look but can't change anything. Kids mode, updates and the Fire TV extras can only be changed on the TV.
