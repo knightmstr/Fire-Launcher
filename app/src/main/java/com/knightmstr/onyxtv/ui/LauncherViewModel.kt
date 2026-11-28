@@ -546,10 +546,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun cycleKidsDailyLimit() {
+    fun setKidsDailyLimit(minutes: Int) {
         val app = getApplication<Application>()
         val r = KidsTimeKeeper.rules(app)
-        KidsTimeKeeper.setRules(app, r.copy(dailyLimitMinutes = KidsTime.nextLimit(r.dailyLimitMinutes)))
+        KidsTimeKeeper.setRules(app, r.copy(dailyLimitMinutes = minutes.takeIf { it in KidsTime.LIMIT_OPTIONS } ?: 0))
     }
 
     fun setKidsBedtime(on: Boolean? = null, startHour: Int? = null, endHour: Int? = null) {
@@ -595,10 +595,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         SleepTimer.load(getApplication())
     }
 
-    /** Off → 15 → 30 → 45 → 60 → 90 → 120 min → off. Needs ADB debugging on to work. */
-    fun cycleSleepTimer() {
+    /** Sets the sleep timer (0 = off). Needs ADB debugging on to work. */
+    fun setSleepTimer(minutes: Int) {
         val app = getApplication<Application>()
-        val next = SleepTimer.nextOption()
+        val next = minutes.coerceAtLeast(0)
         if (next > 0 && !SelfAdb.isAdbOn(app)) {
             _toolsUi.update { it.copy(sleepMessage = "Turn on ADB debugging first (Fire TV Settings → My Fire TV → Developer options).") }
             return

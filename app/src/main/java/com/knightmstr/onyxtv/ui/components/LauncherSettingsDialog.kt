@@ -23,8 +23,12 @@ import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Snooze
 import androidx.compose.material.icons.rounded.Schedule
 import com.knightmstr.onyxtv.data.ClockPlacement
+import com.knightmstr.onyxtv.data.HomeLayout
+import com.knightmstr.onyxtv.data.UpdateChannel
 import androidx.compose.material.icons.rounded.HourglassBottom
 import com.knightmstr.onyxtv.kids.KidsTimeKeeper
+import com.knightmstr.onyxtv.kids.KidsTime
+import com.knightmstr.onyxtv.tools.SleepTimer
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -112,10 +116,10 @@ fun LauncherSettingsDialog(
     onPhoneSetup: () -> Unit,
     sleepTimerEndsAt: Long?,
     tools: ToolsUi,
-    onSleepTimer: () -> Unit,
+    onSleepTimer: (Int) -> Unit,
     onFreeUpSpace: () -> Unit,
     kidsTime: KidsTimeKeeper.Status?,
-    onKidsDailyLimit: () -> Unit,
+    onKidsDailyLimit: (Int) -> Unit,
     onKidsBedtime: (on: Boolean?, start: Int?, end: Int?) -> Unit,
     onClearUploads: () -> Unit,
     onManageWallpaperUrls: () -> Unit,
@@ -161,27 +165,23 @@ fun LauncherSettingsDialog(
             onToggle = { toggle("Home screen") }
         )
         if (isOpen("Home screen")) {
-        TvMenuItem(
+        TvChoiceItem(
             title = "Home layout",
             subtitle = settings.homeLayout.description,
             icon = Icons.Rounded.Dashboard,
             iconTint = Color(0xFF34D399),
-            trailing = settings.homeLayout.title,
-            onClick = { onUpdate { it.copy(homeLayout = it.homeLayout.next()) } }
+            choices = HomeLayout.entries.map { TvChoice(it, it.title, it.description) },
+            selected = settings.homeLayout,
+            onSelect = { v -> onUpdate { it.copy(homeLayout = v) } }
         )
-        TvMenuItem(
+        TvChoiceItem(
             title = "Clock position",
             subtitle = settings.clockPlacement.description,
             icon = Icons.Rounded.Schedule,
             iconTint = Color(0xFF34D399),
-            trailing = settings.clockPlacement.title,
-            onClick = {
-                onUpdate {
-                    it.copy(
-                        clockPlacement = if (it.clockPlacement == ClockPlacement.SMART) ClockPlacement.CENTER else ClockPlacement.SMART
-                    )
-                }
-            }
+            choices = ClockPlacement.entries.map { TvChoice(it, it.title, it.description) },
+            selected = settings.clockPlacement,
+            onSelect = { v -> onUpdate { it.copy(clockPlacement = v) } }
         )
         TvMenuItem(
             title = "Move clock slightly over time",
@@ -206,13 +206,14 @@ fun LauncherSettingsDialog(
             },
             onValueChange = { w -> onUpdate { it.copy(tileWidthDp = w) } }
         )
-        TvMenuItem(
+        TvChoiceItem(
             title = "App tile shape",
             subtitle = "Rounded, square, extra rounded or pill",
             icon = Icons.Rounded.RoundedCorner,
             iconTint = Color(0xFF60A5FA),
-            trailing = settings.cardShape.title,
-            onClick = { onUpdate { it.copy(cardShape = it.cardShape.next()) } }
+            choices = CardShape.entries.map { TvChoice(it, it.title) },
+            selected = settings.cardShape,
+            onSelect = { v -> onUpdate { it.copy(cardShape = v) } }
         )
         // Live preview: two sample app tiles at the chosen size and shape.
         Row(
@@ -280,7 +281,7 @@ fun LauncherSettingsDialog(
             onToggle = { toggle("Wallpaper") }
         )
         if (isOpen("Wallpaper")) {
-        TvMenuItem(
+        TvChoiceItem(
             title = "Wallpapers from",
             subtitle = when (settings.wallpaperSource) {
                 WallpaperSource.REDDIT -> "Downloads new wallpapers from Reddit"
@@ -293,8 +294,9 @@ fun LauncherSettingsDialog(
             },
             icon = Icons.Rounded.PhotoLibrary,
             iconTint = Color(0xFF34D399),
-            trailing = settings.wallpaperSource.title,
-            onClick = { onUpdate { it.copy(wallpaperSource = it.wallpaperSource.next()) } }
+            choices = WallpaperSource.entries.map { TvChoice(it, it.title) },
+            selected = settings.wallpaperSource,
+            onSelect = { v -> onUpdate { it.copy(wallpaperSource = v) } }
         )
         if (settings.wallpaperSource == WallpaperSource.CUSTOM_URL) {
             TvMenuItem(
@@ -306,13 +308,14 @@ fun LauncherSettingsDialog(
                 onClick = onManageWallpaperUrls
             )
         }
-        TvMenuItem(
+        TvChoiceItem(
             title = "Photo fit",
             subtitle = settings.wallpaperFit.description,
             icon = Icons.Rounded.Crop,
             iconTint = Color(0xFF34D399),
-            trailing = settings.wallpaperFit.title,
-            onClick = { onUpdate { it.copy(wallpaperFit = it.wallpaperFit.next()) } }
+            choices = WallpaperFit.entries.map { TvChoice(it, it.title, it.description) },
+            selected = settings.wallpaperFit,
+            onSelect = { v -> onUpdate { it.copy(wallpaperFit = v) } }
         )
         if (wallpaperPreviewUrl != null) {
             // Live preview of the current wallpaper in the chosen fit.
@@ -353,20 +356,15 @@ fun LauncherSettingsDialog(
                 onClick = onClearUploads
             )
         }
-        TvMenuItem(
+        TvChoiceItem(
             title = "Change wallpaper every",
             icon = Icons.Rounded.Wallpaper,
             iconTint = FireAmber,
-            trailing = LauncherSettings.describeMinutes(settings.wallpaperIntervalMinutes, zeroLabel = "Never"),
-            onClick = {
-                onUpdate {
-                    it.copy(
-                        wallpaperIntervalMinutes = LauncherSettings.nextOption(
-                            LauncherSettings.WALLPAPER_INTERVAL_OPTIONS, it.wallpaperIntervalMinutes
-                        )
-                    )
-                }
-            }
+            choices = LauncherSettings.WALLPAPER_INTERVAL_OPTIONS.map {
+                TvChoice(it, LauncherSettings.describeMinutes(it, zeroLabel = "Never"))
+            },
+            selected = settings.wallpaperIntervalMinutes,
+            onSelect = { v -> onUpdate { it.copy(wallpaperIntervalMinutes = v) } }
         )
 
         }
@@ -379,7 +377,7 @@ fun LauncherSettingsDialog(
             onToggle = { toggle("Screensaver") }
         )
         if (isOpen("Screensaver")) {
-        TvMenuItem(
+        TvChoiceItem(
             title = "Screensaver on the home screen",
             subtitle = if (settings.screensaverTimeoutMinutes > 0) {
                 "Onyx's screensaver after this long on the home screen"
@@ -388,16 +386,11 @@ fun LauncherSettingsDialog(
             },
             icon = Icons.Rounded.Bedtime,
             iconTint = Color(0xFFA78BFA),
-            trailing = LauncherSettings.describeMinutes(settings.screensaverTimeoutMinutes),
-            onClick = {
-                onUpdate {
-                    it.copy(
-                        screensaverTimeoutMinutes = LauncherSettings.nextOption(
-                            LauncherSettings.SCREENSAVER_TIMEOUT_OPTIONS, it.screensaverTimeoutMinutes
-                        )
-                    )
-                }
-            }
+            choices = LauncherSettings.SCREENSAVER_TIMEOUT_OPTIONS.map {
+                TvChoice(it, LauncherSettings.describeMinutes(it))
+            },
+            selected = settings.screensaverTimeoutMinutes,
+            onSelect = { v -> onUpdate { it.copy(screensaverTimeoutMinutes = v) } }
         )
         TvMenuItem(
             title = "Screensaver inside other apps",
@@ -566,15 +559,18 @@ fun LauncherSettingsDialog(
         kidsTime?.let { kt ->
             val r = kt.rules
             val usedMin = (kt.usedMs / 60_000L).toInt()
-            TvMenuItem(
+            TvChoiceItem(
                 title = "Daily screen time",
                 subtitle = if (r.dailyLimitMinutes > 0) {
                     "In Kids mode. Used today: ${LauncherSettings.describeMinutes(usedMin, zeroLabel = "0 min")}"
                 } else "No daily limit",
                 icon = Icons.Rounded.HourglassBottom,
                 iconTint = Color(0xFFF472B6),
-                trailing = if (r.dailyLimitMinutes > 0) LauncherSettings.describeMinutes(r.dailyLimitMinutes) else "Off",
-                onClick = onKidsDailyLimit
+                choices = KidsTime.LIMIT_OPTIONS.map {
+                    TvChoice(it, if (it > 0) LauncherSettings.describeMinutes(it) else "Off")
+                },
+                selected = r.dailyLimitMinutes,
+                onSelect = onKidsDailyLimit
             )
             TvMenuItem(
                 title = "Bedtime",
@@ -639,13 +635,14 @@ fun LauncherSettingsDialog(
             trailing = "v${status.installedVersion}",
             onClick = onOpenUpdates
         )
-        TvMenuItem(
+        TvChoiceItem(
             title = "Update channel",
             subtitle = settings.updateChannel.description,
             icon = Icons.Rounded.Science,
             iconTint = Color(0xFFA78BFA),
-            trailing = settings.updateChannel.title,
-            onClick = { onUpdate { it.copy(updateChannel = it.updateChannel.next()) } }
+            choices = UpdateChannel.entries.map { TvChoice(it, it.title, it.description) },
+            selected = settings.updateChannel,
+            onSelect = { v -> onUpdate { it.copy(updateChannel = v) } }
         )
         }
         }
@@ -719,9 +716,9 @@ private fun tilePreviewCorner(shape: CardShape, widthDp: Int): RoundedCornerShap
     CardShape.PILL -> RoundedCornerShape(percent = 50)
 }
 
-/** Sleep timer row: OK steps through Off, 15, 30, 45, 60, 90, 120 minutes. */
+/** Sleep timer row: a drop-down of Off, 15, 30, 45, 60, 90 and 120 minutes. */
 @Composable
-private fun SleepTimerItem(endsAt: Long?, message: String?, onClick: () -> Unit) {
+private fun SleepTimerItem(endsAt: Long?, message: String?, onClick: (Int) -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(endsAt) {
         while (endsAt != null) {
@@ -730,16 +727,18 @@ private fun SleepTimerItem(endsAt: Long?, message: String?, onClick: () -> Unit)
         }
     }
     val left = endsAt?.let { ((it - now + 59_999) / 60_000).toInt() }?.takeIf { it > 0 }
-    TvMenuItem(
+    TvChoiceItem(
         title = "Sleep timer",
         subtitle = message ?: if (left != null) {
-            "Fire TV sleeps in $left min. OK for longer, or step past 2 hr to turn off"
+            "Fire TV sleeps in $left min"
         } else {
             "Puts the Fire TV (and the TV, with HDMI-CEC) to sleep later"
         },
         icon = Icons.Rounded.Snooze,
         iconTint = Color(0xFFA78BFA),
-        trailing = left?.let { LauncherSettings.describeMinutes(it) } ?: "Off",
-        onClick = onClick
+        choices = SleepTimer.OPTIONS.map { TvChoice(it, if (it == 0) "Off" else LauncherSettings.describeMinutes(it)) },
+        selected = if (left == null) 0 else -1,
+        currentLabel = left?.let { "$it min left" },
+        onSelect = onClick
     )
 }
