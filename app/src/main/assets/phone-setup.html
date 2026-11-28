@@ -510,8 +510,9 @@
     var box = el('div', 'setting links');
     var names = el('div', 'names');
     names.appendChild(el('label', 'title', 'My links'));
-    names.appendChild(el('div', 'note', 'Paste a picture link, a Google Drive, Dropbox or OneDrive share link, a Reddit post, ' +
-      'or a subreddit like r/EarthPorn to keep getting new pictures from it. The TV checks each one first.'));
+    names.appendChild(el('div', 'note', 'Paste a picture link, a Google Drive photo or folder, a Dropbox or OneDrive share ' +
+      'link, a Reddit post, or a subreddit like r/EarthPorn. Folders and subreddits keep bringing new pictures. ' +
+      'Shared links must be set to “Anyone with the link”. The TV checks each one first.'));
     if (links.urls === null) { loadLinks(); names.appendChild(el('div', 'note', 'Loading…')); box.appendChild(names); return box; }
 
     var list = el('div', 'list');
@@ -520,12 +521,15 @@
     links.urls.forEach(function (u) {
       var row = el('div', 'link-row');
       var sub = /^https:\/\/www\.reddit\.com\/r\/([A-Za-z0-9_]+)$/.exec(u);
-      var cloud = /^https:\/\/drive\.google\.com\/uc\?/.test(u) ? 'Google Drive picture'
+      var folder = /^https:\/\/drive\.google\.com\/drive\/folders\//.test(u);
+      var cloud = folder ? 'Google Drive folder'
+        : /^https:\/\/drive\.google\.com\/uc\?/.test(u) ? 'Google Drive picture'
         : /^https:\/\/www\.dropbox\.com\//.test(u) ? 'Dropbox picture'
         : /^https:\/\/api\.onedrive\.com\//.test(u) ? 'OneDrive picture' : null;
       var label = el('span', 'url', sub ? 'r/' + sub[1] : (cloud || u));
       label.title = u;
       if (sub) label.appendChild(el('span', 'tag', 'new pictures'));
+      if (folder) label.appendChild(el('span', 'tag', 'all photos'));
       row.appendChild(label);
       var del = button('Remove', 'Remove this link', function () { removeLink(u); });
       row.appendChild(del);

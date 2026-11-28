@@ -57,7 +57,7 @@ fun WallpaperUrlsDialog(
 
     TvDialogFrame(
         title = "Photo links",
-        subtitle = "A picture link, a Drive / Dropbox / OneDrive share link, a Reddit post, or a subreddit like r/EarthPorn",
+        subtitle = "A picture link, a Drive photo or folder, Dropbox / OneDrive, a Reddit post, or a subreddit like r/EarthPorn",
         accentColor = Color(0xFF34D399),
         onDismiss = onDismiss,
         width = 580.dp
@@ -121,9 +121,18 @@ fun WallpaperUrlsDialog(
         } else {
             urls.forEach { url ->
                 val subreddit = WallpaperLinks.subredditOf(url)
+                val folder = WallpaperLinks.driveFolderOf(url)
                 TvMenuItem(
-                    title = subreddit?.let { "r/$it" } ?: url,
-                    subtitle = if (subreddit != null) "New pictures from this subreddit" else null,
+                    title = when {
+                        subreddit != null -> "r/$subreddit"
+                        folder != null -> "Google Drive folder"
+                        else -> url
+                    },
+                    subtitle = when {
+                        subreddit != null -> "New pictures from this subreddit"
+                        folder != null -> "Every photo in it, including ones you add later"
+                        else -> null
+                    },
                     icon = Icons.Rounded.Link,
                     iconTint = TextSecondary,
                     trailing = "Remove",

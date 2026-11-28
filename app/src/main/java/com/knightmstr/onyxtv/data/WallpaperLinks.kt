@@ -10,8 +10,10 @@ import java.net.URLDecoder
  *  - A subreddit (`reddit.com/r/EarthPorn`, or just `r/EarthPorn`) becomes a feed that keeps
  *    pulling new pictures; it's stored as `https://www.reddit.com/r/Name`.
  *  - A Reddit post link is resolved later (online) to the image or gallery images in it.
- *  - Links that can never work without signing in (Drive folders, Google Photos albums) get a
- *    clear explanation instead of a confusing "not an image".
+ *  - A Google Drive folder shared with "Anyone with the link" becomes a feed of every photo in it;
+ *    it's stored as `https://drive.google.com/drive/folders/<id>`.
+ *  - Links that can never work without signing in (Google Photos albums) get a clear
+ *    explanation instead of a confusing "not an image".
  *
  * Pure Kotlin so it can be unit-tested on the JVM.
  */
@@ -26,6 +28,11 @@ object WallpaperLinks {
             val url: String get() = subredditUrl(name)
         }
 
+        /** A public Google Drive folder; [id] is checked against the Drive id pattern. */
+        data class DriveFolder(val id: String, val resourceKey: String? = null) : Kind() {
+            val url: String get() = driveFolderUrl(id, resourceKey)
+        }
+
         /** A Reddit post; [id] is its base-36 post id. */
         data class RedditPost(val id: String) : Kind()
 
@@ -38,6 +45,15 @@ object WallpaperLinks {
     private const val MAX_LENGTH = 2048
 
     fun subredditUrl(name: String) = "https://www.reddit.com/r/$name"
+    /** Some older shared folders also need their resource key, which their share link carries. */
+    fun driveFolderUrl(id: String, resourceKey: String? = null) =
+        "https://drive.google.com/drive/folders/$id" + (resourceKey?.let { "?resourcekey=$it" } ?: "")
+
+    /** The folder if [url] is a stored Drive folder feed, else null. */
+    fun driveFolderOf(url: String): Kind.DriveFolder? {
+        val k = classify(url)
+        return if (k is Kind.DriveFolder && url == k.url) k else null
+    }
 
     /** The subreddit name if [url] is a stored subreddit feed, else null. */
     fun subredditOf(url: String): String? {
@@ -90,11 +106,15 @@ object WallpaperLinks {
 
         // ---- Google Drive
         if (host == "drive.google.com" || host == "docs.google.com") {
+            // /drive/folders/<id> or /drive/u/0/folders/<id>
             if (segments.firstOrNull() == "drive" && "folders" in segments) {
-                return Kind.Unsupported(
-                    "Drive folders need a sign-in to list. Share each photo instead (Anyone with the link), " +
-                        "then paste its link."
-                )
+                val id = segments.getOrNull(segments.indexOf("folders") + 1)
+                return driveFolder(id, query(uri)["resourcekey"])
+            }
+            // /embeddedfolderview?id=<id> or /open?id=<folder id> can't be told apart from a file
+            // here, so only the embedded view is taken as a folder.
+            if (segments.firstOrNull() == "embeddedfolderview") {
+                return driveFolder(query(uri)["id"], query(uri)["resourcekey"])
             }
             val id = when {
                 segments.size >= 3 && segments[0] == "file" && segments[1] == "d" -> segments[2]
@@ -132,6 +152,15 @@ object WallpaperLinks {
         }
 
         return Kind.Image(text)
+    }
+
+    private val RESOURCE_KEY = Regex("^[A-Za-z0-9_-]{1,100}$")
+
+    private fun driveFolder(id: String?, resourceKey: String?): Kind {
+        if (id == null || !DRIVE_ID.matches(id)) return Kind.Unsupported("Paste the share link of the Drive folder.")
+        val key = resourceKey?.takeIf { it.isNotEmpty() }
+        if (key != null && !RESOURCE_KEY.matches(key)) return Kind.Unsupported("Paste the share link of the Drive folder.")
+        return Kind.DriveFolder(id, key)
     }
 
     private fun subreddit(name: String): Kind =

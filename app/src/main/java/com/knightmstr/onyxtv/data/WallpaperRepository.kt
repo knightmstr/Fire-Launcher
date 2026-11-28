@@ -31,7 +31,7 @@ class WallpaperRepository(
         private const val DEFAULT_SUBREDDIT = "TVWallpapersSFW"
         private const val SUBREDDIT_CACHE_MS = 60 * 60 * 1000L
         private const val PER_SUBREDDIT = 25
-        private const val MAX_SUBREDDITS = 10
+        private const val MAX_FEEDS = 10
 
 
         val FALLBACK_WALLPAPERS = listOf(
@@ -146,16 +146,21 @@ class WallpaperRepository(
     }
 
     /**
-     * My links: pictures first, in the order added, then pictures pulled from any subreddits in
-     * the list (a few from each, mixed together).
+     * My links: pictures first, in the order added, then pictures pulled from any subreddits and
+     * Drive folders in the list (a few from each, mixed together).
      */
     private suspend fun customWallpapers(urls: List<String>): List<WallpaperModel> {
         val pictures = ArrayList<WallpaperModel>()
-        val subreddits = ArrayList<String>()
+        val feedSources = ArrayList<suspend () -> List<WallpaperModel>>()
         for (url in urls) {
             val sub = WallpaperLinks.subredditOf(url)
             if (sub != null) {
-                if (subreddits.size < MAX_SUBREDDITS) subreddits += sub
+                if (feedSources.size < MAX_FEEDS) feedSources += { subredditWallpapers(sub) }
+                continue
+            }
+            val folder = WallpaperLinks.driveFolderOf(url)
+            if (folder != null) {
+                if (feedSources.size < MAX_FEEDS) feedSources += { driveFolderWallpapers(folder.id, folder.resourceKey) }
                 continue
             }
             pictures += WallpaperModel(
@@ -167,7 +172,7 @@ class WallpaperRepository(
                 source = WallpaperModel.SOURCE_CUSTOM
             )
         }
-        val feeds = subreddits.map { subredditWallpapers(it) }
+        val feeds = feedSources.map { it() }
         val mixed = ArrayList<WallpaperModel>()
         val longest = feeds.maxOfOrNull { it.size } ?: 0
         for (i in 0 until longest) feeds.forEach { feed -> feed.getOrNull(i)?.let { mixed += it } }
@@ -209,6 +214,25 @@ class WallpaperRepository(
         // Keep the last good list if Reddit is briefly unreachable.
         if (list.isNotEmpty() || subredditCache[name] == null) subredditCache[name] = now to list
         subredditCache[name]?.second.orEmpty()
+    }
+
+    /** Photos in a public Drive folder, cached like subreddits; new photos show up within the hour. */
+    private suspend fun driveFolderWallpapers(id: String, resourceKey: String?): List<WallpaperModel> = withContext(Dispatchers.IO) {
+        val key = "drive:$id"
+        val now = System.currentTimeMillis()
+        subredditCache[key]?.let { (at, list) -> if (now - at < SUBREDDIT_CACHE_MS) return@withContext list }
+        val list = DriveFolder.fetchHtml(id, resourceKey)?.let { DriveFolder.photoUrls(it) }.orEmpty().map { url ->
+            WallpaperModel(
+                id = "drive_${url.hashCode()}",
+                title = "Google Drive",
+                url = url,
+                author = "Your Drive folder",
+                permalink = WallpaperLinks.driveFolderUrl(id, resourceKey),
+                source = WallpaperModel.SOURCE_CUSTOM
+            )
+        }
+        if (list.isNotEmpty() || subredditCache[key] == null) subredditCache[key] = now to list
+        subredditCache[key]?.second.orEmpty()
     }
 
     /** r/TVWallpapersSFW, the built-in Reddit source. */

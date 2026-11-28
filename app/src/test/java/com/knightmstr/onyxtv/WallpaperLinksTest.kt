@@ -25,8 +25,29 @@ class WallpaperLinksTest {
         assertEquals(direct, c("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp_-Q/view"))
         assertEquals(direct, c("https://drive.google.com/open?id=1AbCdEfGhIjKlMnOp_-Q"))
         assertEquals(direct, c("https://drive.google.com/uc?id=1AbCdEfGhIjKlMnOp_-Q&export=download"))
-        assertTrue(c("https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp") is Kind.Unsupported)
+        assertTrue(c("https://drive.google.com/file/d/short/view") is Kind.Unsupported)
         assertTrue(c("https://drive.google.com/file/d/bad\"id/view") is Kind.Unsupported)
+    }
+
+    @Test
+    fun `drive folders become feeds`() {
+        val folder = Kind.DriveFolder("1FoLdErIdAbCdEfGh_-")
+        for (s in listOf("https://drive.google.com/drive/folders/1FoLdErIdAbCdEfGh_-?usp=sharing",
+            "https://drive.google.com/drive/folders/1FoLdErIdAbCdEfGh_-",
+            "https://drive.google.com/drive/u/0/folders/1FoLdErIdAbCdEfGh_-",
+            "drive.google.com/embeddedfolderview?id=1FoLdErIdAbCdEfGh_-#grid")) {
+            assertEquals(s, folder, c(s))
+        }
+        assertEquals("https://drive.google.com/drive/folders/1FoLdErIdAbCdEfGh_-", folder.url)
+        assertEquals(folder, WallpaperLinks.driveFolderOf(folder.url))
+        val keyed = c("https://drive.google.com/drive/folders/1FoLdErIdAbCdEfGh_-?resourcekey=0-AbC_d&usp=sharing")
+        assertEquals(Kind.DriveFolder("1FoLdErIdAbCdEfGh_-", "0-AbC_d"), keyed)
+        assertEquals("https://drive.google.com/drive/folders/1FoLdErIdAbCdEfGh_-?resourcekey=0-AbC_d", (keyed as Kind.DriveFolder).url)
+        assertEquals(keyed, WallpaperLinks.driveFolderOf(keyed.url))
+        assertTrue(c("https://drive.google.com/drive/folders/1FoLdErIdAbCdEfGh_-?resourcekey=a%26b") is Kind.Unsupported)
+        assertNull(WallpaperLinks.driveFolderOf("https://drive.google.com/uc?export=view&id=1FoLdErIdAbCdEfGh_-"))
+        assertTrue(c("https://drive.google.com/drive/folders/") is Kind.Unsupported)
+        assertTrue(c("https://drive.google.com/drive/folders/bad<id>") is Kind.Unsupported)
     }
 
     @Test

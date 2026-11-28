@@ -306,6 +306,7 @@ class PhoneSetupServer(
             is WallpaperLinks.Kind.Image ->
                 if (SetupValidation.isHttpsUrl(kind.url)) kind.url else return error(Response.Status.BAD_REQUEST, "bad_url")
             is WallpaperLinks.Kind.Subreddit -> kind.url
+            is WallpaperLinks.Kind.DriveFolder -> kind.url
             is WallpaperLinks.Kind.RedditPost -> null // its pictures are only known once fetched
         }
         val current = bridge.wallpaperUrls()

@@ -11,6 +11,7 @@ import org.json.JSONObject
  *  - an image or cloud share link → the direct link, once it's confirmed to open as an image
  *  - a subreddit → `https://www.reddit.com/r/Name`, if it exists, isn't 18+, and has pictures
  *  - a Reddit post → the picture(s) in it (every image of a gallery)
+ *  - a public Google Drive folder → the folder link, if it lists photos and the first one opens
  *
  * Used by both the TV's own dialog and the phone page, so they behave the same.
  */
@@ -37,6 +38,8 @@ object WallpaperLinkResolver {
             is WallpaperLinks.Kind.Subreddit -> subreddit(kind)
 
             is WallpaperLinks.Kind.RedditPost -> post(kind.id)
+
+            is WallpaperLinks.Kind.DriveFolder -> driveFolder(kind)
         }
     }
 
@@ -51,6 +54,25 @@ object WallpaperLinkResolver {
             return Result.Error("No pictures found in r/$name right now.")
         }
         return Result.Ok(listOf(kind.url), "r/$name")
+    }
+
+    private suspend fun driveFolder(kind: WallpaperLinks.Kind.DriveFolder): Result {
+        val html = DriveFolder.fetchHtml(kind.id, kind.resourceKey)
+            ?: return Result.Error(
+                "Couldn't open that Drive folder. In Drive, set it to Share → Anyone with the link, then try again."
+            )
+        val photos = DriveFolder.photoUrls(html)
+        if (photos.isEmpty()) return Result.Error("No photos (JPEG, PNG or WebP) found in that Drive folder.")
+        // The folder can be public while its files aren't; check one actually opens.
+        return when (val r = WallpaperUrlValidator.validate(photos.first())) {
+            is WallpaperUrlValidator.Result.Ok -> Result.Ok(
+                listOf(kind.url),
+                "Drive folder (${photos.size} photo${if (photos.size == 1) "" else "s"})"
+            )
+            is WallpaperUrlValidator.Result.Error -> Result.Error(
+                "The folder is shared but its photos didn't open. Check the photos are shared too, and under 15 MB."
+            )
+        }
     }
 
     private fun post(id: String): Result {

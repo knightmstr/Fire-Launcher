@@ -549,15 +549,16 @@ class PhoneSetupServerTest {
     @Test
     fun `subreddits, posts and cloud links reach the TV's resolver`() {
         for (s in listOf("r/EarthPorn", "https://www.reddit.com/r/EarthPorn/comments/1abcde/x/",
-            "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing", "dropbox.com/s/abc/a.jpg?dl=0")) {
+            "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing", "dropbox.com/s/abc/a.jpg?dl=0",
+            "https://drive.google.com/drive/folders/1FoLdErIdAbCdEfGh?usp=sharing")) {
             assertEquals(s, 200, post("/api/wallpaper-urls/add", JSONObject().put("url", s).toString()).code)
         }
-        assertEquals(4, bridge.fetched.size)
+        assertEquals(5, bridge.fetched.size)
     }
 
     @Test
     fun `unsupported links explain themselves without any fetch`() {
-        for (s in listOf("https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp", "https://photos.app.goo.gl/x",
+        for (s in listOf("https://drive.google.com/drive/folders/", "https://photos.app.goo.gl/x",
             "https://www.reddit.com/r/EarthPorn/s/AbC")) {
             val r = post("/api/wallpaper-urls/add", JSONObject().put("url", s).toString())
             assertEquals(400, r.code)
