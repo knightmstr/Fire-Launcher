@@ -143,3 +143,19 @@ adb install -r ~/storage/downloads/SomeApp.apk
 ```
 
 Pick the **Android TV** build of an app if there is one. If you see `INSTALL_FAILED_NO_MATCHING_ABIS`, the APK isn't built for the stick's processor. Check which one you need with `adb shell getprop ro.product.cpu.abi`, which usually says `armeabi-v7a`. Only install APKs from the developer's own site or GitHub.
+
+## On a Google TV or Android TV (Sony Bravia, Google TV Streamer, …)
+
+Onyx TV works on Google TV and Android TV too. It notices which system it's on and adjusts its wording and the Home button watcher; on a Fire TV nothing changes.
+
+1. **Install:** turn on *Unknown sources* for your installer app (Settings → Apps → Security & restrictions), then install `OnyxTV.apk` with Downloader, a file manager, or *Set up from phone → Install an app* from another TV running Onyx.
+2. **One-time permission** (Home button, screensaver and keep-awake): newer Google TVs don't let an app use the TV's own ADB, so do it from a computer on the same Wi-Fi. In *Developer options* open **Wireless debugging → Pair device with pairing code**, then:
+   ```bash
+   adb pair <IP:pairing port>      # enter the code shown on the TV
+   adb connect <IP:port>           # the address shown under Wireless debugging
+   adb shell pm grant com.knightmstr.onyxtv android.permission.WRITE_SECURE_SETTINGS
+   ```
+   Then in *Launcher settings → Google TV*, turn on **Home button opens Onyx TV**.
+3. **Now playing** on Android 13 and later: if the switch is greyed out, open *Settings → Apps → Onyx TV → ⋮ → Allow restricted settings* first.
+
+**Good to know:** the sleep timer and *Free up space* use the TV's own ADB on port 5555, which most Google TVs keep closed; on those, use the TV's own sleep timer and storage settings instead. Many Bravia TVs already have a sleep timer built in. Google TV also has its own kids profiles, which you can use alongside or instead of Onyx's Kids mode.

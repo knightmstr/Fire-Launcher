@@ -24,6 +24,8 @@ import androidx.compose.material.icons.rounded.Snooze
 import androidx.compose.material.icons.rounded.Schedule
 import com.knightmstr.onyxtv.data.ClockPlacement
 import com.knightmstr.onyxtv.data.HomeLayout
+import androidx.compose.ui.platform.LocalContext
+import com.knightmstr.onyxtv.home.Platform
 import com.knightmstr.onyxtv.data.UpdateChannel
 import androidx.compose.material.icons.rounded.HourglassBottom
 import com.knightmstr.onyxtv.kids.KidsTimeKeeper
@@ -133,6 +135,9 @@ fun LauncherSettingsDialog(
     onKeepAwake: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    // Device words: "Fire TV" / "Amazon's" on Fire TV, "Google TV" / "Google's" on Google TV
+    val names = Platform.names(LocalContext.current)
+    val ownerCap = names.owner.replaceFirstChar { it.uppercase() }
     val firstItem = rememberInitialFocus()
     val usingPhotos = settings.wallpaperSource == WallpaperSource.MY_PHOTOS
 
@@ -382,7 +387,7 @@ fun LauncherSettingsDialog(
             subtitle = if (settings.screensaverTimeoutMinutes > 0) {
                 "Onyx's screensaver after this long on the home screen"
             } else {
-                "Off: the home screen stays as it is (Fire TV's own screensaver can still start)"
+                "Off: the home screen stays as it is (${names.device}'s own screensaver can still start)"
             },
             icon = Icons.Rounded.Bedtime,
             iconTint = Color(0xFFA78BFA),
@@ -396,18 +401,18 @@ fun LauncherSettingsDialog(
             title = "Screensaver inside other apps",
             subtitle = when {
                 status.screensaverTakeover == ScreensaverTakeover.Status.ON && status.needsRestart ->
-                    "Onyx: restart the Fire TV once to replace Amazon's"
+                    "Onyx: restart the ${names.device} once to replace ${names.owner}"
                 status.screensaverTakeover == ScreensaverTakeover.Status.ON ->
-                    "Onyx's wallpaper, clock and weather. Starts on Fire TV's own timer (Display & Sounds)"
+                    "Onyx's wallpaper, clock and weather. Starts on ${names.device}'s own timer (${names.screensaverTimerPath})"
                 status.screensaverTakeover == ScreensaverTakeover.Status.OFF ->
-                    "Amazon's. Starts on Fire TV's own timer (Display & Sounds → Screensaver)"
+                    "$ownerCap. Starts on ${names.device}'s own timer (${names.screensaverTimerPath})"
                 else -> "Needs the one-time adb setup"
             },
             icon = Icons.Rounded.Bedtime,
             iconTint = Color(0xFFA78BFA),
             trailing = when (status.screensaverTakeover) {
                 ScreensaverTakeover.Status.ON -> "Onyx"
-                ScreensaverTakeover.Status.OFF -> "Amazon's"
+                ScreensaverTakeover.Status.OFF -> ownerCap
                 ScreensaverTakeover.Status.NEEDS_PERMISSION -> "Set up"
             },
             onClick = onScreensaverTakeover
@@ -458,9 +463,9 @@ fun LauncherSettingsDialog(
             )
         }
         TvMenuItem(
-            title = "Keep Fire TV awake",
+            title = "Keep ${names.device} awake",
             subtitle = if (status.keepAwake) "Never sleeps on a timer; the screensaver keeps showing"
-            else "Off: Fire TV sleeps after its sleep timer",
+            else "Off: ${names.device} sleeps after its sleep timer",
             icon = Icons.Rounded.LightMode,
             iconTint = FireAmber,
             trailing = if (status.keepAwake) "On" else "Off",
@@ -471,7 +476,7 @@ fun LauncherSettingsDialog(
         }
         SettingsGroup(expanded = isOpen("Fire TV")) {
         CollapsibleSectionHeader(
-            title = "Fire TV",
+            title = names.device,
             icon = Icons.Rounded.Home,
             expanded = isOpen("Fire TV"),
             onToggle = { toggle("Fire TV") }
@@ -480,8 +485,8 @@ fun LauncherSettingsDialog(
         TvMenuItem(
             title = "Home button opens Onyx TV",
             subtitle = when (status.homeWatch) {
-                HomeWatch.Status.ON -> "Brings Onyx TV back when Home opens Amazon's home"
-                HomeWatch.Status.OFF -> "Off: Home shows Amazon's home"
+                HomeWatch.Status.ON -> "Brings Onyx TV back when Home opens ${names.owner} home"
+                HomeWatch.Status.OFF -> "Off: Home shows ${names.owner} home"
                 HomeWatch.Status.NEEDS_PERMISSION -> "Needs a one-time setup with adb"
             },
             icon = Icons.Rounded.Home,
@@ -730,9 +735,9 @@ private fun SleepTimerItem(endsAt: Long?, message: String?, onClick: (Int) -> Un
     TvChoiceItem(
         title = "Sleep timer",
         subtitle = message ?: if (left != null) {
-            "Fire TV sleeps in $left min"
+            "${Platform.names(LocalContext.current).device} sleeps in $left min"
         } else {
-            "Puts the Fire TV (and the TV, with HDMI-CEC) to sleep later"
+            "Puts the ${Platform.names(LocalContext.current).device} (and the TV, with HDMI-CEC) to sleep later"
         },
         icon = Icons.Rounded.Snooze,
         iconTint = Color(0xFFA78BFA),

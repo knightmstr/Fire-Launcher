@@ -12,6 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.knightmstr.onyxtv.home.Platform
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -35,6 +37,9 @@ fun NowPlayingHelpDialog(
 ) {
     var settingsMissing by remember { mutableStateOf(false) }
     val first = rememberInitialFocus()
+    val context = LocalContext.current
+    val names = Platform.names(context)
+    val restricted = Platform.needsRestrictedSettingsStep(context)
 
     TvDialogFrame(
         title = "Turn on Now playing",
@@ -45,13 +50,21 @@ fun NowPlayingHelpDialog(
     ) {
         TvMenuItem(
             title = "Open notification access settings",
-            subtitle = if (settingsMissing) "This Fire TV doesn't have that screen — use the command below"
+            subtitle = if (settingsMissing) "This ${names.device} doesn't have that screen — use the command below"
             else "Then switch Onyx TV on",
             icon = Icons.AutoMirrored.Rounded.OpenInNew,
             iconTint = FireAmber,
             modifier = Modifier.focusRequester(first),
             onClick = { if (onOpenSystemSettings()) onDismiss() else settingsMissing = true }
         )
+        if (restricted) {
+            Text(
+                text = "Switch greyed out? Android blocks this for apps installed outside the Play Store until you " +
+                    "allow it: Settings → Apps → Onyx TV → ⋮ (or Options) → Allow restricted settings. Then try again.",
+                fontSize = 12.sp,
+                color = Color(0xFFFBBF24)
+            )
+        }
         Text(
             text = "Or run this once from a computer on the same Wi-Fi (adb connect <TV IP> first):",
             fontSize = 12.sp,

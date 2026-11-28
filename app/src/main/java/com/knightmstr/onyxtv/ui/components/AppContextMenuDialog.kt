@@ -132,7 +132,7 @@ fun AppContextMenuDialog(
 
         TvMenuItem(
             title = "Force Stop & App Info",
-            subtitle = "Fire OS settings: force stop, clear cache, manage data",
+            subtitle = "System settings: force stop, clear cache, manage data",
             icon = Icons.Rounded.Settings,
             iconTint = FireOrange,
             onClick = { onOpenAppDetails(); onDismiss() }

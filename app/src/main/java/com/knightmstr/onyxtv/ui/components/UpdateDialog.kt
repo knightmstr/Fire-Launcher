@@ -25,6 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.knightmstr.onyxtv.home.Platform
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -125,7 +127,7 @@ fun UpdateDialog(
                 TvMenuItem(
                     title = "Open \"Install unknown apps\"",
                     subtitle = if (permissionScreenMissing)
-                        "Not available here: Settings → My Fire TV → Developer options → Install unknown apps"
+                        "Not available here: ${Platform.names(LocalContext.current).unknownAppsPath}"
                     else "Switch Onyx TV on",
                     icon = Icons.Rounded.Lock,
                     iconTint = UpdateBlue,
