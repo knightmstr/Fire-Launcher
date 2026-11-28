@@ -1,6 +1,7 @@
 package com.knightmstr.onyxtv.ui
 
 import com.knightmstr.onyxtv.data.HomeLayout
+import com.knightmstr.onyxtv.data.LauncherSettings
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
@@ -63,6 +64,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.style.TextOverflow
 import com.knightmstr.onyxtv.ui.components.CitySelectionDialog
+import com.knightmstr.onyxtv.ui.components.ForecastDialog
+import com.knightmstr.onyxtv.ui.components.FolderDialog
+import com.knightmstr.onyxtv.ui.components.FolderMenuDialog
+import com.knightmstr.onyxtv.ui.components.FolderPickerDialog
+import com.knightmstr.onyxtv.ui.components.KidsLockDialog
+import com.knightmstr.onyxtv.ui.components.KidsExtendDialog
 import com.knightmstr.onyxtv.ui.components.HomeDock
 import com.knightmstr.onyxtv.ui.components.HomeClock
 import com.knightmstr.onyxtv.ui.components.GrantSetupDialog
@@ -124,6 +131,9 @@ fun LauncherRoot(
     val isSettingsOpen by viewModel.isSettingsOpen.collectAsStateWithLifecycle()
     val contextMenuApp by viewModel.contextMenuApp.collectAsStateWithLifecycle()
     val renameTarget by viewModel.renameTarget.collectAsStateWithLifecycle()
+    val openFolder by viewModel.openFolder.collectAsStateWithLifecycle()
+    val folderPickerFor by viewModel.folderPickerFor.collectAsStateWithLifecycle()
+    val folders by viewModel.folders.collectAsStateWithLifecycle()
     val screensaverVisible by viewModel.screensaverVisible.collectAsStateWithLifecycle()
     val nowPlaying by viewModel.nowPlaying.collectAsStateWithLifecycle()
     val kidsMode by viewModel.kidsModeEnabled.collectAsStateWithLifecycle()
@@ -133,6 +143,10 @@ fun LauncherRoot(
     val localPhotoCount by viewModel.localPhotoCount.collectAsStateWithLifecycle()
     val uploadedPhotoCount by viewModel.uploadedPhotoCount.collectAsStateWithLifecycle()
     val phoneSetupUi by viewModel.phoneSetupUi.collectAsStateWithLifecycle()
+    val sleepTimerEndsAt by viewModel.sleepTimerEndsAt.collectAsStateWithLifecycle()
+    val toolsUi by viewModel.toolsUi.collectAsStateWithLifecycle()
+    val kidsTime by viewModel.kidsTime.collectAsStateWithLifecycle()
+    val kidsExtendOpen by viewModel.kidsExtendOpen.collectAsStateWithLifecycle()
     val customWallpaperUrls by viewModel.customWallpaperUrls.collectAsStateWithLifecycle()
     val wallpaperUrlDialogOpen by viewModel.wallpaperUrlDialogOpen.collectAsStateWithLifecycle()
     val wallpaperUrlStatus by viewModel.wallpaperUrlStatus.collectAsStateWithLifecycle()
@@ -149,8 +163,20 @@ fun LauncherRoot(
     val keepAwake by viewModel.keepAwake.collectAsStateWithLifecycle()
     val needsRestart by viewModel.needsRestart.collectAsStateWithLifecycle()
 
+    // Home night dimming: checked once a minute, eased in and out
+    var hourNow by remember { mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            hourNow = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    val homeNight = settings.homeNightDim && LauncherSettings.isNight(hourNow, settings.nightStartHour, settings.nightEndHour)
+    val homeNightShade by animateFloatAsState(if (homeNight) 0.45f else 0f, tween(3000), label = "homeNight")
+
     // Pause the screensaver timer while any dialog has the keys
     val anyDialogOpen = contextMenuApp != null || renameTarget != null || isSettingsOpen ||
+        openFolder != null || folderPickerFor != null ||
         pinDialog != null || showNowPlayingHelp || isUpdateDialogOpen || isAllAppsOpen || grantSetupFor != null
     LaunchedEffect(anyDialogOpen) { viewModel.setDialogOpen(anyDialogOpen) }
 
@@ -181,6 +207,7 @@ fun LauncherRoot(
             isSearchingCities = isSearchingCities,
             currentWallpaper = currentWallpaper,
             wallpaperContentScale = settings.wallpaperFit.toContentScale(),
+            nightShade = homeNightShade,
             sortOrder = sortOrder,
             searchQuery = searchQuery,
             isSearchActive = isSearchActive,
@@ -208,7 +235,45 @@ fun LauncherRoot(
         )
     }
 
-    contextMenuApp?.let { app ->
+    // A folder's apps sit under any menu opened from inside it
+    openFolder?.let { folder ->
+        FolderDialog(
+            folder = folder,
+            onAppClicked = { app ->
+                viewModel.closeFolder()
+                viewModel.launchApp(app)
+            },
+            onAppLongClicked = viewModel::openContextMenu,
+            onDismiss = viewModel::closeFolder
+        )
+    }
+
+    contextMenuApp?.takeIf { it.isFolder }?.let { folder ->
+        FolderMenuDialog(
+            folder = folder,
+            dockIndex = favoriteApps.indexOfFirst { it.packageName == folder.packageName },
+            dockCount = favoriteApps.size,
+            onOpen = { viewModel.launchApp(folder) },
+            onMove = { delta -> viewModel.moveFavorite(folder, delta) },
+            onRename = { viewModel.startRename(folder) },
+            onDelete = { viewModel.deleteFolder(folder) },
+            onDismiss = viewModel::closeContextMenu
+        )
+    }
+
+    folderPickerFor?.let { pkg ->
+        val label = apps.firstOrNull { it.packageName == pkg }?.label ?: "app"
+        FolderPickerDialog(
+            appLabel = label,
+            folders = folders,
+            currentFolderId = folders.firstOrNull { pkg in it.packages }?.id,
+            onNewFolder = { viewModel.moveToNewFolder(pkg) },
+            onPick = { f -> viewModel.moveToFolder(pkg, f.id) },
+            onDismiss = viewModel::closeFolderPicker
+        )
+    }
+
+    contextMenuApp?.takeIf { !it.isFolder }?.let { app ->
         AppContextMenuDialog(
             app = app,
             isFavorite = favorites.contains(app.packageName),
@@ -224,7 +289,11 @@ fun LauncherRoot(
             onRename = { viewModel.startRename(app) },
             onToggleHidden = { viewModel.setHidden(app, !app.isHidden) },
             onOpenAppDetails = { viewModel.openAppDetails(app) },
-            onDismiss = viewModel::closeContextMenu
+            onDismiss = viewModel::closeContextMenu,
+            folderName = if (app.isSystemShortcut) null else viewModel.folderNameOf(app),
+            showFolderOptions = !app.isSystemShortcut,
+            onMoveToFolder = { viewModel.openFolderPicker(app) },
+            onTakeOutOfFolder = { viewModel.takeOutOfFolder(app) }
         )
     }
 
@@ -267,6 +336,13 @@ fun LauncherRoot(
             onRequestPhotoPermission = viewModel::requestPhotoPermission,
             onUploadPhotos = { viewModel.openPhoneSetup(SetupTab.PHOTOS) },
             onPhoneSetup = { viewModel.openPhoneSetup(SetupTab.APPS) },
+            sleepTimerEndsAt = sleepTimerEndsAt,
+            tools = toolsUi,
+            onSleepTimer = viewModel::cycleSleepTimer,
+            onFreeUpSpace = viewModel::freeUpSpace,
+            kidsTime = kidsTime,
+            onKidsDailyLimit = viewModel::cycleKidsDailyLimit,
+            onKidsBedtime = { on, start, end -> viewModel.setKidsBedtime(on, start, end) },
             onClearUploads = viewModel::clearUploadedPhotos,
             onManageWallpaperUrls = viewModel::openWallpaperUrls,
             wallpaperPreviewUrl = currentWallpaper?.url,
@@ -357,7 +433,27 @@ fun LauncherRoot(
                 onComplete = viewModel::submitExitPin,
                 onDismiss = viewModel::closePinDialog
             )
+            PinPurpose.UNLOCK_KIDS_TIME -> PinEntryDialog(
+                title = "Parent PIN",
+                subtitle = "To allow more time or leave Kids mode",
+                error = state.error,
+                onComplete = viewModel::submitUnlockPin,
+                onDismiss = viewModel::closePinDialog
+            )
         }
+    }
+
+    // Kids mode: time's up or bedtime. Stays until a parent enters the PIN.
+    val kidsLock = kidsTime?.lock
+    if (kidsMode && kidsLock != null && pinDialog == null && !kidsExtendOpen) {
+        KidsLockDialog(lock = kidsLock, onParent = viewModel::askParentPin)
+    }
+    if (kidsExtendOpen) {
+        KidsExtendDialog(
+            onExtend = viewModel::extendKidsTime,
+            onLeaveKidsMode = viewModel::leaveKidsModeFromLock,
+            onDismiss = viewModel::closeKidsExtend
+        )
     }
 
     AnimatedVisibility(
@@ -405,6 +501,8 @@ fun LauncherContent(
     isSearchingCities: Boolean,
     currentWallpaper: WallpaperModel?,
     wallpaperContentScale: ContentScale,
+    /** 0 = none; above 0 darkens the wallpaper (home night dimming). */
+    nightShade: Float = 0f,
     sortOrder: AppSortOrder,
     searchQuery: String,
     isSearchActive: Boolean,
@@ -433,6 +531,7 @@ fun LauncherContent(
     val firstItemFocusRequester = remember { FocusRequester() }
     var showRowSortDialog by remember { mutableStateOf(false) }
     var showCityDialog by remember { mutableStateOf(false) }
+    var showForecast by remember { mutableStateOf(false) }
 
     // Smooth background gradient transition to the focused app's clamped accent color
     val targetAccentColor = focusedApp?.let { Color(it.accentColor) } ?: FireOrange
@@ -523,6 +622,11 @@ fun LauncherContent(
                     )
                 )
         )
+
+        // Night dimming for the home screen (Launcher settings → Screensaver → Dim the home screen too)
+        if (nightShade > 0f) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = nightShade)))
+        }
 
         // Layer 3: Dynamic Focused App Ambient Tint Accent
         Box(
@@ -632,7 +736,7 @@ fun LauncherContent(
                     ) {
                         HomeClock(
                             weather = weather,
-                            onWeatherClick = { showCityDialog = true }
+                            onWeatherClick = { if (weather.forecast.isNotEmpty()) showForecast = true else showCityDialog = true }
                         )
                         nowPlaying?.let { np ->
                             Spacer(modifier = Modifier.height(10.dp))
@@ -706,6 +810,17 @@ fun LauncherContent(
                     .align(Alignment.BottomEnd)
                     .padding(end = LocalScreenEdge.current, bottom = 12.dp)
                     .widthIn(max = 320.dp)
+            )
+        }
+
+        if (showForecast) {
+            ForecastDialog(
+                weather = weather,
+                onChangeCity = {
+                    showForecast = false
+                    showCityDialog = true
+                },
+                onDismiss = { showForecast = false }
             )
         }
 

@@ -14,6 +14,8 @@ import com.knightmstr.onyxtv.data.AppRepository
 import com.knightmstr.onyxtv.data.AppSortOrder
 import com.knightmstr.onyxtv.data.AppUsageStat
 import com.knightmstr.onyxtv.data.BackupData
+import com.knightmstr.onyxtv.data.AppFolder
+import com.knightmstr.onyxtv.data.AppFolders
 import com.knightmstr.onyxtv.data.CityLocationModel
 import com.knightmstr.onyxtv.data.LauncherPrefsStore
 import com.knightmstr.onyxtv.data.LauncherSettings
@@ -54,6 +56,11 @@ import com.knightmstr.onyxtv.upload.SetupApp
 import com.knightmstr.onyxtv.upload.LinkResult
 import com.knightmstr.onyxtv.data.WallpaperLinkResolver
 import com.knightmstr.onyxtv.upload.SetupToken
+import com.knightmstr.onyxtv.tools.SleepTimer
+import com.knightmstr.onyxtv.kids.KidsTime
+import com.knightmstr.onyxtv.kids.KidsTimeKeeper
+import com.knightmstr.onyxtv.tools.StorageInfo
+import com.knightmstr.onyxtv.home.SelfAdb
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -83,7 +90,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _isSettingsOpen = MutableStateFlow(false)
     val isSettingsOpen: StateFlow<Boolean> = _isSettingsOpen.asStateFlow()
 
-    fun openSettings() { _isSettingsOpen.value = true }
+    fun openSettings() {
+        _isSettingsOpen.value = true
+        refreshStorage()
+    }
     fun closeSettings() { _isSettingsOpen.value = false }
 
     fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
@@ -208,10 +218,82 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         .map { it.toSet() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
-    /** Favourite apps in the user's chosen order (hidden / non-kids apps are left out). */
-    val favoriteApps: StateFlow<List<AppModel>> = combine(visibleApps, favoriteOrder) { visible, order ->
-        PrefsCodec.applyOrder(visible, order) { it.packageName }
+    /** Dock folders (each holds apps; it sits in the dock as a `folder:<id>` favourite). */
+    val folders: StateFlow<List<AppFolder>> = prefs.foldersFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * The dock in the user's order: favourite apps and folder tiles. Hidden / non-kids apps are
+     * left out, also from inside folders; a folder with nothing left to show is skipped.
+     */
+    val favoriteApps: StateFlow<List<AppModel>> = combine(visibleApps, favoriteOrder, folders) { visible, order, folderList ->
+        val byPkg = visible.associateBy { it.packageName }
+        val byFolder = folderList.associateBy { AppFolders.keyOf(it.id) }
+        order.mapNotNull { key ->
+            val folder = byFolder[key]
+            if (folder != null) folderTile(key, folder, folder.packages.mapNotNull { byPkg[it] })
+            else byPkg[key]
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private fun folderTile(key: String, folder: AppFolder, inside: List<AppModel>): AppModel? {
+        val first = inside.firstOrNull() ?: return null
+        return AppModel(
+            packageName = key,
+            activityName = "",
+            label = folder.name,
+            originalLabel = folder.name,
+            icon = first.icon,
+            accentColor = first.accentColor,
+            folderApps = inside
+        )
+    }
+
+    // ------------------------------------------------------------------ Folders
+
+    private val _openFolderKey = MutableStateFlow<String?>(null)
+    /** The folder whose apps are showing, resolved live so changes inside it show at once. */
+    val openFolder: StateFlow<AppModel?> = combine(_openFolderKey, favoriteApps) { key, dock ->
+        key?.let { k -> dock.firstOrNull { it.packageName == k } }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun closeFolder() { _openFolderKey.value = null }
+
+    private val _folderPickerFor = MutableStateFlow<String?>(null)
+    /** The app being moved into a folder (the "Move to folder" chooser), if open. */
+    val folderPickerFor: StateFlow<String?> = _folderPickerFor.asStateFlow()
+
+    fun openFolderPicker(app: AppModel) { if (!app.isSystemShortcut && !app.isFolder) _folderPickerFor.value = app.packageName }
+    fun closeFolderPicker() { _folderPickerFor.value = null }
+
+    fun moveToNewFolder(pkg: String) {
+        _folderPickerFor.value = null
+        viewModelScope.launch { prefs.editFolders { AppFolders.create(it, pkg) } }
+    }
+
+    fun moveToFolder(pkg: String, folderId: String) {
+        _folderPickerFor.value = null
+        viewModelScope.launch { prefs.editFolders { AppFolders.moveInto(it, pkg, folderId) } }
+    }
+
+    fun takeOutOfFolder(app: AppModel) {
+        viewModelScope.launch { prefs.editFolders { AppFolders.takeOut(it, app.packageName) } }
+    }
+
+    fun renameFolder(folder: AppModel, name: String?) {
+        val id = AppFolders.idOf(folder.packageName) ?: return
+        if (name.isNullOrBlank()) return
+        viewModelScope.launch { prefs.editFolders { AppFolders.rename(it, id, name) } }
+    }
+
+    fun deleteFolder(folder: AppModel) {
+        val id = AppFolders.idOf(folder.packageName) ?: return
+        if (_openFolderKey.value == folder.packageName) _openFolderKey.value = null
+        viewModelScope.launch { prefs.editFolders { AppFolders.delete(it, id) } }
+    }
+
+    /** Name of the folder [app] is in, if any (for "Take out of …"). */
+    fun folderNameOf(app: AppModel): String? = AppFolders.folderOf(folders.value, app.packageName)?.name
 
     // ------------------------------------------------------------------ Kids mode
 
@@ -266,18 +348,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Checks the PIN to leave Kids mode; locks for 30 s after 5 wrong tries. */
-    fun submitExitPin(pin: String) {
+    fun submitExitPin(pin: String) = submitPin(pin, PinPurpose.EXIT_KIDS_MODE) {
+        prefs.setKidsModeEnabled(false)
+        openSettings()
+    }
+
+    /** The PIN on the "Time's up" screen: then a parent picks extra time or leaves Kids mode. */
+    fun submitUnlockPin(pin: String) = submitPin(pin, PinPurpose.UNLOCK_KIDS_TIME) {
+        _kidsExtendOpen.value = true
+    }
+
+    private fun submitPin(pin: String, purpose: PinPurpose, onRight: suspend () -> Unit) {
         val now = System.currentTimeMillis()
         if (now < pinLockedUntilMs) {
-            _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE, error = lockoutMessage(now))
+            _pinDialog.value = PinDialogState(purpose, error = lockoutMessage(now))
             return
         }
         viewModelScope.launch {
             if (prefs.verifyKidsPin(pin)) {
                 failedPinAttempts = 0
                 _pinDialog.value = null
-                prefs.setKidsModeEnabled(false)
-                openSettings()
+                onRight()
             } else {
                 failedPinAttempts++
                 if (failedPinAttempts >= 5) {
@@ -286,7 +377,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
                 val t = System.currentTimeMillis()
                 _pinDialog.value = PinDialogState(
-                    PinPurpose.EXIT_KIDS_MODE,
+                    purpose,
                     error = if (t < pinLockedUntilMs) lockoutMessage(t) else "Wrong PIN, try again"
                 )
             }
@@ -421,6 +512,109 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun onPhotoPermissionResult() {
         _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
         wallpaperRepository.reload()
+    }
+
+    // ------------------------------------------------------------------ Kids mode screen time
+
+    /** Today's Kids mode usage, the rules, and whether it's locked right now. */
+    val kidsTime: StateFlow<KidsTimeKeeper.Status?> = KidsTimeKeeper.status
+
+    init {
+        val app = getApplication<Application>()
+        // Ticking follows Kids mode on/off
+        viewModelScope.launch {
+            kidsModeEnabled.collect { KidsTimeKeeper.onKidsModeChanged(app, it) }
+        }
+        // Keep the lock and the settings summary current while Onyx TV is showing
+        viewModelScope.launch {
+            while (isActive) {
+                KidsTimeKeeper.refresh(app)
+                delay(30_000)
+            }
+        }
+    }
+
+    fun cycleKidsDailyLimit() {
+        val app = getApplication<Application>()
+        val r = KidsTimeKeeper.rules(app)
+        KidsTimeKeeper.setRules(app, r.copy(dailyLimitMinutes = KidsTime.nextLimit(r.dailyLimitMinutes)))
+    }
+
+    fun setKidsBedtime(on: Boolean? = null, startHour: Int? = null, endHour: Int? = null) {
+        val app = getApplication<Application>()
+        val r = KidsTimeKeeper.rules(app)
+        KidsTimeKeeper.setRules(
+            app,
+            r.copy(
+                bedtimeOn = on ?: r.bedtimeOn,
+                bedtimeStartHour = startHour ?: r.bedtimeStartHour,
+                bedtimeEndHour = endHour ?: r.bedtimeEndHour
+            )
+        )
+    }
+
+    private val _kidsExtendOpen = MutableStateFlow(false)
+    /** After the parent's PIN on the "Time's up" screen: +30 min, +1 hr or leave Kids mode. */
+    val kidsExtendOpen: StateFlow<Boolean> = _kidsExtendOpen.asStateFlow()
+
+    fun askParentPin() { _pinDialog.value = PinDialogState(PinPurpose.UNLOCK_KIDS_TIME) }
+
+    fun extendKidsTime(minutes: Int) {
+        _kidsExtendOpen.value = false
+        KidsTimeKeeper.extend(getApplication(), minutes)
+    }
+
+    fun leaveKidsModeFromLock() {
+        _kidsExtendOpen.value = false
+        viewModelScope.launch { prefs.setKidsModeEnabled(false) }
+    }
+
+    fun closeKidsExtend() { _kidsExtendOpen.value = false }
+
+    // ------------------------------------------------------------------ Sleep timer & storage
+
+    /** When the sleep timer goes off (wall clock), or null when it's off. */
+    val sleepTimerEndsAt: StateFlow<Long?> = SleepTimer.endsAt
+
+    private val _toolsUi = MutableStateFlow(ToolsUi(space = runCatching { StorageInfo.read() }.getOrNull()))
+    val toolsUi: StateFlow<ToolsUi> = _toolsUi.asStateFlow()
+
+    init {
+        SleepTimer.load(getApplication())
+    }
+
+    /** Off → 15 → 30 → 45 → 60 → 90 → 120 min → off. Needs ADB debugging on to work. */
+    fun cycleSleepTimer() {
+        val app = getApplication<Application>()
+        val next = SleepTimer.nextOption()
+        if (next > 0 && !SelfAdb.isAdbOn(app)) {
+            _toolsUi.update { it.copy(sleepMessage = "Turn on ADB debugging first (Fire TV Settings → My Fire TV → Developer options).") }
+            return
+        }
+        SleepTimer.set(app, next)
+        _toolsUi.update { it.copy(sleepMessage = null) }
+    }
+
+    fun refreshStorage() {
+        _toolsUi.update { it.copy(space = runCatching { StorageInfo.read() }.getOrNull()) }
+    }
+
+    /** Clears every app's cache through the TV's own ADB, then reports how much was freed. */
+    fun freeUpSpace() {
+        if (_toolsUi.value.cleaning) return
+        _toolsUi.update { it.copy(cleaning = true, storageMessage = "Clearing app caches…") }
+        viewModelScope.launch {
+            val message = when (val r = StorageInfo.freeUpSpace(getApplication())) {
+                is StorageInfo.CleanResult.Freed -> {
+                    _toolsUi.update { it.copy(space = r.space) }
+                    if (r.bytes > 0) "Freed ${StorageInfo.describe(r.bytes)}" else "Caches were already small"
+                }
+                StorageInfo.CleanResult.AdbOff -> "Turn on ADB debugging first (Developer options)"
+                StorageInfo.CleanResult.NotAllowed -> "Press Allow on the TV's ADB box (tick Always allow), then try again"
+                is StorageInfo.CleanResult.Failed -> "Couldn't clear caches: ${r.reason.take(60)}"
+            }
+            _toolsUi.update { it.copy(cleaning = false, storageMessage = message) }
+        }
     }
 
     // ------------------------------------------------------------------ Set up from phone (Wi-Fi)
@@ -670,7 +864,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleFavorite(app: AppModel) {
-        if (app.isSystemShortcut) return
+        if (app.isSystemShortcut || app.isFolder) return
         viewModelScope.launch { prefs.toggleFavorite(app.packageName) }
     }
 
@@ -682,11 +876,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // ------------------------------------------------------------------ Hide / rename
 
     fun setHidden(app: AppModel, hidden: Boolean) {
-        if (app.isSystemShortcut) return
+        if (app.isSystemShortcut || app.isFolder) return
         viewModelScope.launch { prefs.setHidden(app.packageName, hidden) }
     }
 
     fun renameApp(app: AppModel, newLabel: String?) {
+        if (app.isFolder) return renameFolder(app, newLabel)
         if (app.isSystemShortcut) return
         val label = newLabel?.trim()?.takeIf { it.isNotEmpty() && it != app.originalLabel }
         viewModelScope.launch { prefs.setCustomLabel(app.packageName, label) }
@@ -694,7 +889,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     // ------------------------------------------------------------------ Focus, menus & dialogs
 
-    private val allKnownApps = decoratedApps.map { it + allAppsTile }
+    private val allKnownApps = combine(decoratedApps, favoriteApps) { apps, dock -> apps + allAppsTile + dock.filter { it.isFolder } }
 
     private fun resolve(keyFlow: StateFlow<String?>): StateFlow<AppModel?> =
         combine(keyFlow, allKnownApps) { key, list -> key?.let { k -> list.firstOrNull { it.uniqueKey == k } } }
@@ -957,6 +1152,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             openAllApps()
             return true
         }
+        if (app.isFolder) {
+            _openFolderKey.value = app.packageName
+            return true
+        }
+        // Kids mode time's up / bedtime: apps stay closed until a parent allows more time
+        if (kidsModeEnabled.value && kidsTime.value?.lock != null) return false
         if (!app.isSystemShortcut) {
             viewModelScope.launch { prefs.recordAppLaunch(app.packageName) }
         }
@@ -986,6 +1187,13 @@ sealed interface WallpaperUrlStatus {
 }
 
 /** State for the Wi-Fi photo upload screen. */
+data class ToolsUi(
+    val space: StorageInfo.Space? = null,
+    val cleaning: Boolean = false,
+    val storageMessage: String? = null,
+    val sleepMessage: String? = null
+)
+
 /** Which tab the phone page opens on. */
 enum class SetupTab(val anchor: String) { APPS("apps"), PHOTOS("photos") }
 
@@ -997,7 +1205,7 @@ data class PhoneSetupUi(
     val error: String? = null
 )
 
-enum class PinPurpose { CREATE, EXIT_KIDS_MODE }
+enum class PinPurpose { CREATE, EXIT_KIDS_MODE, UNLOCK_KIDS_TIME }
 
 data class PinDialogState(val purpose: PinPurpose, val error: String? = null)
 

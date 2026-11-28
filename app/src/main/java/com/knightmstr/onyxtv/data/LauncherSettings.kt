@@ -26,6 +26,8 @@ data class LauncherSettings(
     val nightStartHour: Int = NIGHT_START_HOUR,
     /** Hour (0–23) night dimming ends, e.g. 6 = 6am. */
     val nightEndHour: Int = NIGHT_END_HOUR,
+    /** Also darken the home screen (wallpaper and clock) during the night hours. */
+    val homeNightDim: Boolean = false,
     /** Dock: apps always at the bottom. Clean: only the clock until you press a button. */
     val homeLayout: HomeLayout = HomeLayout.DOCK,
     /** Which release channel app updates come from. Stable by default. */

@@ -31,6 +31,17 @@ class SetupValidationTest {
     }
 
     @Test
+    fun `merge keeps dock folders where they were`() {
+        val installed = setOf("a.one", "b.two", "c.three")
+        val merged = SetupValidation.mergeFavorites(
+            requested = listOf("c.three", "a.one"),
+            installed = installed,
+            current = listOf("a.one", "folder:f1", "c.three", "folder:f2")
+        )
+        assertEquals(listOf("c.three", "folder:f1", "a.one", "folder:f2"), merged)
+    }
+
+    @Test
     fun `merge caps the list`() {
         val installed = (1..500).map { "p.app$it" }.toSet()
         val merged = SetupValidation.mergeFavorites(installed.toList(), installed, emptyList())

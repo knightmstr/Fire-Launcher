@@ -18,6 +18,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.ui.unit.dp
 import com.knightmstr.onyxtv.data.AppModel
 import com.knightmstr.onyxtv.ui.theme.FavoriteYellow
@@ -47,7 +49,12 @@ fun AppContextMenuDialog(
     onRename: () -> Unit,
     onToggleHidden: () -> Unit,
     onOpenAppDetails: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Name of the dock folder this app is in, if any. */
+    folderName: String? = null,
+    showFolderOptions: Boolean = true,
+    onMoveToFolder: () -> Unit = {},
+    onTakeOutOfFolder: () -> Unit = {}
 ) {
     val firstItem = rememberInitialFocus()
     val subtitle = if (app.isRenamed) "${app.originalLabel} • ${app.packageName}" else app.packageName
@@ -81,6 +88,23 @@ fun AppContextMenuDialog(
         if (allAppsIndex >= 0 && allAppsCount > 1) {
             MoveRow("All Apps", allAppsIndex, allAppsCount, Color(0xFF60A5FA), onMoveInAllApps)
         }
+
+        if (showFolderOptions && folderName != null) {
+            TvMenuItem(
+                title = "Take out of $folderName",
+                subtitle = "Back into the dock, next to the folder",
+                icon = Icons.Rounded.FolderOpen,
+                iconTint = Color(0xFF34D399),
+                onClick = { onTakeOutOfFolder(); onDismiss() }
+            )
+        }
+        if (showFolderOptions) TvMenuItem(
+            title = if (folderName != null) "Move to another folder" else "Move to a folder",
+            subtitle = "Group apps into one tile in the dock",
+            icon = Icons.Rounded.CreateNewFolder,
+            iconTint = Color(0xFF34D399),
+            onClick = { onMoveToFolder(); onDismiss() }
+        )
 
         TvMenuItem(
             title = "Rename",
@@ -118,7 +142,7 @@ fun AppContextMenuDialog(
 
 /** "Move left / Move right" pair for one row. Keeps the menu open so it can be pressed repeatedly. */
 @Composable
-private fun MoveRow(rowName: String, index: Int, count: Int, tint: Color, onMove: (Int) -> Unit) {
+internal fun MoveRow(rowName: String, index: Int, count: Int, tint: Color, onMove: (Int) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)

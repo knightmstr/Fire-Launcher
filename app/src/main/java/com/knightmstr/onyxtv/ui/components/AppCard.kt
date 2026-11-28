@@ -4,7 +4,9 @@ import android.graphics.drawable.Drawable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -153,6 +155,11 @@ fun AppCard(
             modifier = Modifier.fillMaxSize()
         ) {
             when {
+                // A dock folder: a small grid of the apps inside, and its name
+                app.isFolder -> {
+                    FolderContent(app = app, accentColor = accentColor)
+                }
+
                 // If it's a system shortcut, render clean icon + title
                 app.isSystemShortcut -> {
                     SystemShortcutContent(app = app, accentColor = accentColor)
@@ -317,6 +324,49 @@ private fun IconFallbackContent(
 
             Text(
                 text = label,
+                fontSize = ss(13),
+                fontWeight = FontWeight.Medium,
+                color = TextPrimary,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun FolderContent(app: AppModel, accentColor: Color) {
+    val icons = app.folderApps.take(4).map { it.icon }
+    val bitmaps = remember(icons) {
+        icons.mapNotNull { runCatching { it.toBitmap(width = 64, height = 64) }.getOrNull() }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(accentColor.copy(alpha = 0.18f), DarkSurface)))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(s(10)),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(verticalArrangement = Arrangement.spacedBy(s(4))) {
+                    bitmaps.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(s(4))) {
+                            row.forEach { bmp ->
+                                Image(
+                                    bitmap = bmp.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(s(22)).clip(RoundedCornerShape(s(5)))
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Text(
+                text = "${app.label} · ${app.folderApps.size}",
                 fontSize = ss(13),
                 fontWeight = FontWeight.Medium,
                 color = TextPrimary,

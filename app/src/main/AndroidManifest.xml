@@ -131,6 +131,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Kids mode screen-time tick: only our own alarm starts it -->
+        <receiver
+            android:name=".kids.KidsTimeReceiver"
+            android:exported="false" />
+
+        <!-- Sleep timer: only our own alarm starts it -->
+        <receiver
+            android:name=".tools.SleepTimerReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".home.HomeWatch$BootReceiver"
             android:exported="false">

@@ -66,10 +66,12 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_NIGHT_DIM = booleanPreferencesKey("settings_screensaver_night_dim")
         private val KEY_NIGHT_START = intPreferencesKey("settings_screensaver_night_start_hour")
         private val KEY_NIGHT_END = intPreferencesKey("settings_screensaver_night_end_hour")
+        private val KEY_HOME_NIGHT_DIM = booleanPreferencesKey("settings_home_night_dim")
         private val KEY_UPDATE_CHANNEL = stringPreferencesKey("settings_update_channel")
         private val KEY_WALLPAPER_FIT = stringPreferencesKey("settings_wallpaper_fit")
 
         private val KEY_CUSTOM_APP_ORDER = stringPreferencesKey("custom_app_order")
+        private val KEY_FOLDERS = stringPreferencesKey("app_folders")
         private val KEY_CUSTOM_WALLPAPER_URLS = stringPreferencesKey("wallpaper_custom_urls")
 
         /** Most custom wallpaper URLs the user can store. */
@@ -129,6 +131,20 @@ class LauncherPrefsStore(private val context: Context) {
         }
     }
 
+    // ---------------------------------------------------------------- Folders
+
+    val foldersFlow: Flow<List<AppFolder>> = pref { AppFolders.decode(it[KEY_FOLDERS]) }
+
+    /** Changes folders and the dock order together, in one write. */
+    suspend fun editFolders(block: (AppFolders.State) -> AppFolders.State) {
+        context.dataStore.edit { p ->
+            val next = block(AppFolders.State(AppFolders.decode(p[KEY_FOLDERS]), p.favoriteOrder()))
+            p[KEY_FOLDERS] = AppFolders.encode(next.folders)
+            p[KEY_FAVORITES_ORDER] = PrefsCodec.encodeList(next.favorites)
+            p.remove(KEY_FAVORITES_LEGACY)
+        }
+    }
+
     // ---------------------------------------------------------------- Hidden apps & labels
 
     val hiddenAppsFlow: Flow<Set<String>> = pref { it[KEY_HIDDEN_APPS].orEmpty() }
@@ -167,6 +183,7 @@ class LauncherPrefsStore(private val context: Context) {
             nightDim = p[KEY_NIGHT_DIM] ?: true,
             nightStartHour = LauncherSettings.clampHour(p[KEY_NIGHT_START] ?: LauncherSettings.NIGHT_START_HOUR),
             nightEndHour = LauncherSettings.clampHour(p[KEY_NIGHT_END] ?: LauncherSettings.NIGHT_END_HOUR),
+            homeNightDim = p[KEY_HOME_NIGHT_DIM] ?: false,
             homeLayout = HomeLayout.fromName(p[KEY_HOME_LAYOUT]),
             updateChannel = UpdateChannel.fromName(p[KEY_UPDATE_CHANNEL]),
             wallpaperFit = WallpaperFit.fromName(p[KEY_WALLPAPER_FIT])
@@ -191,6 +208,7 @@ class LauncherPrefsStore(private val context: Context) {
         p[KEY_NIGHT_DIM] = settings.nightDim
         p[KEY_NIGHT_START] = LauncherSettings.clampHour(settings.nightStartHour)
         p[KEY_NIGHT_END] = LauncherSettings.clampHour(settings.nightEndHour)
+        p[KEY_HOME_NIGHT_DIM] = settings.homeNightDim
         p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
         p[KEY_WALLPAPER_FIT] = settings.wallpaperFit.name
     }
@@ -369,7 +387,8 @@ class LauncherPrefsStore(private val context: Context) {
                 )
             },
             celsius = p[KEY_WEATHER_CELSIUS] ?: defaultIsCelsius(),
-            wallpaperUrls = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])
+            wallpaperUrls = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS]),
+            folders = AppFolders.decode(p[KEY_FOLDERS])
         )
     }
 
@@ -379,6 +398,7 @@ class LauncherPrefsStore(private val context: Context) {
             p.writeSettings(b.settings)
             p[KEY_FAVORITES_ORDER] = PrefsCodec.encodeList(b.favorites)
             p.remove(KEY_FAVORITES_LEGACY)
+            p[KEY_FOLDERS] = AppFolders.encode(b.folders)
             p[KEY_HIDDEN_APPS] = b.hidden
             p[KEY_CUSTOM_LABELS] = b.labels.map { (pkg, label) -> PrefsCodec.encodeLabel(pkg, label) }.toSet()
             p[KEY_CUSTOM_APP_ORDER] = PrefsCodec.encodeList(b.appOrder)

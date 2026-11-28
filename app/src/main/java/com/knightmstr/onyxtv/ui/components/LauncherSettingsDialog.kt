@@ -18,6 +18,17 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.Snooze
+import androidx.compose.material.icons.rounded.HourglassBottom
+import com.knightmstr.onyxtv.kids.KidsTimeKeeper
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
+import com.knightmstr.onyxtv.tools.StorageInfo
+import com.knightmstr.onyxtv.ui.ToolsUi
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Thermostat
@@ -97,6 +108,13 @@ fun LauncherSettingsDialog(
     onRequestPhotoPermission: () -> Unit,
     onUploadPhotos: () -> Unit,
     onPhoneSetup: () -> Unit,
+    sleepTimerEndsAt: Long?,
+    tools: ToolsUi,
+    onSleepTimer: () -> Unit,
+    onFreeUpSpace: () -> Unit,
+    kidsTime: KidsTimeKeeper.Status?,
+    onKidsDailyLimit: () -> Unit,
+    onKidsBedtime: (on: Boolean?, start: Int?, end: Int?) -> Unit,
     onClearUploads: () -> Unit,
     onManageWallpaperUrls: () -> Unit,
     wallpaperPreviewUrl: String?,
@@ -132,6 +150,7 @@ fun LauncherSettingsDialog(
             modifier = Modifier.focusRequester(firstItem),
             onClick = onPhoneSetup
         )
+        SleepTimerItem(endsAt = sleepTimerEndsAt, message = tools.sleepMessage, onClick = onSleepTimer)
         SettingsGroup(expanded = isOpen("Home screen")) {
         CollapsibleSectionHeader(
             title = "Home screen",
@@ -337,27 +356,12 @@ fun LauncherSettingsDialog(
         )
         if (isOpen("Screensaver")) {
         TvMenuItem(
-            title = "Use as Fire TV screensaver",
-            subtitle = when {
-                status.screensaverTakeover == ScreensaverTakeover.Status.ON && status.needsRestart ->
-                    "On: restart the Fire TV once to replace Amazon's"
-                status.screensaverTakeover == ScreensaverTakeover.Status.ON ->
-                    "Replaces Amazon's screensaver: same wallpaper, clock and weather"
-                status.screensaverTakeover == ScreensaverTakeover.Status.OFF -> "Off: Amazon's screensaver"
-                else -> "Needs the one-time adb setup"
+            title = "Screensaver on the home screen",
+            subtitle = if (settings.screensaverTimeoutMinutes > 0) {
+                "Onyx's screensaver after this long on the home screen"
+            } else {
+                "Off: the home screen stays as it is (Fire TV's own screensaver can still start)"
             },
-            icon = Icons.Rounded.Bedtime,
-            iconTint = Color(0xFFA78BFA),
-            trailing = when (status.screensaverTakeover) {
-                ScreensaverTakeover.Status.ON -> "On"
-                ScreensaverTakeover.Status.OFF -> "Off"
-                ScreensaverTakeover.Status.NEEDS_PERMISSION -> "Set up"
-            },
-            onClick = onScreensaverTakeover
-        )
-        TvMenuItem(
-            title = "Start after (on the home screen)",
-            subtitle = "Inside other apps, Fire TV's own Screensaver start time applies",
             icon = Icons.Rounded.Bedtime,
             iconTint = Color(0xFFA78BFA),
             trailing = LauncherSettings.describeMinutes(settings.screensaverTimeoutMinutes),
@@ -372,6 +376,26 @@ fun LauncherSettingsDialog(
             }
         )
         TvMenuItem(
+            title = "Screensaver inside other apps",
+            subtitle = when {
+                status.screensaverTakeover == ScreensaverTakeover.Status.ON && status.needsRestart ->
+                    "Onyx: restart the Fire TV once to replace Amazon's"
+                status.screensaverTakeover == ScreensaverTakeover.Status.ON ->
+                    "Onyx's wallpaper, clock and weather. Starts on Fire TV's own timer (Display & Sounds)"
+                status.screensaverTakeover == ScreensaverTakeover.Status.OFF ->
+                    "Amazon's. Starts on Fire TV's own timer (Display & Sounds → Screensaver)"
+                else -> "Needs the one-time adb setup"
+            },
+            icon = Icons.Rounded.Bedtime,
+            iconTint = Color(0xFFA78BFA),
+            trailing = when (status.screensaverTakeover) {
+                ScreensaverTakeover.Status.ON -> "Onyx"
+                ScreensaverTakeover.Status.OFF -> "Amazon's"
+                ScreensaverTakeover.Status.NEEDS_PERMISSION -> "Set up"
+            },
+            onClick = onScreensaverTakeover
+        )
+        TvMenuItem(
             title = "Dim at night",
             subtitle = if (settings.nightStartHour == settings.nightEndHour) {
                 "Start and end are the same time, so it never dims"
@@ -384,7 +408,15 @@ fun LauncherSettingsDialog(
             trailing = if (settings.nightDim) "On" else "Off",
             onClick = { onUpdate { it.copy(nightDim = !it.nightDim) } }
         )
-        if (settings.nightDim) {
+        TvMenuItem(
+            title = "Dim the home screen too",
+            subtitle = "Darker wallpaper and clock on the home screen during the same hours",
+            icon = Icons.Rounded.Bedtime,
+            iconTint = Color(0xFFA78BFA),
+            trailing = if (settings.homeNightDim) "On" else "Off",
+            onClick = { onUpdate { it.copy(homeNightDim = !it.homeNightDim) } }
+        )
+        if (settings.nightDim || settings.homeNightDim) {
             TvSliderItem(
                 title = "Dim from",
                 subtitle = "Left/Right to change the hour",
@@ -456,6 +488,36 @@ fun LauncherSettingsDialog(
 
         }
         }
+        SettingsGroup(expanded = isOpen("Storage")) {
+        CollapsibleSectionHeader(
+            title = "Storage",
+            icon = Icons.Rounded.Storage,
+            expanded = isOpen("Storage"),
+            onToggle = { toggle("Storage") }
+        )
+        if (isOpen("Storage")) {
+        val space = tools.space
+        TvMenuItem(
+            title = "Free space",
+            subtitle = space?.let { "${StorageInfo.describe(it.freeBytes)} free of ${StorageInfo.describe(it.totalBytes)}" }
+                ?: "Couldn't read storage",
+            icon = Icons.Rounded.Storage,
+            iconTint = Color(0xFF60A5FA),
+            trailing = space?.let { "${(it.freeBytes * 100 / it.totalBytes.coerceAtLeast(1))}%" },
+            onClick = {}
+        )
+        TvMenuItem(
+            title = "Free up space",
+            subtitle = tools.storageMessage
+                ?: "Clears every app's cache. Logins, downloads and settings stay. Needs ADB debugging on",
+            icon = Icons.Rounded.CleaningServices,
+            iconTint = Color(0xFF60A5FA),
+            trailing = if (tools.cleaning) "…" else null,
+            enabled = !tools.cleaning,
+            onClick = onFreeUpSpace
+        )
+        }
+        }
         SettingsGroup(expanded = isOpen("Kids mode")) {
         CollapsibleSectionHeader(
             title = "Kids mode",
@@ -477,6 +539,55 @@ fun LauncherSettingsDialog(
             enabled = status.kidsAppCount > 0,
             onClick = onEnableKidsMode
         )
+        kidsTime?.let { kt ->
+            val r = kt.rules
+            val usedMin = (kt.usedMs / 60_000L).toInt()
+            TvMenuItem(
+                title = "Daily screen time",
+                subtitle = if (r.dailyLimitMinutes > 0) {
+                    "In Kids mode. Used today: ${LauncherSettings.describeMinutes(usedMin, zeroLabel = "0 min")}"
+                } else "No daily limit",
+                icon = Icons.Rounded.HourglassBottom,
+                iconTint = Color(0xFFF472B6),
+                trailing = if (r.dailyLimitMinutes > 0) LauncherSettings.describeMinutes(r.dailyLimitMinutes) else "Off",
+                onClick = onKidsDailyLimit
+            )
+            TvMenuItem(
+                title = "Bedtime",
+                subtitle = if (r.bedtimeOn) {
+                    "Kids mode closes from ${LauncherSettings.describeHour(r.bedtimeStartHour)} " +
+                        "to ${LauncherSettings.describeHour(r.bedtimeEndHour)}"
+                } else "Lock Kids mode overnight",
+                icon = Icons.Rounded.Bedtime,
+                iconTint = Color(0xFFF472B6),
+                trailing = if (r.bedtimeOn) "On" else "Off",
+                onClick = { onKidsBedtime(!r.bedtimeOn, null, null) }
+            )
+            if (r.bedtimeOn) {
+                TvSliderItem(
+                    title = "Bedtime from",
+                    subtitle = "Left/Right to change the hour",
+                    icon = Icons.Rounded.Bedtime,
+                    iconTint = Color(0xFFF472B6),
+                    value = r.bedtimeStartHour,
+                    range = LauncherSettings.HOUR_RANGE,
+                    step = 1,
+                    valueLabel = LauncherSettings.describeHour(r.bedtimeStartHour),
+                    onValueChange = { h -> onKidsBedtime(null, h, null) }
+                )
+                TvSliderItem(
+                    title = "Bedtime until",
+                    subtitle = "Left/Right to change the hour",
+                    icon = Icons.Rounded.LightMode,
+                    iconTint = Color(0xFFF472B6),
+                    value = r.bedtimeEndHour,
+                    range = LauncherSettings.HOUR_RANGE,
+                    step = 1,
+                    valueLabel = LauncherSettings.describeHour(r.bedtimeEndHour),
+                    onValueChange = { h -> onKidsBedtime(null, null, h) }
+                )
+            }
+        }
         if (status.hasKidsPin) {
             TvMenuItem(
                 title = "Change Kids mode PIN",
@@ -582,4 +693,29 @@ private fun tilePreviewCorner(shape: CardShape, widthDp: Int): RoundedCornerShap
     CardShape.SQUARE -> RoundedCornerShape((2 * widthDp / 200f).dp)
     CardShape.SOFT -> RoundedCornerShape((26 * widthDp / 200f).dp)
     CardShape.PILL -> RoundedCornerShape(percent = 50)
+}
+
+/** Sleep timer row: OK steps through Off, 15, 30, 45, 60, 90, 120 minutes. */
+@Composable
+private fun SleepTimerItem(endsAt: Long?, message: String?, onClick: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(endsAt) {
+        while (endsAt != null) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(15_000)
+        }
+    }
+    val left = endsAt?.let { ((it - now + 59_999) / 60_000).toInt() }?.takeIf { it > 0 }
+    TvMenuItem(
+        title = "Sleep timer",
+        subtitle = message ?: if (left != null) {
+            "Fire TV sleeps in $left min. OK for longer, or step past 2 hr to turn off"
+        } else {
+            "Puts the Fire TV (and the TV, with HDMI-CEC) to sleep later"
+        },
+        icon = Icons.Rounded.Snooze,
+        iconTint = Color(0xFFA78BFA),
+        trailing = left?.let { LauncherSettings.describeMinutes(it) } ?: "Off",
+        onClick = onClick
+    )
 }

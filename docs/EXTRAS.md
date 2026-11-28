@@ -35,10 +35,10 @@ Amazon's home may flash for a moment before Onyx TV comes back. Fire OS doesn't 
 When the TV is idle, Amazon's screensaver is replaced by Onyx TV's. You get your wallpaper with a slow zoom, the clock, date and weather, and what's playing. The clock moves around slowly so nothing burns into the screen, and the screen goes darker at night.
 
 1. Set up the [one-time permission](#the-one-time-permission).
-2. Go to **⚙ → Launcher settings → Screensaver → Use as Fire TV screensaver** and turn it on.
+2. Go to **⚙ → Launcher settings → Screensaver → Screensaver inside other apps** and set it to **Onyx**.
 3. On Fire OS 8, restart the Fire TV once.
 
-In the same section you can choose **Start after**, which sets how long Onyx TV waits on the home screen, and turn **Dim at night** (10pm to 6am) on or off. Inside other apps, Fire TV's own *Display & Sounds → Screensaver → Start Time* decides when it starts.
+In the same section, **Screensaver on the home screen** sets how long Onyx TV waits on the home screen before its screensaver starts (or **Off**), and **Dim at night** darkens it during the hours you choose. The two are separate: inside other apps, Fire TV's own *Display & Sounds → Screensaver → Start Time* decides when a screensaver starts, and that timer can start one over the home screen too. Set it to **Never** to stop screensavers altogether.
 
 ## Keep awake
 
