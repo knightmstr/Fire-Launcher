@@ -67,6 +67,8 @@ fun Screensaver(
     modifier: Modifier = Modifier,
     nowPlaying: NowPlaying? = null,
     nightDim: Boolean = true,
+    nightStartHour: Int = LauncherSettings.NIGHT_START_HOUR,
+    nightEndHour: Int = LauncherSettings.NIGHT_END_HOUR,
     contentScale: ContentScale = ContentScale.Crop
 ) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -85,7 +87,7 @@ fun Screensaver(
 
     // Night: darker picture and a dimmer clock
     val hour = remember(now) { Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY) }
-    val night = nightDim && LauncherSettings.isNight(hour)
+    val night = nightDim && LauncherSettings.isNight(hour, nightStartHour, nightEndHour)
     val nightShade by animateFloatAsState(if (night) 0.55f else 0f, tween(4000), label = "nightShade")
     val textAlpha by animateFloatAsState(if (night) 0.6f else 1f, tween(4000), label = "nightText")
 

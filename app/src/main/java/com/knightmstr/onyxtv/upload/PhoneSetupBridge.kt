@@ -45,6 +45,18 @@ interface PhoneSetupBridge {
     /** Saves settings already checked by [SettingsJson.apply]. */
     fun updateSettings(settings: LauncherSettings)
 
+    // ---------------------------------------------------------------- Wallpaper links ("My links")
+
+    fun wallpaperUrls(): List<String>
+
+    /**
+     * Checks [url] really opens as an image (the TV downloads it) and saves it.
+     * Returns null when added, or a short reason to show on the phone.
+     */
+    fun addWallpaperUrl(url: String): String?
+
+    fun removeWallpaperUrl(url: String)
+
     // ---------------------------------------------------------------- Backup
 
     fun exportBackup(): BackupData

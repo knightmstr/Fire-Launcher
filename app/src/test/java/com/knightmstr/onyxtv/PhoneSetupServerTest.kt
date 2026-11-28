@@ -56,6 +56,16 @@ class PhoneSetupServerTest {
         var settings = LauncherSettings()
         override fun settings(): LauncherSettings = settings
         override fun updateSettings(settings: LauncherSettings) { this.settings = settings }
+        var urls = mutableListOf("https://example.com/a.jpg")
+        val fetched = mutableListOf<String>()
+        override fun wallpaperUrls(): List<String> = urls
+        override fun addWallpaperUrl(url: String): String? {
+            fetched += url
+            if (url.contains("notimage")) return "That link doesn't open as an image we can show."
+            urls.add(url); return null
+        }
+        override fun removeWallpaperUrl(url: String) { urls.remove(url) }
+
         var restored: BackupData? = null
         override fun exportBackup() = BackupData(settings, favorites, setOf("org.xbmc.kodi"), emptyMap(),
             emptyList(), AppSortOrder.ALPHABETICAL, null, true, emptyList())
@@ -147,7 +157,8 @@ class PhoneSetupServerTest {
             "/api/list", "/api/img?name=x", "/api/upload", "/api/delete?name=x",
             "/api/apps", "/api/icon?pkg=com.netflix.ninja",
             "/api/apps/favorites", "/api/apps/hidden", "/api/apps/rename", "/api/settings",
-            "/api/backup", "/api/restore"
+            "/api/backup", "/api/restore",
+            "/api/wallpaper-urls", "/api/wallpaper-urls/add", "/api/wallpaper-urls/remove"
         )
         for (e in endpoints) {
             val sep = if ('?' in e) "&" else "?"
@@ -327,7 +338,9 @@ class PhoneSetupServerTest {
             "/api/apps/hidden" to """{"pkg":"com.netflix.ninja","hidden":true}""",
             "/api/apps/rename" to """{"pkg":"com.netflix.ninja","label":"x"}""",
             "/api/settings" to """{"nightDim":false}""",
-            "/api/restore" to request(t("/api/backup")).body
+            "/api/restore" to request(t("/api/backup")).body,
+            "/api/wallpaper-urls/add" to """{"url":"https://example.com/b.jpg"}""",
+            "/api/wallpaper-urls/remove" to """{"url":"https://example.com/a.jpg"}"""
         )
         for ((path, body) in attempts) {
             val r = post(path, body)
@@ -338,6 +351,8 @@ class PhoneSetupServerTest {
         assertEquals(listOf("com.plexapp.android", "com.gone.app"), bridge.favorites)
         assertTrue(bridge.hiddenCalls.isEmpty() && bridge.renameCalls.isEmpty())
         assertEquals(null, bridge.restored)
+        assertEquals(listOf("https://example.com/a.jpg"), bridge.urls)
+        assertTrue("no fetch while locked", bridge.fetched.isEmpty())
         assertEquals(0, bridge.changes)
     }
 
@@ -495,6 +510,48 @@ class PhoneSetupServerTest {
         assertEquals(413, post("/api/apps/hidden", """{"pkg":"com.netflix.ninja","hidden":true,"n":"$pad"}""").code)
         val tooBig = JSONObject(request(t("/api/backup")).body).put("note", "x".repeat(300_000)).toString()
         assertEquals(413, post("/api/restore", tooBig).code)
+    }
+
+    // ------------------------------------------------------------------ wallpaper links
+
+    @Test
+    fun `links list, add and remove`() {
+        val list = JSONObject(request(t("/api/wallpaper-urls")).body)
+        assertEquals(1, list.getJSONArray("urls").length())
+        assertEquals(200, post("/api/wallpaper-urls/add", """{"url":"https://example.com/b.jpg"}""").code)
+        assertEquals(listOf("https://example.com/a.jpg", "https://example.com/b.jpg"), bridge.urls)
+        assertEquals(200, post("/api/wallpaper-urls/remove", """{"url":"https://example.com/a.jpg"}""").code)
+        assertEquals(listOf("https://example.com/b.jpg"), bridge.urls)
+        assertEquals(404, post("/api/wallpaper-urls/remove", """{"url":"https://example.com/zzz.jpg"}""").code)
+    }
+
+    @Test
+    fun `only https links are even fetched`() {
+        for (bad in listOf("http://example.com/a.jpg", "file:///etc/passwd", "javascript:alert(1)",
+            "https://user:pw@example.com/a.jpg", "https:///nohost", "https://example.com/a b.jpg",
+            "ftp://example.com/a.jpg", "https://" + "a".repeat(3000) + ".com")) {
+            val r = post("/api/wallpaper-urls/add", JSONObject().put("url", bad).toString())
+            assertEquals(bad.take(40), 400, r.code)
+        }
+        assertEquals(400, post("/api/wallpaper-urls/add", """{"url":42}""").code)
+        assertTrue(bridge.fetched.isEmpty())
+    }
+
+    @Test
+    fun `a link that isn't an image says why and isn't saved`() {
+        val r = post("/api/wallpaper-urls/add", """{"url":"https://example.com/notimage.html"}""")
+        assertEquals(400, r.code)
+        assertTrue(JSONObject(r.body).getString("message").contains("image"))
+        assertEquals(1, bridge.urls.size)
+    }
+
+    @Test
+    fun `duplicates aren't fetched again and the list is capped`() {
+        assertEquals(200, post("/api/wallpaper-urls/add", """{"url":"https://example.com/a.jpg"}""").code)
+        assertTrue(bridge.fetched.isEmpty())
+        while (bridge.urls.size < PhoneSetupServer.MAX_WALLPAPER_URLS) bridge.urls.add("https://example.com/${bridge.urls.size}.jpg")
+        assertEquals(400, post("/api/wallpaper-urls/add", """{"url":"https://example.com/new.jpg"}""").code)
+        assertTrue(bridge.fetched.isEmpty())
     }
 
     @Test

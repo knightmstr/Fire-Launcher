@@ -373,12 +373,41 @@ fun LauncherSettingsDialog(
         )
         TvMenuItem(
             title = "Dim at night",
-            subtitle = "Darker picture and clock from 10pm to 6am",
+            subtitle = if (settings.nightStartHour == settings.nightEndHour) {
+                "Start and end are the same time, so it never dims"
+            } else {
+                "Darker picture and clock from ${LauncherSettings.describeHour(settings.nightStartHour)} " +
+                    "to ${LauncherSettings.describeHour(settings.nightEndHour)}"
+            },
             icon = Icons.Rounded.Bedtime,
             iconTint = Color(0xFFA78BFA),
             trailing = if (settings.nightDim) "On" else "Off",
             onClick = { onUpdate { it.copy(nightDim = !it.nightDim) } }
         )
+        if (settings.nightDim) {
+            TvSliderItem(
+                title = "Dim from",
+                subtitle = "Left/Right to change the hour",
+                icon = Icons.Rounded.Bedtime,
+                iconTint = Color(0xFFA78BFA),
+                value = settings.nightStartHour,
+                range = LauncherSettings.HOUR_RANGE,
+                step = 1,
+                valueLabel = LauncherSettings.describeHour(settings.nightStartHour),
+                onValueChange = { h -> onUpdate { it.copy(nightStartHour = h) } }
+            )
+            TvSliderItem(
+                title = "Dim until",
+                subtitle = "Left/Right to change the hour",
+                icon = Icons.Rounded.LightMode,
+                iconTint = Color(0xFFA78BFA),
+                value = settings.nightEndHour,
+                range = LauncherSettings.HOUR_RANGE,
+                step = 1,
+                valueLabel = LauncherSettings.describeHour(settings.nightEndHour),
+                onValueChange = { h -> onUpdate { it.copy(nightEndHour = h) } }
+            )
+        }
         TvMenuItem(
             title = "Keep Fire TV awake",
             subtitle = if (status.keepAwake) "Never sleeps on a timer; the screensaver keeps showing"

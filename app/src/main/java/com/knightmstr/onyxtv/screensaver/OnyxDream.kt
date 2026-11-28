@@ -81,7 +81,9 @@ class OnyxDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                         weather = weather ?: WeatherData.defaultSeattle(LauncherPrefsStore.defaultIsCelsius()),
                         onNextWallpaper = app.wallpapers::nextWallpaper,
                         nowPlaying = playing?.value,
-                        nightDim = settings.nightDim
+                        nightDim = settings.nightDim,
+                        nightStartHour = settings.nightStartHour,
+                        nightEndHour = settings.nightEndHour
                     )
                 }
             }

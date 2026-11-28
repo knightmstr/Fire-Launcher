@@ -98,6 +98,11 @@ class PhoneSetupServer(
                 else -> jsonMutation(session) { updateSettings(it) }
             }
 
+            // Wallpaper links
+            "/api/wallpaper-urls" -> guarded(session) { listWallpaperUrls() }
+            "/api/wallpaper-urls/add" -> jsonMutation(session) { addWallpaperUrl(it) }
+            "/api/wallpaper-urls/remove" -> jsonMutation(session) { removeWallpaperUrl(it) }
+
             // Backup & restore
             "/api/backup" -> guarded(session) { backup() }
             "/api/restore" -> jsonMutation(session, BackupJson.MAX_BYTES) { restore(it) }
@@ -282,6 +287,40 @@ class PhoneSetupServer(
             }
         }
 
+    // ---------------------------------------------------------------- Wallpaper links
+
+    private fun listWallpaperUrls(): Response = json(
+        JSONObject()
+            .put("urls", JSONArray(bridge.wallpaperUrls()))
+            .put("max", MAX_WALLPAPER_URLS)
+            .put("locked", bridge.isLocked())
+    )
+
+    private fun addWallpaperUrl(body: JSONObject): Response {
+        val url = (body.opt("url") as? String)?.trim()
+        if (url == null || !SetupValidation.isHttpsUrl(url)) return error(Response.Status.BAD_REQUEST, "bad_url")
+        val current = bridge.wallpaperUrls()
+        if (url in current) return ok()
+        if (current.size >= MAX_WALLPAPER_URLS) return error(Response.Status.BAD_REQUEST, "full")
+        val problem = bridge.addWallpaperUrl(url)
+        if (problem != null) {
+            return newFixedLengthResponse(
+                Response.Status.BAD_REQUEST, "application/json",
+                JSONObject().put("ok", false).put("error", "not_image").put("message", problem.take(200)).toString()
+            )
+        }
+        bridge.onChanged()
+        return ok()
+    }
+
+    private fun removeWallpaperUrl(body: JSONObject): Response {
+        val url = body.opt("url") as? String ?: return error(Response.Status.BAD_REQUEST, "bad_url")
+        if (url !in bridge.wallpaperUrls()) return error(Response.Status.NOT_FOUND, "not_found")
+        bridge.removeWallpaperUrl(url)
+        bridge.onChanged()
+        return ok()
+    }
+
     // ---------------------------------------------------------------- Backup & restore
 
     private fun backup(): Response =
@@ -335,6 +374,9 @@ class PhoneSetupServer(
 
         /** Matches LocalPhotoSource's cap; checked here too so huge bodies are refused unread. */
         const val MAX_UPLOAD_BYTES = 20L * 1024 * 1024
+
+        /** Same cap as the TV's own "My links" list. */
+        const val MAX_WALLPAPER_URLS = 50
 
         /** Labels are trimmed to 40 by the prefs store; anything far longer is cut before that. */
         private const val MAX_RAW_LABEL = 200

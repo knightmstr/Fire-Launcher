@@ -487,6 +487,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
         override fun updateSettings(settings: LauncherSettings) = runBlocking { prefs.updateSettings(settings) }
 
+        override fun wallpaperUrls() = runBlocking { prefs.customWallpaperUrlsFlow.first() }
+
+        override fun addWallpaperUrl(url: String): String? = runBlocking {
+            when (val result = WallpaperUrlValidator.validate(url)) {
+                is WallpaperUrlValidator.Result.Ok -> {
+                    prefs.addCustomWallpaperUrl(url)
+                    null
+                }
+                is WallpaperUrlValidator.Result.Error -> result.message
+            }
+        }
+
+        override fun removeWallpaperUrl(url: String) = runBlocking { prefs.removeCustomWallpaperUrl(url) }
+
         override fun exportBackup() = runBlocking { prefs.backupSnapshot() }
 
         // Weather follows on its own: it watches the stored city and units.

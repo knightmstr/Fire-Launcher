@@ -72,6 +72,12 @@
   .switch input:checked + span { background:var(--green); }
   .switch input:checked + span::after { transform:translateX(22px); }
   .switch input:disabled + span { opacity:.4; }
+  .link-row { display:flex; align-items:center; gap:8px; background:var(--line); border-radius:10px; padding:6px 6px 6px 10px; }
+  .link-row .url { flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .setting.links { align-items:flex-start; }
+  input[type=url] { width:100%; padding:12px; border-radius:10px; border:1px solid var(--line);
+         background:var(--card); color:var(--text); font-size:16px; }
+  .note.warn { color:var(--amber); }
   .backup { display:flex; gap:10px; flex-wrap:wrap; }
   .backup .btn { text-decoration:none; }
   .del { background:none; border:none; color:var(--red); font-size:13px; cursor:pointer; }
@@ -415,12 +421,15 @@
     ]},
     { group: 'Wallpaper', items: [
       { key: 'wallpaperSource', title: 'Wallpapers from', kind: 'select' },
+      { key: 'links', title: 'My links', kind: 'links', showIf: function (s) { return s.wallpaperSource === 'CUSTOM_URL'; } },
       { key: 'wallpaperFit', title: 'Photo fit', kind: 'select', describe: true },
       { key: 'wallpaperIntervalMinutes', title: 'Change wallpaper every', kind: 'select' }
     ]},
     { group: 'Screensaver', items: [
       { key: 'screensaverTimeoutMinutes', title: 'Start screensaver after', kind: 'select' },
-      { key: 'nightDim', title: 'Dim at night', note: '10pm to 6am', kind: 'switch' }
+      { key: 'nightDim', title: 'Dim at night', note: 'Darker picture and clock', kind: 'switch' },
+      { key: 'nightStartHour', title: 'Dim from', kind: 'select', showIf: function (s) { return s.nightDim; } },
+      { key: 'nightEndHour', title: 'Dim until', kind: 'select', showIf: function (s) { return s.nightDim; } }
     ]}
   ];
   var settingsState = null;
@@ -458,7 +467,84 @@
     return null;
   }
 
+  // ---- My links (wallpaper image URLs), shown when "Wallpapers from" is My links
+  var links = { urls: null, max: 50, busy: false, message: '', warn: false, draft: '' };
+
+  function loadLinks() {
+    return getJSON('/api/wallpaper-urls').then(function (d) {
+      links.urls = d.urls || [];
+      links.max = d.max || 50;
+      renderSettings();
+    }).catch(function () {});
+  }
+
+  function addLink(url) {
+    url = (url || '').trim();
+    if (!/^https:\/\/\S+$/i.test(url)) {
+      links.message = 'Use a full https:// link to an image.'; links.warn = true; renderSettings(); return;
+    }
+    links.busy = true; links.message = 'Checking the link on the TV…'; links.warn = false; renderSettings();
+    fetch(api('/api/wallpaper-urls/add'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        links.busy = false;
+        if (r.ok) { links.message = 'Added.'; links.warn = false; links.draft = ''; return loadLinks(); }
+        links.warn = true;
+        links.message = d.message || (d.error === 'full' ? 'That’s the most links the TV keeps (' + links.max + ').'
+          : d.error === 'kids_mode' ? 'Kids mode is on.' : 'Use a full https:// link to an image.');
+        renderSettings();
+      });
+    }).catch(function () { links.busy = false; links.message = 'Couldn’t reach the TV.'; links.warn = true; renderSettings(); });
+  }
+
+  function removeLink(url) {
+    postJSON('/api/wallpaper-urls/remove', { url: url }).then(loadLinks).catch(function () {
+      links.message = 'Couldn’t remove that link.'; links.warn = true; renderSettings();
+    });
+  }
+
+  function linksBlock() {
+    var box = el('div', 'setting links');
+    var names = el('div', 'names');
+    names.appendChild(el('label', 'title', 'My links'));
+    names.appendChild(el('div', 'note', 'Image links (https) to use as wallpapers. The TV checks each one is a real image.'));
+    if (links.urls === null) { loadLinks(); names.appendChild(el('div', 'note', 'Loading…')); box.appendChild(names); return box; }
+
+    var list = el('div', 'list');
+    list.setAttribute('data-gap', '');
+    if (!links.urls.length) list.appendChild(el('div', 'empty', 'No links yet. Until you add one, Reddit wallpapers are used.'));
+    links.urls.forEach(function (u) {
+      var row = el('div', 'link-row');
+      row.appendChild(el('span', 'url', u));
+      var del = button('Remove', 'Remove this link', function () { removeLink(u); });
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+    names.appendChild(list);
+
+    var add = el('div', 'edit');
+    var input = el('input');
+    input.type = 'url';
+    input.id = 'link-input';
+    input.placeholder = 'https://…/photo.jpg';
+    input.autocomplete = 'off';
+    input.value = links.draft;
+    input.addEventListener('input', function () { links.draft = input.value; });
+    input.setAttribute('aria-label', 'Image link');
+    var addBtn = button(links.busy ? 'Checking…' : 'Add', 'Add link', function () { addLink(input.value); });
+    addBtn.disabled = links.busy || links.urls.length >= links.max;
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') addLink(input.value); });
+    add.appendChild(input);
+    add.appendChild(addBtn);
+    names.appendChild(add);
+    if (links.message) names.appendChild(el('div', 'note' + (links.warn ? ' warn' : ''), links.message));
+    box.appendChild(names);
+    return box;
+  }
+
   function settingRow(item) {
+    if (item.kind === 'links') return linksBlock();
     var current = settingsState.settings[item.key];
     var row = el('div', 'setting');
     var names = el('div', 'names');
@@ -521,7 +607,10 @@
     SETTINGS.forEach(function (g) {
       box.appendChild(el('h2', null, g.group));
       var list = el('div', 'list');
-      g.items.forEach(function (item) { list.appendChild(settingRow(item)); });
+      g.items.forEach(function (item) {
+        if (item.showIf && !item.showIf(settingsState.settings)) return;
+        list.appendChild(settingRow(item));
+      });
       box.appendChild(list);
     });
     var more = el('p', 'sub', 'Kids mode, updates and the Fire TV extras stay on the TV.');
@@ -561,6 +650,7 @@
       say(status, 'Restoring…');
       postJSON('/api/restore', data).then(function () {
         say(status, 'Restored. The TV has updated.');
+        links.urls = null;
         loadApps();
         loadSettings();
       }).catch(function (err) {

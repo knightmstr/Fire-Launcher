@@ -36,6 +36,21 @@ object SetupValidation {
         return chosen + keptAside
     }
 
+    const val MAX_URL_LENGTH = 2048
+
+    /** https only, with a host, no credentials, no whitespace. The TV checks the image itself. */
+    fun isHttpsUrl(url: String?): Boolean {
+        if (url.isNullOrEmpty() || url.length > MAX_URL_LENGTH || url.any { it.isWhitespace() || it.isISOControl() }) {
+            return false
+        }
+        val uri = try {
+            java.net.URI(url)
+        } catch (e: Exception) {
+            return false
+        }
+        return uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank() && uri.rawUserInfo == null
+    }
+
     private val IPV4 = Regex("^(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}$")
 
     /**

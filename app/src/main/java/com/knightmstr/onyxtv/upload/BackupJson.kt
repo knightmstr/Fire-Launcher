@@ -7,7 +7,6 @@ import com.knightmstr.onyxtv.data.LauncherSettings
 import com.knightmstr.onyxtv.data.PrefsCodec
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.URI
 
 /**
  * Backup file format and strict parsing of a file coming back.
@@ -27,7 +26,6 @@ object BackupJson {
 
     const val MAX_PACKAGES = 500
     const val MAX_WALLPAPER_URLS = 50
-    const val MAX_URL_LENGTH = 2048
     private const val MAX_PLACE_LENGTH = 80
 
     sealed class Result {
@@ -150,16 +148,5 @@ object BackupJson {
         return out
     }
 
-    /** https only, with a host, no credentials, no whitespace. The TV checks the image itself later. */
-    fun isHttpsUrl(url: String): Boolean {
-        if (url.isEmpty() || url.length > MAX_URL_LENGTH || url.any { it.isWhitespace() || it.isISOControl() }) return false
-        val uri = try {
-            URI(url)
-        } catch (e: Exception) {
-            return false
-        }
-        return uri.scheme.equals("https", ignoreCase = true) &&
-            !uri.host.isNullOrBlank() &&
-            uri.rawUserInfo == null
-    }
+    fun isHttpsUrl(url: String): Boolean = SetupValidation.isHttpsUrl(url)
 }
