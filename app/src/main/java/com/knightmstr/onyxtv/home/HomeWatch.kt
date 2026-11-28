@@ -25,7 +25,7 @@ object HomeWatch {
 
     enum class Status { ON, OFF, NEEDS_PERMISSION }
 
-    const val AMAZON_HOME_PACKAGE = "com.amazon.tv.launcher"
+    const val AMAZON_HOME_PACKAGE = Platform.AMAZON_HOME
     private val AMAZON_HOME_ACTIVITIES = setOf(
         "$AMAZON_HOME_PACKAGE.ui.HomeActivity_vNext",
         "$AMAZON_HOME_PACKAGE.ui.HomeActivity"
@@ -57,18 +57,24 @@ object HomeWatch {
 
     fun amazonAllowedNow(): Boolean = SystemClock.elapsedRealtime() < amazonAllowedUntil
 
-    /** True only for Amazon's home screen itself, not its Settings or other screens. */
+    /**
+     * True only for a stock home screen itself (Amazon's on Fire TV; Google's on Google TV /
+     * Android TV), not its Settings or other screens.
+     */
     fun isAmazonHome(context: Context, pkg: CharSequence?, cls: CharSequence?): Boolean {
-        if (pkg?.toString() != AMAZON_HOME_PACKAGE || cls == null) return false
+        val p = pkg?.toString() ?: return false
+        if (p !in Platform.STOCK_HOMES || cls == null) return false
         val name = cls.toString()
-        return name in AMAZON_HOME_ACTIVITIES || name in homesOf(context)
+        if (p == AMAZON_HOME_PACKAGE && name in AMAZON_HOME_ACTIVITIES) return true
+        return "$p/$name" in homesOf(context)
     }
 
+    /** Every activity a stock launcher declares as a home screen, as "package/class". */
     private fun homesOf(context: Context): Set<String> = declaredHomes ?: runCatching {
         val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         context.packageManager.queryIntentActivities(query, 0)
-            .filter { it.activityInfo.packageName == AMAZON_HOME_PACKAGE }
-            .map { it.activityInfo.name }
+            .filter { it.activityInfo.packageName in Platform.STOCK_HOMES }
+            .map { "${it.activityInfo.packageName}/${it.activityInfo.name}" }
             .toSet()
     }.getOrDefault(emptySet()).also { declaredHomes = it }
 

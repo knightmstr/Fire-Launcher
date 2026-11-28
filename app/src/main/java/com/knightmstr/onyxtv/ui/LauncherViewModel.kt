@@ -64,6 +64,7 @@ import com.knightmstr.onyxtv.kids.KidsTime
 import com.knightmstr.onyxtv.kids.KidsTimeKeeper
 import com.knightmstr.onyxtv.tools.StorageInfo
 import com.knightmstr.onyxtv.home.SelfAdb
+import com.knightmstr.onyxtv.home.Platform
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -600,7 +601,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val app = getApplication<Application>()
         val next = minutes.coerceAtLeast(0)
         if (next > 0 && !SelfAdb.isAdbOn(app)) {
-            _toolsUi.update { it.copy(sleepMessage = "Turn on ADB debugging first (Fire TV Settings → My Fire TV → Developer options).") }
+            _toolsUi.update { it.copy(sleepMessage = "${Platform.names(app).adbHint} in Developer options first.") }
             return
         }
         SleepTimer.set(app, next)
@@ -621,9 +622,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     _toolsUi.update { it.copy(space = r.space) }
                     if (r.bytes > 0) "Freed ${StorageInfo.describe(r.bytes)}" else "Caches were already small"
                 }
-                StorageInfo.CleanResult.AdbOff -> "Turn on ADB debugging first (Developer options)"
+                StorageInfo.CleanResult.AdbOff -> "${Platform.names(getApplication()).adbHint} in Developer options first"
                 StorageInfo.CleanResult.NotAllowed -> "Press Allow on the TV's ADB box (tick Always allow), then try again"
-                is StorageInfo.CleanResult.Failed -> "Couldn't clear caches: ${r.reason.take(60)}"
+                is StorageInfo.CleanResult.Failed ->
+                    if (Platform.isFireTv(getApplication())) "Couldn't clear caches: ${r.reason.take(60)}"
+                    else "This TV doesn't let apps use its own ADB. Turn on Network debugging (port 5555) if it has it"
             }
             _toolsUi.update { it.copy(cleaning = false, storageMessage = message) }
         }

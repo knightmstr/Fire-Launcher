@@ -68,6 +68,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.knightmstr.onyxtv.home.Platform
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -444,7 +446,7 @@ private fun SettingsDropDown(
                 onClick = onLauncherSettings
             )
             TvMenuItem(
-                title = "Fire TV settings",
+                title = "${Platform.names(LocalContext.current).device} settings",
                 subtitle = "Network, display, sound, apps",
                 icon = Icons.Rounded.Tv,
                 iconTint = FireOrange,

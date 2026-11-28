@@ -3,6 +3,7 @@ package com.knightmstr.onyxtv.screensaver
 import android.content.Context
 import android.provider.Settings
 import com.knightmstr.onyxtv.home.HomeWatch
+import com.knightmstr.onyxtv.home.Platform
 
 /**
  * Makes Onyx TV's screensaver ([OnyxDream]) the Fire TV's own screensaver, and optionally
@@ -27,6 +28,7 @@ object ScreensaverTakeover {
     private const val ENABLED = "screensaver_enabled"
     private const val AMBIENT = "amazon_ambient_enabled"
     private const val SLEEP_TIMEOUT = "sleep_timeout"
+    private const val ATTENTIVE_TIMEOUT = "attentive_timeout"
 
     fun component(context: Context) = "${context.packageName}/${OnyxDream::class.java.name}"
 
@@ -68,8 +70,15 @@ object ScreensaverTakeover {
             if (awake) {
                 save(context, SLEEP_TIMEOUT)
                 put(context, SLEEP_TIMEOUT, "-1") // negative: never sleep on a timer
+                // Google TV / Android TV's energy-saver timer. Only touched off Fire TV, and
+                // only if the TV has it, so Fire TV behaves exactly as before.
+                if (!Platform.isFireTv(context) && get(context, ATTENTIVE_TIMEOUT) != null) {
+                    save(context, ATTENTIVE_TIMEOUT)
+                    put(context, ATTENTIVE_TIMEOUT, "-1")
+                }
             } else {
                 restore(context, SLEEP_TIMEOUT)
+                if (!Platform.isFireTv(context)) restore(context, ATTENTIVE_TIMEOUT)
             }
         }.isSuccess
     }

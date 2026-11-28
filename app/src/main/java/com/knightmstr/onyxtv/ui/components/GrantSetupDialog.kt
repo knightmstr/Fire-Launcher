@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.knightmstr.onyxtv.home.HomeWatch
 import com.knightmstr.onyxtv.home.SelfAdb
+import com.knightmstr.onyxtv.home.Platform
 import com.knightmstr.onyxtv.ui.theme.DarkSurface
 import com.knightmstr.onyxtv.ui.theme.FireAmber
 import com.knightmstr.onyxtv.ui.theme.TextPrimary
@@ -42,6 +43,8 @@ fun GrantSetupDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val names = Platform.names(context)
+    val fire = Platform.isFireTv(context)
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
@@ -51,7 +54,7 @@ fun GrantSetupDialog(
 
     TvDialogFrame(
         title = title,
-        subtitle = "One-time setup. It also unlocks the other Fire TV options.",
+        subtitle = "One-time setup. It also unlocks the other ${names.device} options.",
         accentColor = FireAmber,
         onDismiss = onDismiss,
         width = 600.dp
@@ -79,21 +82,24 @@ fun GrantSetupDialog(
                         SelfAdb.Result.Granted -> if (onEnable()) null else "Granted. Press Turn on below"
                         SelfAdb.Result.AdbOff -> "ADB debugging is off: open Developer options below"
                         SelfAdb.Result.NotAllowed -> "Not allowed. Try again and choose Always allow"
-                        is SelfAdb.Result.Failed -> "Didn't work (${result.reason}). Use the phone method below"
+                        is SelfAdb.Result.Failed -> if (fire) "Didn't work (${result.reason}). Use the phone method below"
+                        else "This TV doesn't allow it from itself. Use the computer method below"
                     }
                 }
             }
         )
         TvMenuItem(
             title = "Open Developer options",
-            subtitle = "Turn on ADB debugging. Hidden? Settings → My Fire TV → About, press OK on the device name 7 times",
+            subtitle = "${names.adbHint}. ${names.developerOptionsHint}",
             icon = Icons.Rounded.DeveloperMode,
             iconTint = Color(0xFF60A5FA),
             onClick = { SelfAdb.openDeveloperOptions(context) }
         )
 
         Text(
-            text = "Or from a phone (Termux) or computer: adb connect <TV IP>:5555, then run",
+            text = if (fire) "Or from a phone (Termux) or computer: adb connect <TV IP>:5555, then run"
+            else "Or from a computer on the same Wi-Fi: in Developer options open Wireless debugging → " +
+                "Pair device with pairing code, run adb pair <IP:port> and adb connect <IP:port>, then run",
             fontSize = 12.sp,
             color = TextSecondary
         )
@@ -117,7 +123,7 @@ fun GrantSetupDialog(
         )
         Text(
             text = "This lets Onyx TV change the Home button, screensaver and sleep settings. " +
-                "Turning an option off puts Amazon's setting back.",
+                "Turning an option off puts ${names.owner} setting back.",
             fontSize = 11.sp,
             color = Color(0xFF9CA3AF)
         )

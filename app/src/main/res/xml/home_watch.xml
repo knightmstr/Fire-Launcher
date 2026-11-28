@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home button watcher (HomeWatchService). Only window changes, and only from Amazon's launcher
-     (packageNames), so it never sees other apps. canRetrieveWindowContent is declared because some
+<!-- Home button watcher (HomeWatchService). Only window changes, and only from the stock home
+     launchers (Amazon's on Fire TV; Google TV's and Android TV's elsewhere, listed in packageNames),
+     so it never sees other apps. canRetrieveWindowContent is declared because some
      TV builds only deliver window events to services that have it; the code reads only the
      event's package and class names, never the screen. Based on couch-tv (MIT). -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:packageNames="com.amazon.tv.launcher"
+    android:packageNames="com.amazon.tv.launcher,com.google.android.apps.tv.launcherx,com.google.android.tvlauncher,com.google.android.leanbacklauncher"
     android:canRetrieveWindowContent="true"
     android:notificationTimeout="0"
     android:description="@string/home_watch_desc" />
