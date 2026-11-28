@@ -68,6 +68,8 @@ import com.knightmstr.onyxtv.ui.components.ForecastDialog
 import com.knightmstr.onyxtv.ui.components.FolderDialog
 import com.knightmstr.onyxtv.ui.components.FolderMenuDialog
 import com.knightmstr.onyxtv.ui.components.FolderPickerDialog
+import com.knightmstr.onyxtv.ui.components.KidsLockDialog
+import com.knightmstr.onyxtv.ui.components.KidsExtendDialog
 import com.knightmstr.onyxtv.ui.components.HomeDock
 import com.knightmstr.onyxtv.ui.components.HomeClock
 import com.knightmstr.onyxtv.ui.components.GrantSetupDialog
@@ -143,6 +145,8 @@ fun LauncherRoot(
     val phoneSetupUi by viewModel.phoneSetupUi.collectAsStateWithLifecycle()
     val sleepTimerEndsAt by viewModel.sleepTimerEndsAt.collectAsStateWithLifecycle()
     val toolsUi by viewModel.toolsUi.collectAsStateWithLifecycle()
+    val kidsTime by viewModel.kidsTime.collectAsStateWithLifecycle()
+    val kidsExtendOpen by viewModel.kidsExtendOpen.collectAsStateWithLifecycle()
     val customWallpaperUrls by viewModel.customWallpaperUrls.collectAsStateWithLifecycle()
     val wallpaperUrlDialogOpen by viewModel.wallpaperUrlDialogOpen.collectAsStateWithLifecycle()
     val wallpaperUrlStatus by viewModel.wallpaperUrlStatus.collectAsStateWithLifecycle()
@@ -336,6 +340,9 @@ fun LauncherRoot(
             tools = toolsUi,
             onSleepTimer = viewModel::cycleSleepTimer,
             onFreeUpSpace = viewModel::freeUpSpace,
+            kidsTime = kidsTime,
+            onKidsDailyLimit = viewModel::cycleKidsDailyLimit,
+            onKidsBedtime = { on, start, end -> viewModel.setKidsBedtime(on, start, end) },
             onClearUploads = viewModel::clearUploadedPhotos,
             onManageWallpaperUrls = viewModel::openWallpaperUrls,
             wallpaperPreviewUrl = currentWallpaper?.url,
@@ -426,7 +433,27 @@ fun LauncherRoot(
                 onComplete = viewModel::submitExitPin,
                 onDismiss = viewModel::closePinDialog
             )
+            PinPurpose.UNLOCK_KIDS_TIME -> PinEntryDialog(
+                title = "Parent PIN",
+                subtitle = "To allow more time or leave Kids mode",
+                error = state.error,
+                onComplete = viewModel::submitUnlockPin,
+                onDismiss = viewModel::closePinDialog
+            )
         }
+    }
+
+    // Kids mode: time's up or bedtime. Stays until a parent enters the PIN.
+    val kidsLock = kidsTime?.lock
+    if (kidsMode && kidsLock != null && pinDialog == null && !kidsExtendOpen) {
+        KidsLockDialog(lock = kidsLock, onParent = viewModel::askParentPin)
+    }
+    if (kidsExtendOpen) {
+        KidsExtendDialog(
+            onExtend = viewModel::extendKidsTime,
+            onLeaveKidsMode = viewModel::leaveKidsModeFromLock,
+            onDismiss = viewModel::closeKidsExtend
+        )
     }
 
     AnimatedVisibility(

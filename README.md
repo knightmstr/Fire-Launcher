@@ -25,13 +25,14 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 - Wallpaper-first layout: date, weather and a big clock in the middle, a dock of favourites at the bottom
 - Two home layouts: **Dock** (favourites always at the bottom) or **Clean** (only the clock and wallpaper; any button brings the apps back, and they fade away after a few seconds)
 - Wallpapers from your own photos (default, uploaded from your phone) or r/TVWallpapersSFW, changing on a timer you choose
-- Live weather for any city (Open-Meteo, no account), °C / °F
+- Live weather for any city (Open-Meteo, no account), °C / °F, with a 5-day forecast and heads-ups for storms, heavy rain, wind and heat
 - Now playing: app, title and ⏮ ⏯ ⏭ for whatever's playing in Spotify, YouTube, Plex…
 
 **Apps**
 - All Apps grid with search (the on-screen keyboard opens straight away) and voice search from the remote's mic button
 - Sort A–Z, most recent, most used, or your own order
 - Hold OK (or ☰) on any app to favourite, reorder, rename, hide, or open App info
+- Folders in the dock: group apps into one tile
 - Tile size slider and tile shapes (rounded, square, extra rounded, pill)
 
 **Set up from phone**
@@ -44,7 +45,8 @@ Built with Kotlin and Jetpack Compose for TV. Fire OS 6, 7 and 8 (Android 7.1 an
 - Wi-Fi and Fire TV settings one press away, opening Fire OS's own screens
 
 **Family & upkeep**
-- Kids mode: only the apps you allow, PIN to leave
+- Kids mode: only the apps you allow, PIN to leave, with an optional daily screen-time limit and bedtime
+- Sleep timer, and a one-press cache clean-up when storage runs low
 - Updates itself from GitHub Releases (checksum-verified; you confirm every install)
 
 ---

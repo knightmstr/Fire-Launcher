@@ -117,6 +117,7 @@ object HomeWatch {
             if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
             runCatching { ensure(context) }
             runCatching { ScreensaverTakeover.ensure(context) }
+            runCatching { com.knightmstr.onyxtv.kids.KidsTimeKeeper.resumeAfterBoot(context) }
         }
     }
 }

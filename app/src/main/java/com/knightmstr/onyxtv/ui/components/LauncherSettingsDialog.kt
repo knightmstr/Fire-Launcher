@@ -21,6 +21,8 @@ import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Snooze
+import androidx.compose.material.icons.rounded.HourglassBottom
+import com.knightmstr.onyxtv.kids.KidsTimeKeeper
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -110,6 +112,9 @@ fun LauncherSettingsDialog(
     tools: ToolsUi,
     onSleepTimer: () -> Unit,
     onFreeUpSpace: () -> Unit,
+    kidsTime: KidsTimeKeeper.Status?,
+    onKidsDailyLimit: () -> Unit,
+    onKidsBedtime: (on: Boolean?, start: Int?, end: Int?) -> Unit,
     onClearUploads: () -> Unit,
     onManageWallpaperUrls: () -> Unit,
     wallpaperPreviewUrl: String?,
@@ -529,6 +534,55 @@ fun LauncherSettingsDialog(
             enabled = status.kidsAppCount > 0,
             onClick = onEnableKidsMode
         )
+        kidsTime?.let { kt ->
+            val r = kt.rules
+            val usedMin = (kt.usedMs / 60_000L).toInt()
+            TvMenuItem(
+                title = "Daily screen time",
+                subtitle = if (r.dailyLimitMinutes > 0) {
+                    "In Kids mode. Used today: ${LauncherSettings.describeMinutes(usedMin, zeroLabel = "0 min")}"
+                } else "No daily limit",
+                icon = Icons.Rounded.HourglassBottom,
+                iconTint = Color(0xFFF472B6),
+                trailing = if (r.dailyLimitMinutes > 0) LauncherSettings.describeMinutes(r.dailyLimitMinutes) else "Off",
+                onClick = onKidsDailyLimit
+            )
+            TvMenuItem(
+                title = "Bedtime",
+                subtitle = if (r.bedtimeOn) {
+                    "Kids mode closes from ${LauncherSettings.describeHour(r.bedtimeStartHour)} " +
+                        "to ${LauncherSettings.describeHour(r.bedtimeEndHour)}"
+                } else "Lock Kids mode overnight",
+                icon = Icons.Rounded.Bedtime,
+                iconTint = Color(0xFFF472B6),
+                trailing = if (r.bedtimeOn) "On" else "Off",
+                onClick = { onKidsBedtime(!r.bedtimeOn, null, null) }
+            )
+            if (r.bedtimeOn) {
+                TvSliderItem(
+                    title = "Bedtime from",
+                    subtitle = "Left/Right to change the hour",
+                    icon = Icons.Rounded.Bedtime,
+                    iconTint = Color(0xFFF472B6),
+                    value = r.bedtimeStartHour,
+                    range = LauncherSettings.HOUR_RANGE,
+                    step = 1,
+                    valueLabel = LauncherSettings.describeHour(r.bedtimeStartHour),
+                    onValueChange = { h -> onKidsBedtime(null, h, null) }
+                )
+                TvSliderItem(
+                    title = "Bedtime until",
+                    subtitle = "Left/Right to change the hour",
+                    icon = Icons.Rounded.LightMode,
+                    iconTint = Color(0xFFF472B6),
+                    value = r.bedtimeEndHour,
+                    range = LauncherSettings.HOUR_RANGE,
+                    step = 1,
+                    valueLabel = LauncherSettings.describeHour(r.bedtimeEndHour),
+                    onValueChange = { h -> onKidsBedtime(null, null, h) }
+                )
+            }
+        }
         if (status.hasKidsPin) {
             TvMenuItem(
                 title = "Change Kids mode PIN",

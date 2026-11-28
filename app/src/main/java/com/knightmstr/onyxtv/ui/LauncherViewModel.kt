@@ -57,6 +57,8 @@ import com.knightmstr.onyxtv.upload.LinkResult
 import com.knightmstr.onyxtv.data.WallpaperLinkResolver
 import com.knightmstr.onyxtv.upload.SetupToken
 import com.knightmstr.onyxtv.tools.SleepTimer
+import com.knightmstr.onyxtv.kids.KidsTime
+import com.knightmstr.onyxtv.kids.KidsTimeKeeper
 import com.knightmstr.onyxtv.tools.StorageInfo
 import com.knightmstr.onyxtv.home.SelfAdb
 import kotlinx.coroutines.runBlocking
@@ -346,18 +348,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Checks the PIN to leave Kids mode; locks for 30 s after 5 wrong tries. */
-    fun submitExitPin(pin: String) {
+    fun submitExitPin(pin: String) = submitPin(pin, PinPurpose.EXIT_KIDS_MODE) {
+        prefs.setKidsModeEnabled(false)
+        openSettings()
+    }
+
+    /** The PIN on the "Time's up" screen: then a parent picks extra time or leaves Kids mode. */
+    fun submitUnlockPin(pin: String) = submitPin(pin, PinPurpose.UNLOCK_KIDS_TIME) {
+        _kidsExtendOpen.value = true
+    }
+
+    private fun submitPin(pin: String, purpose: PinPurpose, onRight: suspend () -> Unit) {
         val now = System.currentTimeMillis()
         if (now < pinLockedUntilMs) {
-            _pinDialog.value = PinDialogState(PinPurpose.EXIT_KIDS_MODE, error = lockoutMessage(now))
+            _pinDialog.value = PinDialogState(purpose, error = lockoutMessage(now))
             return
         }
         viewModelScope.launch {
             if (prefs.verifyKidsPin(pin)) {
                 failedPinAttempts = 0
                 _pinDialog.value = null
-                prefs.setKidsModeEnabled(false)
-                openSettings()
+                onRight()
             } else {
                 failedPinAttempts++
                 if (failedPinAttempts >= 5) {
@@ -366,7 +377,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
                 val t = System.currentTimeMillis()
                 _pinDialog.value = PinDialogState(
-                    PinPurpose.EXIT_KIDS_MODE,
+                    purpose,
                     error = if (t < pinLockedUntilMs) lockoutMessage(t) else "Wrong PIN, try again"
                 )
             }
@@ -502,6 +513,63 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _hasPhotoPermission.value = localPhotos.hasPhotoPermission()
         wallpaperRepository.reload()
     }
+
+    // ------------------------------------------------------------------ Kids mode screen time
+
+    /** Today's Kids mode usage, the rules, and whether it's locked right now. */
+    val kidsTime: StateFlow<KidsTimeKeeper.Status?> = KidsTimeKeeper.status
+
+    init {
+        val app = getApplication<Application>()
+        // Ticking follows Kids mode on/off
+        viewModelScope.launch {
+            kidsModeEnabled.collect { KidsTimeKeeper.onKidsModeChanged(app, it) }
+        }
+        // Keep the lock and the settings summary current while Onyx TV is showing
+        viewModelScope.launch {
+            while (isActive) {
+                KidsTimeKeeper.refresh(app)
+                delay(30_000)
+            }
+        }
+    }
+
+    fun cycleKidsDailyLimit() {
+        val app = getApplication<Application>()
+        val r = KidsTimeKeeper.rules(app)
+        KidsTimeKeeper.setRules(app, r.copy(dailyLimitMinutes = KidsTime.nextLimit(r.dailyLimitMinutes)))
+    }
+
+    fun setKidsBedtime(on: Boolean? = null, startHour: Int? = null, endHour: Int? = null) {
+        val app = getApplication<Application>()
+        val r = KidsTimeKeeper.rules(app)
+        KidsTimeKeeper.setRules(
+            app,
+            r.copy(
+                bedtimeOn = on ?: r.bedtimeOn,
+                bedtimeStartHour = startHour ?: r.bedtimeStartHour,
+                bedtimeEndHour = endHour ?: r.bedtimeEndHour
+            )
+        )
+    }
+
+    private val _kidsExtendOpen = MutableStateFlow(false)
+    /** After the parent's PIN on the "Time's up" screen: +30 min, +1 hr or leave Kids mode. */
+    val kidsExtendOpen: StateFlow<Boolean> = _kidsExtendOpen.asStateFlow()
+
+    fun askParentPin() { _pinDialog.value = PinDialogState(PinPurpose.UNLOCK_KIDS_TIME) }
+
+    fun extendKidsTime(minutes: Int) {
+        _kidsExtendOpen.value = false
+        KidsTimeKeeper.extend(getApplication(), minutes)
+    }
+
+    fun leaveKidsModeFromLock() {
+        _kidsExtendOpen.value = false
+        viewModelScope.launch { prefs.setKidsModeEnabled(false) }
+    }
+
+    fun closeKidsExtend() { _kidsExtendOpen.value = false }
 
     // ------------------------------------------------------------------ Sleep timer & storage
 
@@ -1088,6 +1156,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             _openFolderKey.value = app.packageName
             return true
         }
+        // Kids mode time's up / bedtime: apps stay closed until a parent allows more time
+        if (kidsModeEnabled.value && kidsTime.value?.lock != null) return false
         if (!app.isSystemShortcut) {
             viewModelScope.launch { prefs.recordAppLaunch(app.packageName) }
         }
@@ -1135,7 +1205,7 @@ data class PhoneSetupUi(
     val error: String? = null
 )
 
-enum class PinPurpose { CREATE, EXIT_KIDS_MODE }
+enum class PinPurpose { CREATE, EXIT_KIDS_MODE, UNLOCK_KIDS_TIME }
 
 data class PinDialogState(val purpose: PinPurpose, val error: String? = null)
 
