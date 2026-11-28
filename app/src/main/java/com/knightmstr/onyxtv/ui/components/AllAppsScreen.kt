@@ -1,5 +1,12 @@
 package com.knightmstr.onyxtv.ui.components
 
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -59,7 +66,7 @@ fun AllAppsScreen(
     apps: List<AppModel>,
     favorites: Set<String>,
     sortOrder: AppSortOrder,
-    onCycleSort: () -> Unit,
+    onPickSort: (AppSortOrder) -> Unit,
     onAppFocused: (AppModel) -> Unit,
     onAppClicked: (AppModel) -> Unit,
     onAppLongClicked: (AppModel) -> Unit,
@@ -94,7 +101,7 @@ fun AllAppsScreen(
                 Spacer(modifier = Modifier.width(10.dp))
                 Text("${apps.size}", fontSize = 16.sp, color = TextSecondary)
                 Spacer(modifier = Modifier.weight(1f))
-                SortButton(sortOrder = sortOrder, onClick = onCycleSort)
+                SortButton(sortOrder = sortOrder, onPick = onPickSort)
             }
             Text(
                 text = "Hold OK or press ☰ on an app to favorite, rename, hide or move it",
@@ -130,10 +137,15 @@ fun AllAppsScreen(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun SortButton(sortOrder: AppSortOrder, onClick: () -> Unit) {
+private fun SortButton(sortOrder: AppSortOrder, onPick: (AppSortOrder) -> Unit) {
     val shape = RoundedCornerShape(14.dp)
+    var open by remember { mutableStateOf(false) }
+    var height by remember { mutableIntStateOf(0) }
+    val focus = remember { FocusRequester() }
+    Box(modifier = Modifier.onSizeChanged { height = it.height }) {
     Surface(
-        onClick = onClick,
+        onClick = { open = true },
+        modifier = Modifier.focusRequester(focus),
         shape = ClickableSurfaceDefaults.shape(shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
         border = ClickableSurfaceDefaults.border(
@@ -152,6 +164,30 @@ private fun SortButton(sortOrder: AppSortOrder, onClick: () -> Unit) {
             Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = null, tint = FireAmber, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text("Sort: ${sortOrder.title}", fontSize = 12.sp, color = TextPrimary)
+            Icon(
+                if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                contentDescription = null,
+                tint = FireAmber,
+                modifier = Modifier.size(16.dp)
+            )
         }
+    }
+    if (open) {
+        TvChoicePopup(
+            choices = AppSortOrder.entries.map { TvChoice(it, it.title) },
+            selected = sortOrder,
+            accent = FireAmber,
+            anchorHeightPx = height,
+            onPick = { v ->
+                open = false
+                if (v != sortOrder) onPick(v)
+                runCatching { focus.requestFocus() }
+            },
+            onDismiss = {
+                open = false
+                runCatching { focus.requestFocus() }
+            }
+        )
+    }
     }
 }

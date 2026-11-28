@@ -395,7 +395,7 @@ fun LauncherRoot(
                 apps = apps,
                 favorites = favorites,
                 sortOrder = sortOrder,
-                onCycleSort = viewModel::cycleSortOrder,
+                onPickSort = viewModel::setSortOrder,
                 onAppFocused = viewModel::setFocusedApp,
                 onAppClicked = { if (viewModel.launchApp(it)) viewModel.closeAllApps() },
                 onAppLongClicked = viewModel::openContextMenu,

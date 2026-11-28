@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Snooze
 import androidx.compose.material.icons.rounded.Schedule
 import com.knightmstr.onyxtv.data.ClockPlacement
 import com.knightmstr.onyxtv.data.HomeLayout
+import com.knightmstr.onyxtv.data.UpdateChannel
 import androidx.compose.material.icons.rounded.HourglassBottom
 import com.knightmstr.onyxtv.kids.KidsTimeKeeper
 import com.knightmstr.onyxtv.kids.KidsTime
@@ -634,13 +635,14 @@ fun LauncherSettingsDialog(
             trailing = "v${status.installedVersion}",
             onClick = onOpenUpdates
         )
-        TvMenuItem(
+        TvChoiceItem(
             title = "Update channel",
             subtitle = settings.updateChannel.description,
             icon = Icons.Rounded.Science,
             iconTint = Color(0xFFA78BFA),
-            trailing = settings.updateChannel.title,
-            onClick = { onUpdate { it.copy(updateChannel = it.updateChannel.next()) } }
+            choices = UpdateChannel.entries.map { TvChoice(it, it.title, it.description) },
+            selected = settings.updateChannel,
+            onSelect = { v -> onUpdate { it.copy(updateChannel = v) } }
         )
         }
         }

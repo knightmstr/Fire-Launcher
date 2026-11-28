@@ -397,12 +397,13 @@ fun CitySelectionDialog(
             }
         }
 
-        TvMenuItem(
+        TvChoiceItem(
             title = "Temperature unit",
             icon = Icons.Rounded.Thermostat,
             iconTint = FireOrange,
-            trailing = if (isCelsius) "°C" else "°F",
-            onClick = onToggleUnit
+            choices = listOf(TvChoice(true, "°C", "Celsius"), TvChoice(false, "°F", "Fahrenheit")),
+            selected = isCelsius,
+            onSelect = { celsius -> if (celsius != isCelsius) onToggleUnit() }
         )
     }
 }

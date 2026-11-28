@@ -120,6 +120,32 @@ fun <T> TvChoiceItem(
     }
 }
 
+/**
+ * The compact list on its own, for anchoring under any control (e.g. the All Apps sort button).
+ * Place it inside a Box with the anchor; [anchorHeightPx] puts it just below.
+ */
+@Composable
+fun <T> TvChoicePopup(
+    choices: List<TvChoice<T>>,
+    selected: T,
+    accent: Color,
+    anchorHeightPx: Int,
+    onHighlight: (T) -> Unit = {},
+    onPick: (T) -> Unit,
+    onDismiss: () -> Unit,
+    alignment: Alignment = Alignment.TopEnd
+) {
+    val gap = with(LocalDensity.current) { 4.dp.roundToPx() }
+    Popup(
+        alignment = alignment,
+        offset = IntOffset(0, anchorHeightPx + gap),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
+    ) {
+        ChoiceList(choices, selected, accent, onHighlight, onPick, onDismiss)
+    }
+}
+
 @Composable
 private fun <T> ChoiceList(
     choices: List<TvChoice<T>>,
