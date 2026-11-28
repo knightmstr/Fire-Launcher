@@ -356,27 +356,12 @@ fun LauncherSettingsDialog(
         )
         if (isOpen("Screensaver")) {
         TvMenuItem(
-            title = "Use as Fire TV screensaver",
-            subtitle = when {
-                status.screensaverTakeover == ScreensaverTakeover.Status.ON && status.needsRestart ->
-                    "On: restart the Fire TV once to replace Amazon's"
-                status.screensaverTakeover == ScreensaverTakeover.Status.ON ->
-                    "Replaces Amazon's screensaver: same wallpaper, clock and weather"
-                status.screensaverTakeover == ScreensaverTakeover.Status.OFF -> "Off: Amazon's screensaver"
-                else -> "Needs the one-time adb setup"
+            title = "Screensaver on the home screen",
+            subtitle = if (settings.screensaverTimeoutMinutes > 0) {
+                "Onyx's screensaver after this long on the home screen"
+            } else {
+                "Off: the home screen stays as it is (Fire TV's own screensaver can still start)"
             },
-            icon = Icons.Rounded.Bedtime,
-            iconTint = Color(0xFFA78BFA),
-            trailing = when (status.screensaverTakeover) {
-                ScreensaverTakeover.Status.ON -> "On"
-                ScreensaverTakeover.Status.OFF -> "Off"
-                ScreensaverTakeover.Status.NEEDS_PERMISSION -> "Set up"
-            },
-            onClick = onScreensaverTakeover
-        )
-        TvMenuItem(
-            title = "Start after (on the home screen)",
-            subtitle = "Inside other apps, Fire TV's own Screensaver start time applies",
             icon = Icons.Rounded.Bedtime,
             iconTint = Color(0xFFA78BFA),
             trailing = LauncherSettings.describeMinutes(settings.screensaverTimeoutMinutes),
@@ -389,6 +374,26 @@ fun LauncherSettingsDialog(
                     )
                 }
             }
+        )
+        TvMenuItem(
+            title = "Screensaver inside other apps",
+            subtitle = when {
+                status.screensaverTakeover == ScreensaverTakeover.Status.ON && status.needsRestart ->
+                    "Onyx: restart the Fire TV once to replace Amazon's"
+                status.screensaverTakeover == ScreensaverTakeover.Status.ON ->
+                    "Onyx's wallpaper, clock and weather. Starts on Fire TV's own timer (Display & Sounds)"
+                status.screensaverTakeover == ScreensaverTakeover.Status.OFF ->
+                    "Amazon's. Starts on Fire TV's own timer (Display & Sounds → Screensaver)"
+                else -> "Needs the one-time adb setup"
+            },
+            icon = Icons.Rounded.Bedtime,
+            iconTint = Color(0xFFA78BFA),
+            trailing = when (status.screensaverTakeover) {
+                ScreensaverTakeover.Status.ON -> "Onyx"
+                ScreensaverTakeover.Status.OFF -> "Amazon's"
+                ScreensaverTakeover.Status.NEEDS_PERMISSION -> "Set up"
+            },
+            onClick = onScreensaverTakeover
         )
         TvMenuItem(
             title = "Dim at night",

@@ -427,7 +427,7 @@
       { key: 'wallpaperIntervalMinutes', title: 'Change wallpaper every', kind: 'select' }
     ]},
     { group: 'Screensaver', items: [
-      { key: 'screensaverTimeoutMinutes', title: 'Start screensaver after', kind: 'select' },
+      { key: 'screensaverTimeoutMinutes', title: 'Screensaver on the home screen', note: 'Fire TV’s own screensaver timer still applies inside apps', kind: 'select' },
       { key: 'nightDim', title: 'Dim at night', note: 'Darker picture and clock', kind: 'switch' },
       { key: 'homeNightDim', title: 'Dim the home screen too', note: 'Same hours, on the home screen', kind: 'switch' },
       { key: 'nightStartHour', title: 'Dim from', kind: 'select', showIf: function (s) { return s.nightDim || s.homeNightDim; } },

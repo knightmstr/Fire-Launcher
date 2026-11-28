@@ -113,7 +113,7 @@ The first time, the Fire TV may ask you to let Onyx TV install apps. Choose **Op
 
 ## Going back to Amazon's home
 
-Go to **⚙ → Launcher settings** and turn off **Home button opens Onyx TV**, **Use as Fire TV screensaver** and **Keep Fire TV awake**. Home opens Amazon's home again, and Amazon's screensaver and sleep settings come back. Onyx TV stays installed, and you can open it from *Your Apps & Channels* whenever you like.
+Go to **⚙ → Launcher settings** and turn off **Home button opens Onyx TV** and **Keep Fire TV awake**, and set **Screensaver inside other apps** back to **Amazon's**. Home opens Amazon's home again, and Amazon's screensaver and sleep settings come back. Onyx TV stays installed, and you can open it from *Your Apps & Channels* whenever you like.
 
 If you turned off Amazon's screensaver while [debloating](DEBLOAT.md), turn it back on, or you'll have no screensaver at all:
 
