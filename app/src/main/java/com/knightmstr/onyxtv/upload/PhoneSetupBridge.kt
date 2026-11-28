@@ -45,6 +45,18 @@ interface PhoneSetupBridge {
     /** Saves settings already checked by [SettingsJson.apply]. */
     fun updateSettings(settings: LauncherSettings)
 
+    // ---------------------------------------------------------------- Wallpaper links ("My links")
+
+    fun wallpaperUrls(): List<String>
+
+    /**
+     * Checks a picture link, cloud share link, subreddit or Reddit post online and saves what it
+     * resolves to (see WallpaperLinkResolver).
+     */
+    fun addWallpaperUrl(url: String): LinkResult
+
+    fun removeWallpaperUrl(url: String)
+
     // ---------------------------------------------------------------- Backup
 
     fun exportBackup(): BackupData
@@ -62,6 +74,12 @@ interface PhoneSetupBridge {
 
     /** Called after anything changed, so the TV can refresh (e.g. reload wallpapers). */
     fun onChanged() {}
+}
+
+sealed class LinkResult {
+    /** [what] is e.g. "picture", "3 pictures", "r/EarthPorn". */
+    data class Added(val what: String) : LinkResult()
+    data class Failed(val message: String) : LinkResult()
 }
 
 /** An installed app as the phone page sees it. No icons inline: those come from /api/icon. */

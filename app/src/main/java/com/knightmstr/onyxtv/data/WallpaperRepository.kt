@@ -13,14 +13,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
- * Supplies wallpapers from the user's own photos (default) or r/TVWallpapersSFW,
- * and cycles through them on a user-configurable interval.
+ * Supplies wallpapers from the user's own photos (default), r/TVWallpapersSFW, or "My links"
+ * (picture links and subreddits), and cycles through them on a user-configurable interval.
  */
 class WallpaperRepository(
     private val scope: CoroutineScope,
@@ -32,6 +28,11 @@ class WallpaperRepository(
     private val customUrls: Flow<List<String>>
 ) {
     companion object {
+        private const val DEFAULT_SUBREDDIT = "TVWallpapersSFW"
+        private const val SUBREDDIT_CACHE_MS = 60 * 60 * 1000L
+        private const val PER_SUBREDDIT = 25
+        private const val MAX_FEEDS = 10
+
 
         val FALLBACK_WALLPAPERS = listOf(
             WallpaperModel(
@@ -99,6 +100,7 @@ class WallpaperRepository(
     val localPhotoCount: StateFlow<Int> = _localPhotoCount.asStateFlow()
 
     private var redditCache: List<WallpaperModel>? = null
+    private val subredditCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<WallpaperModel>>>()
     private val reloadTick = MutableStateFlow(0)
 
     init {
@@ -143,9 +145,25 @@ class WallpaperRepository(
         _currentWallpaper.value = list.first()
     }
 
-    private fun customWallpapers(urls: List<String>): List<WallpaperModel> =
-        urls.map { url ->
-            WallpaperModel(
+    /**
+     * My links: pictures first, in the order added, then pictures pulled from any subreddits and
+     * Drive folders in the list (a few from each, mixed together).
+     */
+    private suspend fun customWallpapers(urls: List<String>): List<WallpaperModel> {
+        val pictures = ArrayList<WallpaperModel>()
+        val feedSources = ArrayList<suspend () -> List<WallpaperModel>>()
+        for (url in urls) {
+            val sub = WallpaperLinks.subredditOf(url)
+            if (sub != null) {
+                if (feedSources.size < MAX_FEEDS) feedSources += { subredditWallpapers(sub) }
+                continue
+            }
+            val folder = WallpaperLinks.driveFolderOf(url)
+            if (folder != null) {
+                if (feedSources.size < MAX_FEEDS) feedSources += { driveFolderWallpapers(folder.id, folder.resourceKey) }
+                continue
+            }
+            pictures += WallpaperModel(
                 id = "custom_${url.hashCode()}",
                 title = "My link",
                 url = url,
@@ -154,6 +172,12 @@ class WallpaperRepository(
                 source = WallpaperModel.SOURCE_CUSTOM
             )
         }
+        val feeds = feedSources.map { it() }
+        val mixed = ArrayList<WallpaperModel>()
+        val longest = feeds.maxOfOrNull { it.size } ?: 0
+        for (i in 0 until longest) feeds.forEach { feed -> feed.getOrNull(i)?.let { mixed += it } }
+        return pictures + mixed.distinctBy { it.url }
+    }
 
     private suspend fun redditWallpapers(): List<WallpaperModel> =
         redditCache ?: fetchRedditWallpapers().ifEmpty { FALLBACK_WALLPAPERS }.also { redditCache = it }
@@ -180,83 +204,37 @@ class WallpaperRepository(
         _currentWallpaper.value = wallpaper
     }
 
-    /**
-     * Queries r/TVWallpapersSFW JSON endpoint and extracts 16:9 images.
-     */
-    private suspend fun fetchRedditWallpapers(): List<WallpaperModel> = withContext(Dispatchers.IO) {
-        val parsedList = mutableListOf<WallpaperModel>()
-        try {
-            val url = URL("https://www.reddit.com/r/TVWallpapersSFW/hot.json?limit=40")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 5000
-                readTimeout = 7000
-                setRequestProperty("User-Agent", "android:com.knightmstr.onyxtv:v1.0 (Fire OS Leanback)")
-                setRequestProperty("Accept", "application/json")
-            }
-
-            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val jsonString = reader.use { it.readText() }
-                val root = JSONObject(jsonString)
-                val children = root.getJSONObject("data").getJSONArray("children")
-
-                for (i in 0 until children.length()) {
-                    val childData = children.getJSONObject(i).getJSONObject("data")
-                    val isNsfw = childData.optBoolean("over_18", false)
-                    val isVideo = childData.optBoolean("is_video", false)
-                    if (isNsfw || isVideo) continue
-
-                    var imgUrl = childData.optString("url", "")
-                    val isDirectImage = imgUrl.endsWith(".jpg", true) ||
-                            imgUrl.endsWith(".jpeg", true) ||
-                            imgUrl.endsWith(".png", true) ||
-                            imgUrl.endsWith(".webp", true)
-
-                    if (!isDirectImage && childData.has("preview")) {
-                        try {
-                            val images = childData.getJSONObject("preview").getJSONArray("images")
-                            if (images.length() > 0) {
-                                val sourceUrl = images.getJSONObject(0).getJSONObject("source").getString("url")
-                                imgUrl = sourceUrl.replace("&amp;", "&")
-                            }
-                        } catch (_: Exception) {
-                            // continue with direct url
-                        }
-                    }
-
-                    val isSafeUrl = imgUrl.startsWith("https://", ignoreCase = true) &&
-                            try {
-                                val host = java.net.URI(imgUrl).host?.lowercase() ?: ""
-                                host == "i.redd.it" ||
-                                        host == "preview.redd.it" ||
-                                        host == "external-preview.redd.it" ||
-                                        host.endsWith(".redd.it") ||
-                                        host == "i.imgur.com" ||
-                                        host.endsWith(".imgur.com") ||
-                                        host == "images.unsplash.com"
-                            } catch (_: Exception) {
-                                false
-                            }
-
-                    if (isSafeUrl) {
-                        parsedList.add(
-                            WallpaperModel(
-                                id = childData.optString("id", "post_$i"),
-                                title = childData.optString("title", "TV Wallpaper").take(120),
-                                url = imgUrl,
-                                author = "u/" + childData.optString("author", "reddit_user").take(40),
-                                permalink = "https://reddit.com" + childData.optString("permalink", "").take(200),
-                                source = "reddit"
-                            )
-                        )
-                    }
-                }
-
-            }
-        } catch (_: Exception) {
-            // Offline or restricted: caller uses the curated fallbacks
-        }
-        parsedList
+    /** Pictures from one subreddit, cached for [SUBREDDIT_CACHE_MS] so rotation doesn't hammer Reddit. */
+    private suspend fun subredditWallpapers(name: String): List<WallpaperModel> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        subredditCache[name]?.let { (at, list) -> if (now - at < SUBREDDIT_CACHE_MS) return@withContext list }
+        val list = RedditImages.fetchJson(RedditImages.listingUrl(name))
+            ?.let { runCatching { RedditImages.parseListing(JSONObject(it), name, limit = PER_SUBREDDIT) }.getOrNull() }
+            .orEmpty()
+        // Keep the last good list if Reddit is briefly unreachable.
+        if (list.isNotEmpty() || subredditCache[name] == null) subredditCache[name] = now to list
+        subredditCache[name]?.second.orEmpty()
     }
+
+    /** Photos in a public Drive folder, cached like subreddits; new photos show up within the hour. */
+    private suspend fun driveFolderWallpapers(id: String, resourceKey: String?): List<WallpaperModel> = withContext(Dispatchers.IO) {
+        val key = "drive:$id"
+        val now = System.currentTimeMillis()
+        subredditCache[key]?.let { (at, list) -> if (now - at < SUBREDDIT_CACHE_MS) return@withContext list }
+        val list = DriveFolder.fetchHtml(id, resourceKey)?.let { DriveFolder.photoUrls(it) }.orEmpty().map { url ->
+            WallpaperModel(
+                id = "drive_${url.hashCode()}",
+                title = "Google Drive",
+                url = url,
+                author = "Your Drive folder",
+                permalink = WallpaperLinks.driveFolderUrl(id, resourceKey),
+                source = WallpaperModel.SOURCE_CUSTOM
+            )
+        }
+        if (list.isNotEmpty() || subredditCache[key] == null) subredditCache[key] = now to list
+        subredditCache[key]?.second.orEmpty()
+    }
+
+    /** r/TVWallpapersSFW, the built-in Reddit source. */
+    private suspend fun fetchRedditWallpapers(): List<WallpaperModel> = subredditWallpapers(DEFAULT_SUBREDDIT)
 }

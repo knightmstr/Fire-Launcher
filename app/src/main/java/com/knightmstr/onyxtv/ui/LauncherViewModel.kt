@@ -46,12 +46,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.knightmstr.onyxtv.data.WallpaperUrlValidator
 import com.knightmstr.onyxtv.upload.LanAddress
 import com.knightmstr.onyxtv.upload.IconPng
 import com.knightmstr.onyxtv.upload.PhoneSetupBridge
 import com.knightmstr.onyxtv.upload.PhoneSetupServer
 import com.knightmstr.onyxtv.upload.SetupApp
+import com.knightmstr.onyxtv.upload.LinkResult
+import com.knightmstr.onyxtv.data.WallpaperLinkResolver
 import com.knightmstr.onyxtv.upload.SetupToken
 import kotlinx.coroutines.runBlocking
 
@@ -487,6 +488,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
         override fun updateSettings(settings: LauncherSettings) = runBlocking { prefs.updateSettings(settings) }
 
+        override fun wallpaperUrls() = runBlocking { prefs.customWallpaperUrlsFlow.first() }
+
+        override fun addWallpaperUrl(url: String): LinkResult = runBlocking {
+            when (val result = WallpaperLinkResolver.resolve(url)) {
+                is WallpaperLinkResolver.Result.Ok -> {
+                    prefs.addCustomWallpaperUrls(result.urls)
+                    LinkResult.Added(result.what)
+                }
+                is WallpaperLinkResolver.Result.Error -> LinkResult.Failed(result.message)
+            }
+        }
+
+        override fun removeWallpaperUrl(url: String) = runBlocking { prefs.removeCustomWallpaperUrl(url) }
+
         override fun exportBackup() = runBlocking { prefs.backupSnapshot() }
 
         // Weather follows on its own: it watches the stored city and units.
@@ -602,18 +617,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _wallpaperUrlDialogOpen.value = false
     }
 
-    /** Validates a pasted URL (reachable + a real image) before saving it. */
+    /**
+     * Checks a pasted picture link, cloud share link, subreddit or Reddit post online, then saves
+     * what it resolves to.
+     */
     fun addWallpaperUrl(raw: String) {
         val url = raw.trim()
         if (url.isEmpty()) return
         viewModelScope.launch {
             _wallpaperUrlStatus.value = WallpaperUrlStatus.Checking
-            _wallpaperUrlStatus.value = when (val result = WallpaperUrlValidator.validate(url)) {
-                is WallpaperUrlValidator.Result.Ok -> {
-                    prefs.addCustomWallpaperUrl(url) // repo observes the flow, so wallpapers refresh
-                    WallpaperUrlStatus.Added
+            _wallpaperUrlStatus.value = when (val result = WallpaperLinkResolver.resolve(url)) {
+                is WallpaperLinkResolver.Result.Ok -> {
+                    prefs.addCustomWallpaperUrls(result.urls) // repo observes the flow, so wallpapers refresh
+                    WallpaperUrlStatus.Added(result.what)
                 }
-                is WallpaperUrlValidator.Result.Error -> WallpaperUrlStatus.Failed(result.message)
+                is WallpaperLinkResolver.Result.Error -> WallpaperUrlStatus.Failed(result.message)
             }
         }
     }
@@ -963,7 +981,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 sealed interface WallpaperUrlStatus {
     data object Idle : WallpaperUrlStatus
     data object Checking : WallpaperUrlStatus
-    data object Added : WallpaperUrlStatus
+    data class Added(val what: String) : WallpaperUrlStatus
     data class Failed(val message: String) : WallpaperUrlStatus
 }
 

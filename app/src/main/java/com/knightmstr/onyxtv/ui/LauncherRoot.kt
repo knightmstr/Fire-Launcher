@@ -371,6 +371,8 @@ fun LauncherRoot(
             onNextWallpaper = viewModel::nextWallpaper,
             nowPlaying = nowPlaying,
             nightDim = settings.nightDim,
+            nightStartHour = settings.nightStartHour,
+            nightEndHour = settings.nightEndHour,
             contentScale = settings.wallpaperFit.toContentScale()
         )
     }

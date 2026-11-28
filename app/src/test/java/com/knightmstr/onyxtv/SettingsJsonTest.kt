@@ -6,6 +6,7 @@ import com.knightmstr.onyxtv.data.WallpaperFit
 import com.knightmstr.onyxtv.upload.SettingsJson
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,10 +46,36 @@ class SettingsJsonTest {
     }
 
     @Test
+    fun `night hours accept 0 to 23 only`() {
+        val r = apply("""{"nightStartHour":21,"nightEndHour":7}""") as SettingsJson.Result.Ok
+        assertEquals(21, r.settings.nightStartHour)
+        assertEquals(7, r.settings.nightEndHour)
+        for (bad in listOf("24", "-1", "6.5", "\"6\"", "true")) {
+            assertTrue(bad, apply("""{"nightEndHour":$bad}""") is SettingsJson.Result.Invalid)
+        }
+    }
+
+    @Test
+    fun `night window handles midnight and equal hours`() {
+        assertTrue(LauncherSettings.isNight(23, 22, 6))
+        assertTrue(LauncherSettings.isNight(0, 22, 6))
+        assertTrue(LauncherSettings.isNight(5, 22, 6))
+        assertFalse(LauncherSettings.isNight(6, 22, 6))
+        assertFalse(LauncherSettings.isNight(21, 22, 6))
+        assertTrue(LauncherSettings.isNight(14, 13, 15))
+        assertFalse(LauncherSettings.isNight(15, 13, 15))
+        assertFalse(LauncherSettings.isNight(12, 0, 0))
+        assertTrue(LauncherSettings.isNight(0, 0, 1))
+        assertEquals("12 am", LauncherSettings.describeHour(0))
+        assertEquals("12 pm", LauncherSettings.describeHour(12))
+        assertEquals("10 pm", LauncherSettings.describeHour(22))
+    }
+
+    @Test
     fun `every option the page is offered is accepted`() {
         val opts = SettingsJson.options()
         for (key in listOf("homeLayout", "cardShape", "wallpaperSource", "wallpaperFit",
-            "wallpaperIntervalMinutes", "screensaverTimeoutMinutes")) {
+            "wallpaperIntervalMinutes", "screensaverTimeoutMinutes", "nightStartHour", "nightEndHour")) {
             val arr = opts.getJSONArray(key)
             for (i in 0 until arr.length()) {
                 val v = arr.getJSONObject(i).get("value")

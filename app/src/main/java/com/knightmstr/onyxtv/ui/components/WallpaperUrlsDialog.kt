@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.runtime.Composable
+import com.knightmstr.onyxtv.data.WallpaperLinks
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,7 +57,7 @@ fun WallpaperUrlsDialog(
 
     TvDialogFrame(
         title = "Photo links",
-        subtitle = "Paste an https image link to use as a wallpaper",
+        subtitle = "A picture link, a Drive photo or folder, Dropbox / OneDrive, a Reddit post, or a subreddit like r/EarthPorn",
         accentColor = Color(0xFF34D399),
         onDismiss = onDismiss,
         width = 580.dp
@@ -84,7 +85,7 @@ fun WallpaperUrlsDialog(
 
         val statusText: String? = when (status) {
             is WallpaperUrlStatus.Checking -> "Checking the link…"
-            is WallpaperUrlStatus.Added -> "Added."
+            is WallpaperUrlStatus.Added -> "Added ${status.what}."
             is WallpaperUrlStatus.Failed -> status.message
             WallpaperUrlStatus.Idle -> null
         }
@@ -119,8 +120,19 @@ fun WallpaperUrlsDialog(
             )
         } else {
             urls.forEach { url ->
+                val subreddit = WallpaperLinks.subredditOf(url)
+                val folder = WallpaperLinks.driveFolderOf(url)
                 TvMenuItem(
-                    title = url,
+                    title = when {
+                        subreddit != null -> "r/$subreddit"
+                        folder != null -> "Google Drive folder"
+                        else -> url
+                    },
+                    subtitle = when {
+                        subreddit != null -> "New pictures from this subreddit"
+                        folder != null -> "Every photo in it, including ones you add later"
+                        else -> null
+                    },
                     icon = Icons.Rounded.Link,
                     iconTint = TextSecondary,
                     trailing = "Remove",

@@ -20,8 +20,12 @@ data class LauncherSettings(
     val cardShape: CardShape = CardShape.ROUNDED,
     /** Show every app as a row on the home screen (off: use the All Apps tile instead). */
     val showAllAppsRow: Boolean = false,
-    /** Darken the screensaver between 10pm and 6am. */
+    /** Darken the screensaver between [nightStartHour] and [nightEndHour]. */
     val nightDim: Boolean = true,
+    /** Hour (0–23) night dimming starts, e.g. 22 = 10pm. */
+    val nightStartHour: Int = NIGHT_START_HOUR,
+    /** Hour (0–23) night dimming ends, e.g. 6 = 6am. */
+    val nightEndHour: Int = NIGHT_END_HOUR,
     /** Dock: apps always at the bottom. Clean: only the clock until you press a button. */
     val homeLayout: HomeLayout = HomeLayout.DOCK,
     /** Which release channel app updates come from. Stable by default. */
@@ -32,11 +36,29 @@ data class LauncherSettings(
     companion object {
         const val DEFAULT_WALLPAPER_INTERVAL = 30
 
-        /** Night dimming hours for the screensaver: from 22:00 until 06:00. */
+        /** Default night dimming hours for the screensaver: from 22:00 until 06:00. */
         const val NIGHT_START_HOUR = 22
         const val NIGHT_END_HOUR = 6
+        val HOUR_RANGE = 0..23
 
-        fun isNight(hourOfDay: Int): Boolean = hourOfDay >= NIGHT_START_HOUR || hourOfDay < NIGHT_END_HOUR
+        fun clampHour(hour: Int): Int = hour.coerceIn(HOUR_RANGE.first, HOUR_RANGE.last)
+
+        /**
+         * True if [hourOfDay] falls in the window from [start] (inclusive) to [end] (exclusive).
+         * The window may cross midnight (22 → 6). Equal start and end means no dimming.
+         */
+        fun isNight(hourOfDay: Int, start: Int = NIGHT_START_HOUR, end: Int = NIGHT_END_HOUR): Boolean = when {
+            start == end -> false
+            start < end -> hourOfDay in start until end
+            else -> hourOfDay >= start || hourOfDay < end
+        }
+
+        /** "10 pm", "12 am", "12 pm", "6 am". */
+        fun describeHour(hour: Int): String {
+            val h = clampHour(hour)
+            val twelve = if (h % 12 == 0) 12 else h % 12
+            return "$twelve ${if (h < 12) "am" else "pm"}"
+        }
         const val DEFAULT_SCREENSAVER_TIMEOUT = 10
 
         /** Tile size slider: 90dp (tiny) to 170dp, in 10dp steps; 140dp is the old "Small". */

@@ -64,6 +64,8 @@ class LauncherPrefsStore(private val context: Context) {
         private val KEY_HOME_LAYOUT = stringPreferencesKey("settings_home_layout")
         private val KEY_SHOW_ALL_APPS_ROW = booleanPreferencesKey("settings_show_all_apps_row")
         private val KEY_NIGHT_DIM = booleanPreferencesKey("settings_screensaver_night_dim")
+        private val KEY_NIGHT_START = intPreferencesKey("settings_screensaver_night_start_hour")
+        private val KEY_NIGHT_END = intPreferencesKey("settings_screensaver_night_end_hour")
         private val KEY_UPDATE_CHANNEL = stringPreferencesKey("settings_update_channel")
         private val KEY_WALLPAPER_FIT = stringPreferencesKey("settings_wallpaper_fit")
 
@@ -163,6 +165,8 @@ class LauncherPrefsStore(private val context: Context) {
             cardShape = CardShape.fromName(p[KEY_CARD_SHAPE]),
             showAllAppsRow = p[KEY_SHOW_ALL_APPS_ROW] ?: false,
             nightDim = p[KEY_NIGHT_DIM] ?: true,
+            nightStartHour = LauncherSettings.clampHour(p[KEY_NIGHT_START] ?: LauncherSettings.NIGHT_START_HOUR),
+            nightEndHour = LauncherSettings.clampHour(p[KEY_NIGHT_END] ?: LauncherSettings.NIGHT_END_HOUR),
             homeLayout = HomeLayout.fromName(p[KEY_HOME_LAYOUT]),
             updateChannel = UpdateChannel.fromName(p[KEY_UPDATE_CHANNEL]),
             wallpaperFit = WallpaperFit.fromName(p[KEY_WALLPAPER_FIT])
@@ -185,6 +189,8 @@ class LauncherPrefsStore(private val context: Context) {
         p[KEY_HOME_LAYOUT] = settings.homeLayout.name
         p[KEY_SHOW_ALL_APPS_ROW] = settings.showAllAppsRow
         p[KEY_NIGHT_DIM] = settings.nightDim
+        p[KEY_NIGHT_START] = LauncherSettings.clampHour(settings.nightStartHour)
+        p[KEY_NIGHT_END] = LauncherSettings.clampHour(settings.nightEndHour)
         p[KEY_UPDATE_CHANNEL] = settings.updateChannel.name
         p[KEY_WALLPAPER_FIT] = settings.wallpaperFit.name
     }
@@ -203,6 +209,16 @@ class LauncherPrefsStore(private val context: Context) {
             val current = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])
             if (clean in current || current.size >= MAX_CUSTOM_WALLPAPER_URLS) return@edit
             p[KEY_CUSTOM_WALLPAPER_URLS] = PrefsCodec.encodeList(current + clean)
+        }
+    }
+
+    /** Appends several (already-resolved) URLs at once, skipping duplicates, up to the cap. */
+    suspend fun addCustomWallpaperUrls(urls: List<String>) {
+        context.dataStore.edit { p ->
+            val current = PrefsCodec.decodeList(p[KEY_CUSTOM_WALLPAPER_URLS])
+            val merged = (current + urls.map { it.trim() }.filter { it.isNotEmpty() }).distinct()
+                .take(maxOf(current.size, MAX_CUSTOM_WALLPAPER_URLS))
+            p[KEY_CUSTOM_WALLPAPER_URLS] = PrefsCodec.encodeList(merged)
         }
     }
 
